@@ -1,0 +1,65 @@
+{
+  "version": "0.2.1",
+  "recorded_at_utc": "2026-09-30T21:00:13.427449+00:00",
+  "python": "3.12.14",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "monotonic_clock": {
+    "implementation": "GetTickCount64()",
+    "resolution_seconds": 0.015625
+  },
+  "checks": [
+    {
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-q"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 3.547,
+      "output": "[indeces.discord_bridge] Discord connected as namespace(id=99)\n[indeces.discord_bridge] Discord connected as namespace(id=99)\n----------------------------------------------------------------------\nRan 163 tests in 3.201s\n\nOK (skipped=2)"
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "check",
+        "--config",
+        "config.example.toml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.75,
+      "output": "Offline configuration/import check OK; Indices 0.2.1; discord.py 2.7.1.\nLive Discord and model calls were not made."
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "pip",
+        "check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.719,
+      "output": "No broken requirements found."
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "console"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.328,
+      "output": "Indices 0.2.1 console: discord | start | status | scratch | quit\nIndices>"
+    }
+  ],
+  "live_model_calls": false,
+  "live_discord_connection": false,
+  "credential_tests": "Synthetic tokens only; Windows current-user DPAPI roundtrip/tamper cases included.",
+  "windows_short_path_regression": "Three original fault-injection tests reproduced failures under a synthetic Windows 8.3 temp parent. Resolved fixtures and explicit injected-fault assertions made all three pass under the same parent. No production behavior changed."
+}

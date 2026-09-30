@@ -37,7 +37,8 @@ class DiscordWizardTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
-        self.path = Path(self.directory.name) / "config.local.toml"
+        # Match the wizard's canonical path, including Windows 8.3 aliases.
+        self.path = (Path(self.directory.name) / "config.local.toml").resolve()
         example = Path(__file__).resolve().parents[1] / "config.example.toml"
         self.original = example.read_bytes().replace(b'name = "Indices"', b'name = "Indeces"')
         self.path.write_bytes(self.original)
@@ -165,14 +166,18 @@ class DiscordWizardTests(unittest.TestCase):
     def test_config_write_failure_restores_previous_ciphertext(self):
         cipher = self.previous_credential()
         write = discord_wizard._atomic_write
+        fault_injected = False
 
         def fail_config(path, contents):
+            nonlocal fault_injected
             if path == self.path:
+                fault_injected = True
                 raise OSError("synthetic failure with " + TOKEN)
             return write(path, contents)
 
         with patch.object(discord_wizard, "_atomic_write", side_effect=fail_config):
             saved, _, _ = self.configure(answers=[OTHER_GUILD, "", "y"])
+        self.assertTrue(fault_injected, "The configuration-write failure must be injected.")
         self.assertFalse(saved)
         self.assertEqual(self.path.read_bytes(), self.original)
         self.assertEqual(secret_path(self.path).read_bytes(), cipher)
@@ -190,14 +195,18 @@ class DiscordWizardTests(unittest.TestCase):
     def test_interrupt_during_config_write_restores_previous_ciphertext(self):
         cipher = self.previous_credential()
         write = discord_wizard._atomic_write
+        fault_injected = False
 
         def interrupt_config(path, contents):
+            nonlocal fault_injected
             if path == self.path:
+                fault_injected = True
                 raise KeyboardInterrupt()
             return write(path, contents)
 
         with patch.object(discord_wizard, "_atomic_write", side_effect=interrupt_config):
             saved, _, _ = self.configure(answers=[OTHER_GUILD, "", "y"])
+        self.assertTrue(fault_injected, "The configuration-write interruption must be injected.")
         self.assertFalse(saved)
         self.assertEqual(self.path.read_bytes(), self.original)
         self.assertEqual(secret_path(self.path).read_bytes(), cipher)
@@ -232,6 +241,7 @@ class DiscordWizardTests(unittest.TestCase):
 
         with patch.object(discord_wizard, "_atomic_write", side_effect=write_then_interrupt):
             saved, _, _ = self.configure(answers=[OTHER_GUILD, "", "y"])
+        self.assertTrue(interrupted, "The interruption after replacement must be injected.")
         self.assertFalse(saved)
         self.assertEqual(self.path.read_bytes(), self.original)
         self.assertEqual(secret_path(self.path).read_bytes(), cipher)

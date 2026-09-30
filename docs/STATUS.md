@@ -1,4 +1,4 @@
-# 交付状态：0.2.0
+# 交付状态：0.2.1
 
 截至用户时区日期 2026-09-30，本体已在 `D:\Indeces` 实现。GitHub 私有仓库为 [Indeces_memory_manager](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。源码提交/推送结果由交付消息及 Git 历史确认；创建仓库本身不代表服务已启动。
 
@@ -16,7 +16,8 @@ Bot token 在 Windows 使用当前用户 DPAPI 加密，带应用 entropy、版�
 
 ## 验证证据
 
-- 0.2.0 本机完整离线测试：Windows/CPython 3.12.14，**163 tests / 0 failures / 2 skips**，6.418 秒；含新增向导 28、Console 14、人设 6、凭据 26 项。配置/导入、`pip check`、Console 退出烟雾检查均通过，可复现摘要见 [verification/OFFLINE_020.json](../verification/OFFLINE_020.json)。远端 Windows/Linux CI 以对应提交的 GitHub checks 为准。
+- 0.2.1 本机完整离线测试：Windows/CPython 3.12.14，**163 tests / 0 failures / 2 skips**，3.201 秒。配置/导入、`pip check` 与 Console 退出烟雾检查均通过；可复现摘要见 [verification/OFFLINE_021.json](../verification/OFFLINE_021.json)。远端 Windows/Linux CI 以对应提交的 GitHub checks 为准。
+- 0.2.0 本机历史离线测试：**163 tests / 0 failures / 2 skips**，6.418 秒；含新增向导 28、Console 14、人设 6、凭据 26 项。摘要见 [verification/OFFLINE_020.json](../verification/OFFLINE_020.json)。[该提交的 CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36775737063) 中 Ubuntu 通过，但 Windows 的 3 项故障注入测试未触发预期失败；此历史结果不能称为跨平台验收通过。
 - 当前凭据专项：**26 tests / 0 failures / 2 skips**。执行了真实 DPAPI 的合成 token 往返与密文篡改拒绝；另外覆盖 Guild 不匹配、密文/JSON 损坏、固定安全错误、原子替换失败保留旧文件、临时文件和句柄清理、禁止 getpass 回退到明文回显。跳过非 Windows 保存行为及本机无法创建符号链接的用例；非 Windows 原生 helper 拒绝持久化通过模拟平台检查。
 - 向导覆盖配置预算与无关注释保留、活动实例锁、旧 token 保留/重绑定/损坏修复、取消不保存、两次替换中断后恢复快照、外部修改拒绝覆盖、回滚失败明确报告，以及保存完成后取消的准确提示。Console 验证保存后重载与凭据来源顺序；未以 mock Gateway 的就绪事件作为真实连接证据。
 - 0.1.0 历史基线：**89 tests / 0 failures / 0 skips**，最近完整运行 4.291 秒；adaptor 13、context/runtime 14、Discord bridge 16、被动知识版本 23、Hebbian memory 16、scratch 5、单实例锁 2。
@@ -28,6 +29,8 @@ Bot token 在 Windows 使用当前用户 DPAPI 加密，带应用 entropy、版�
 0.1.0 最后一次验证发现计时测试错误假定所有调用 elapsed>0：本机 `monotonic` 为 GetTickCount64，分辨率 0.015625 秒，即时 fake 调用可合法记为 0。已修正测试为允许非负测量，没有人为加 epsilon 或提高虚假精度；clock 信息一并存入历史验证摘要。
 
 0.2.0 审计修复：原 `.isdigit()` 接受非 ASCII 数字和无效雪花 ID；向导加载配置与取得快照之间可能漂移；保存中断可能留下已变更 token 却提示未修改；保存后取消可能错误声称未保存；`fdopen` 失败可能泄漏临时文件句柄；默认 getpass 可能回退到回显输入。现分别以规范化 ID 校验、快照一致性检查、双文件异常回滚/失败报告、提交状态标记、描述符所有权管理及回显拒绝解决。回滚失败和进程突然终止不能被描述成两文件具有同一个原子事务；Guild 绑定可阻止范围不匹配凭据被直接使用。
+
+0.2.1 修复测试的 Windows 路径兼容性：临时目录的 8.3 短路径与向导规范路径在字符串比较时不同，导致三处故障注入未执行。用 `GetShortPathNameW` 构造临时父目录，修改前复现 3 项失败，规范化 fixture 并显式断言注入发生后同样目录下 3 项全部通过。生产向导、图公式和预算没有因此修改；保留原 v0.2.0 标签与失败 CI 历史。
 
 ## 未完成与边界
 

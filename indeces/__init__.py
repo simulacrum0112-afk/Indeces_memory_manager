@@ -1,3 +1,3 @@
 """Indeces memory manager: Discord is the only conversation surface."""
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
