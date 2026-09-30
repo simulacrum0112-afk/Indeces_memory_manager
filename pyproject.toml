@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "indeces-memory-manager"
+version = "0.1.0"
+description = "A single Discord headless runtime with governed Hebbian memory and audited model calls"
+requires-python = ">=3.12"
+dependencies = ["discord.py==2.7.1"]
+
+[project.scripts]
+indeces = "indeces.console:main"
+
+[tool.setuptools.packages.find]
+include = ["indeces*"]

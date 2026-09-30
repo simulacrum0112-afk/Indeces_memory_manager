@@ -1,0 +1,108 @@
+# Indeces_memory_manager
+
+一个小型 Python 无头智能体：一个 Discord Bot 连接、一个串行消息 worker、GPT-6-Luna adaptor、本地知识库、动态 Hebbian 标注词网络，以及可检查的输入输出 scratch log。
+
+只处理指定服务器中人类显式 `@Bot` 的文字消息，并回复一条 Discord 消息。短期上下文按频道隔离。没有工具执行、MCP、HTTP 服务、网页搜索、日程、主动发言或多 Bot 路由。
+
+**聊天标词和聊天自动入库关闭。** 本地 `knowledge/` 中的 Markdown/UTF-8 文本文件更新才触发后台被动标词。后台维护与回答是独立任务；当前模型传输共享一个串行请求槽，预算互不借用。
+
+```mermaid
+flowchart LR
+    D[Discord 显式 at] --> Q[有界队列 / 单 worker]
+    Q --> R[只读知识检索]
+    R --> C[原文水位 / 必要时摘要]
+    C --> A[回复模型调用]
+    A --> O[Discord 引用回复]
+    K[knowledge 文件更新] --> V[不可变版本 / 待标词]
+    V --> L[后台被动标词]
+    L --> G[静态 NPMI + 独立动态权重]
+    G --> R
+    A --> S[预算 / 请求 / 响应 / usage / 来源日志]
+    L --> S
+    C --> S
+```
+
+## 启动
+
+需要 Python 3.12 或更新版本。已在 Windows / CPython 3.12.14 离线验证；Linux CI 已配置，首次远端运行结果另行核对。
+
+Windows 首次安装运行 `setup.cmd`，然后双击 `Indeces-Console.cmd`。已有本地 `.venv`，可直接打开 Console。
+
+跨平台等价命令：
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.lock
+.\.venv\Scripts\python.exe -m pip install --no-deps -e .
+.\.venv\Scripts\python.exe -m indeces init
+```
+
+Linux 使用 `.venv/bin/python`。编辑 `config.local.toml`，填写 `discord.guild_id`；`channel_ids` 可以限制频道，空列表允许该服务器中所有符合显式 @ 条件的频道。
+
+API key 和 Discord Bot token 通过 `OPENAI_API_KEY`、`DISCORD_BOT_TOKEN` 环境变量提供，或者 `start` 时在本地隐藏输入；不写入配置、日志或仓库。不读取 Yuki 的秘密配置。`.env.example` 只说明变量名，不自动加载 `.env`。
+
+```powershell
+.\.venv\Scripts\python.exe -m indeces
+```
+
+Console 命令：`start`、`status`、`scratch`、`quit`。`start` 在前台运行；Ctrl+C 停机并返回 Console。无头启动也可用 `python -m indeces start`。`status` 是配置和持久状态快照，不保证服务当前在线。
+
+Discord Bot 需启用服务器消息事件，并具有 View Channel、Send Messages、Read Message History 权限。显式提及应用的消息正文可使用 Message Content intent 的例外；本实现不申请该特权 intent。[Discord Gateway](https://docs.discord.com/developers/events/gateway#message-content-intent)
+
+## 知识库与标词
+
+把 `.md`、`.markdown` 或 `.txt` 文件保存到 `knowledge/`，允许子目录。运行中的服务每 0.5 秒检测稳定文件快照：
+
+1. 保存文件原文、路径、SHA-256 和不可变版本；替换或删除时归档旧版本。
+2. 按最多 400 个字符分块，只让模型返回标注词，保持原文不变。
+3. 全部块通过标签校验、文件版本再次核对和预算检查后，原文块与 `ready` 状态在同一 SQLite 事务内发布。
+4. 检索只使用当前已完成版本。知识库对指定服务器的允许频道共享；聊天历史仍按频道隔离。
+
+后台模型请求和聊天消息不互相调用。没有知识更新时，不调用标词模型。标词不产生 Hebbian 强化；只有回答路径中的实际字面标注词命中产生检索事件。新知识变更在模型繁忙时排队，默认 0.5 秒是检测间隔，不是承诺的模型完成延迟。
+
+默认每个文件最多 8192 字节、最多 128 个文件。单知识版本另有 360 秒、65536 输入 token、16384 输出 token 的累计熔断上限。某版本失败时保留原文和已知 usage，记录失败原因，不自动无限重试；修改文件内容形成新版本后重新触发。服务关闭期间的更新在下次启动时检测。
+
+网络采用用户指定的参考仓库策略，并接入经批准的动态在线排序。完整的“参考基线 → 实现”表见 [docs/BASELINE.md](docs/BASELINE.md)。动态公式保留 `η=1`、`λ=.99`；本版把一次有直接命中的实际检索定义为一个衰减周期，因此衰减速度取决于检索次数，不是按日。来源支持、单跳门控、旧版本归档与事件幂等均有离线回归测试；检索相关性尚未做真实数据评估。
+
+## 调用预算
+
+配置属于 `adapter.budgets`，固定模型 `gpt-6-luna`。目前使用官方 OpenAI Responses API；没有工具、服务端会话、后台生成或自动重试。模型 ID 与接口依据 [OpenAI Luna 文档](https://developers.openai.com/api/docs/models/gpt-6-luna)。
+
+| 独立阶段 | 最大输入 token | 最大输出 token | 时间上限 | reasoning |
+|---|---:|---:|---:|---|
+| 后台 label | 4096 | 512 | 15 秒 | none |
+| 条件式 summary | 16384 | 2048 | 20 秒 | none |
+| reply | 16384 | 2048 | 45 秒 | low |
+
+各阶段先串行调用 `/responses/input_tokens`，超限不发生成请求；然后最多一次 `/responses`。计量请求与生成共享该阶段时间上限。输出上限包含模型不可见的生成 token，返回 usage 再次校验。具体接口见 [输入计量](https://developers.openai.com/api/reference/resources/responses/subresources/input_tokens/methods/count) 和 [Responses](https://developers.openai.com/api/reference/python/resources/responses/methods/create)。
+
+一条普通聊天通常为 1 次计量 + 1 次回复；触发摘要时为 2 次计量 + 2 次生成。每个后台文本块为 1 次计量 + 1 次标词。模型调用没有并行 HTTP 请求，token 额度不借用，失败不扩额或隐式重试。每种阶段各自连续失败 3 次后冷却 30 秒；冷却结束只由新的实际任务重新尝试。
+
+聊天处理另有 100 秒总上限、120 秒队列等待上限、10 秒 Discord 发送上限。固定失败回执也受剩余聊天时间约束。超时取消本地网络等待，无法保证远端立即停止生成或免除已消耗费用；日志明确标记未知 usage。
+
+SQLite 扫描有协作式 5 秒检查；Python 图排序、文件 I/O 和 fsync 不是可被 asyncio 强制抢占的操作。因此模型异步调用和队列具有时间取消上限，任意规模本地计算尚不具备操作系统级硬时限。默认文件范围用于保持本体小型；扩大范围前需测量。
+
+## 短期上下文
+
+参考 Yuki 的整轮水位机制：先扣除固定提示、当前消息、知识证据、完整摘要预留，再计算原文容量。高水位为该容量的 100%，低水位为 70%。溢出时摘要连续最旧的完整互动，尽量把保留的最新后缀降到低水位；每轮最多一次摘要调用。
+
+摘要保存 checkpoint ID、上一 checkpoint、实际覆盖的原文 seq 和 trace ID。失败不推进边界，原文一直保留。积压超过一次维护预算时明确拒绝当前回复并记录积压，不跳过旧证据，不无限循环摘要。只保存 Discord 确认送达的实际文本到 assistant 历史；超长回复显式截断，完整输出仍可查日志。
+
+## Scratch log 与复现
+
+`scratch/YYYY-MM-DD.jsonl` 记录规范化前后的 Discord 输入、调用目的、完整已发送请求、完整成功响应、计量结果、预算、usage、耗时、检索证据、知识版本、摘要覆盖、实际 Discord 输出和回执 ID。日志不要求或生成隐藏思维链。
+
+每条记录有序号、UTC 时间、前一 hash 和当前 hash，追加后 flush/fsync。`python -m indeces scratch` 验证本地链。它可检测损坏，不是抵御整条日志恶意重写的外部公证。
+
+`state/memory.sqlite3` 保留原文、版本、标签、静态边、独立动态权重、检索事件、周期、消息与 checkpoint。单实例内核锁阻止同一 state 目录被两个服务使用。重启将未完成聊天标为不可自动重放；发送超时不自动重发，因为 Discord 可能已经接收。
+
+本地知识、数据库、scratch、秘密和私有配置均由 `.gitignore` 排除。代码更新上传到私有 [GitHub 仓库](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。
+
+## 验证
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe -m indeces check
+```
+
+当前交付状态与真实/离线验证边界见 [docs/STATUS.md](docs/STATUS.md)。未通过真实 Discord 往返、账号模型访问或真实知识集的召回评估前，不把这些能力写成已验收。

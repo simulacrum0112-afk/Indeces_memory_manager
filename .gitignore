@@ -1,0 +1,15 @@
+.venv/
+.references/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.env
+config.local.toml
+state/
+scratch/
+*.sqlite3*
+*.log
+knowledge/**
+!knowledge/.gitkeep

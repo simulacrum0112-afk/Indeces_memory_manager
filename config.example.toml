@@ -1,0 +1,53 @@
+# Copy to config.local.toml. Credentials are environment variables only.
+name = "Indeces"
+state_dir = "state"
+scratch_dir = "scratch"
+knowledge_dir = "knowledge"
+
+[discord]
+guild_id = "" # Required: one Discord server, one bot connection.
+channel_ids = [] # Empty means all channels in this guild where explicitly @mentioned.
+queue_capacity = 16
+delivery_seconds = 10.0
+
+[runtime]
+turn_seconds = 100.0 # Execution only; queue wait is independently bounded below.
+queue_wait_seconds = 120.0
+local_seconds = 5.0
+summary_max_bytes = 4096
+low_watermark = 0.70
+
+[knowledge]
+poll_seconds = 0.5
+max_file_bytes = 8192
+max_files = 128
+chunk_characters = 400
+version_seconds = 360.0
+version_input_tokens = 65536
+version_output_tokens = 16384
+
+[adapter]
+model = "gpt-6-luna"
+base_url = "https://api.openai.com/v1"
+failure_threshold = 3
+cooldown_seconds = 30.0
+
+# Each stage owns these limits; unused allowance cannot be borrowed.
+# Time includes a sequential input-count request and one generation request.
+[adapter.budgets.label]
+input_tokens = 4096
+output_tokens = 512
+seconds = 15.0
+reasoning = "none"
+
+[adapter.budgets.summary]
+input_tokens = 16384
+output_tokens = 2048
+seconds = 20.0
+reasoning = "none"
+
+[adapter.budgets.reply]
+input_tokens = 16384
+output_tokens = 2048
+seconds = 45.0
+reasoning = "low"

@@ -1,0 +1,50 @@
+{
+  "version": "0.1.0",
+  "recorded_at_utc": "2026-09-30T20:07:19.831398+00:00",
+  "python": "3.12.14",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "monotonic_clock": {
+    "implementation": "GetTickCount64()",
+    "resolution_seconds": 0.015625
+  },
+  "checks": [
+    {
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-q"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 4.797,
+      "output": "----------------------------------------------------------------------\nRan 89 tests in 4.291s\n\nOK"
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.25,
+      "output": "Offline configuration/import check OK; Indeces 0.1.0; discord.py 2.7.1.\nLive Discord and model calls were not made."
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "pip",
+        "check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.156,
+      "output": "No broken requirements found."
+    }
+  ],
+  "live_model_calls": false,
+  "live_discord_connection": false
+}
