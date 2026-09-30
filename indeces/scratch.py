@@ -6,8 +6,10 @@ Retention removes expired prefixes without rewriting the retained evidence rows.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -26,6 +28,8 @@ _TEMP_NAME = re.compile(r"\.scratch-retention-[0-9a-f]{32}\.tmp\Z")
 _CHECKPOINT_KIND = "scratch_retention_checkpoint"
 _CHECKPOINT_KEYS = {"kind", "version", "removed_through_sequence", "removed_head_hash", "pruned_at", "cutoff",
                     "partial_trace_ids", "partial_call_ids", "cleanup_pending", "hash"}
+_READER_WAIT_MILLISECONDS = 2000
+_WRITER_WAIT_MILLISECONDS = 10000
 
 
 def canonical(value) -> bytes:
@@ -107,18 +111,147 @@ def _validate_checkpoint(item):
         raise ValueError("retention checkpoint hash failed")
 
 
-def _load(path: Path):
+@contextmanager
+def _access_guard(directory: Path, *, write=False):
+    """Serialize brief Windows reads and retention renames across processes.
+
+    Windows MoveFileEx can reject a held destination even with delete sharing.
+    A kernel mutex lets the writer retain its existing atomic os.replace path.
+    Read validation and HTTP delivery must run after releasing this guard.
+    Waits are bounded; file I/O itself remains cooperative, not hard preemption.
+    """
+    if os.name != "nt":
+        yield
+        return
+    import ctypes
+    from ctypes import wintypes
+    identity = os.path.normcase(str(Path(directory).resolve()))
+    name = "Local\\IndicesScratch-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    create = kernel.CreateMutexW
+    create.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
+    create.restype = wintypes.HANDLE
+    wait = kernel.WaitForSingleObject
+    wait.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    wait.restype = wintypes.DWORD
+    release = kernel.ReleaseMutex
+    release.argtypes = [wintypes.HANDLE]
+    release.restype = wintypes.BOOL
+    close = kernel.CloseHandle
+    close.argtypes = [wintypes.HANDLE]
+    close.restype = wintypes.BOOL
+    handle = create(None, False, name)
+    if not handle:
+        raise ctypes.WinError(ctypes.get_last_error())
+    acquired = False
+    try:
+        result = wait(handle, _WRITER_WAIT_MILLISECONDS if write else _READER_WAIT_MILLISECONDS)
+        if result == 0xFFFFFFFF:
+            raise ctypes.WinError(ctypes.get_last_error())
+        if result not in (0, 0x80):  # WAIT_OBJECT_0 or abandoned previous owner
+            raise OSError("scratch access is temporarily busy")
+        acquired = True
+        yield
+    finally:
+        try:
+            if acquired and not release(handle):
+                raise ctypes.WinError(ctypes.get_last_error())
+        finally:
+            close(handle)
+
+
+@contextmanager
+def _open_reader(path: Path, *, write=False):
+    """Freeze a reader under the same brief guard used for retention changes."""
+    with _access_guard(path.parent, write=write):
+        with _shared_reader(path) as stream:
+            yield stream
+
+
+@contextmanager
+def _shared_reader(path: Path):
+    """Read one regular-file handle without following a replacement or link."""
+    if os.name != "nt":
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+                             | getattr(os, "O_NONBLOCK", 0))
+        try:
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise ValueError("scratch path must be a regular file")
+            stream = os.fdopen(descriptor, "rb")
+        except BaseException:
+            os.close(descriptor)
+            raise
+        with stream:
+            yield stream
+        return
+
+    import ctypes
+    from ctypes import wintypes
+    import msvcrt
+
+    class FileInformation(ctypes.Structure):
+        _fields_ = [("attributes", wintypes.DWORD), ("creation", wintypes.FILETIME),
+                    ("access", wintypes.FILETIME), ("write", wintypes.FILETIME),
+                    ("volume", wintypes.DWORD), ("size_high", wintypes.DWORD),
+                    ("size_low", wintypes.DWORD), ("links", wintypes.DWORD),
+                    ("index_high", wintypes.DWORD), ("index_low", wintypes.DWORD)]
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    create = kernel.CreateFileW
+    create.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                       wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    create.restype = wintypes.HANDLE
+    information = kernel.GetFileInformationByHandle
+    information.argtypes = [wintypes.HANDLE, ctypes.POINTER(FileInformation)]
+    information.restype = wintypes.BOOL
+    close = kernel.CloseHandle
+    close.argtypes = [wintypes.HANDLE]
+    close.restype = wintypes.BOOL
+    # GENERIC_READ; SHARE_READ | SHARE_WRITE | SHARE_DELETE; OPEN_EXISTING;
+    # FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT (never follow links).
+    handle = create(str(path), 0x80000000, 0x7, None, 3, 0x80 | 0x00200000, None)
+    if handle == ctypes.c_void_p(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        details = FileInformation()
+        if not information(handle, ctypes.byref(details)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        if details.attributes & (0x10 | 0x400):  # directory or reparse point
+            raise ValueError("scratch path must be a regular file")
+        descriptor = msvcrt.open_osfhandle(handle, os.O_RDONLY | os.O_BINARY)
+    except BaseException:
+        close(handle)
+        raise
+    # Ownership transfers to the CRT descriptor only after open_osfhandle.
+    try:
+        stream = os.fdopen(descriptor, "rb")
+    except BaseException:
+        os.close(descriptor)
+        raise
+    with stream:
+        yield stream
+
+
+def _load(path: Path, *, max_bytes=None, writer=False):
+    if max_bytes is not None and (type(max_bytes) is not int or max_bytes < 1):
+        raise ValueError("invalid scratch snapshot byte limit")
     previous = _ZERO_HASH
     sequence = 0
     checkpoint = None
     rows, lines = [], []
+    bytes_read = 0
     previous_time = None
     if path.is_symlink() or path.is_junction():
         raise ValueError("scratch path must be a regular file")
     if path.exists():
         if not stat.S_ISREG(path.stat().st_mode):
             raise ValueError("scratch path must be a regular file")
-        with path.open("r", encoding="utf-8", newline="") as stream:
+        with _open_reader(path, write=writer) as reader:
+            contents = reader.read() if max_bytes is None else reader.read(max_bytes + 1)
+        bytes_read = len(contents)
+        if max_bytes is not None and len(contents) > max_bytes:
+            raise ValueError("scratch snapshot exceeds byte limit")
+        with io.TextIOWrapper(io.BytesIO(contents), encoding="utf-8", newline="") as stream:
             for index, line in enumerate(stream):
                 item = None
                 try:
@@ -155,7 +288,7 @@ def _load(path: Path):
             if set(checkpoint[metadata_key]) - _event_ids(rows, key):
                 raise ValueError("scratch retention checkpoint has unavailable partial IDs")
     return {"rows": rows, "lines": lines, "checkpoint": checkpoint, "sequence": sequence,
-            "head": previous, "last_timestamp": previous_time}
+            "head": previous, "last_timestamp": previous_time, "bytes_read": bytes_read}
 
 
 def verify(path: Path) -> tuple[int, str]:
@@ -172,6 +305,18 @@ def read_records(path: Path) -> list[dict]:
 def retention_checkpoint(path: Path) -> dict | None:
     """Read the validated local truncation declaration, if present."""
     return _load(Path(path))["checkpoint"]
+
+
+def read_snapshot(path: Path, *, max_bytes=None) -> dict:
+    """Return rows and retention metadata from one bounded, strict file read.
+
+    A trailing append without its newline is rejected along with all other
+    structure/hash failures. Callers may report a temporarily unavailable
+    snapshot; a verified prefix is never passed off as a complete read.
+    """
+    loaded = _load(Path(path), max_bytes=max_bytes)
+    return {"records": loaded["rows"], "checkpoint": loaded["checkpoint"], "head": loaded["head"],
+            "bytes_read": loaded["bytes_read"]}
 
 
 def _event_ids(rows, key):
@@ -202,7 +347,7 @@ class ScratchLog:
         orphan_count = self._clean_orphans()
         self.startup_retention = self.prune(now=now)
         self.startup_retention["temporary_files_removed"] = orphan_count
-        loaded = _load(self.path)
+        loaded = _load(self.path, writer=True)
         self.sequence, self.previous = loaded["sequence"], loaded["head"]
         self._last_timestamp = loaded["last_timestamp"]
         self.stream = self.path.open("a", encoding="utf-8", newline="\n")
@@ -229,7 +374,9 @@ class ScratchLog:
         for path in paths:
             self._safe_path(path)
         for path in paths:
-            path.unlink()
+            with _access_guard(self.directory, write=True):
+                self._safe_path(path)
+                path.unlink()
         return len(paths)
 
     def _managed_paths(self):
@@ -255,18 +402,20 @@ class ScratchLog:
                     raise OSError("incomplete scratch retention write")
                 stream.flush()
                 os.fsync(stream.fileno())
-            self._safe_path(path)
-            if path == self.path and self.stream is not None:
-                # Windows requires the active append handle to be closed before
-                # replacing this same file. There is no concurrent writer here.
-                self.stream.close()
-            os.replace(temporary, path)
-            if path == self.path and self.stream is not None:
-                self.stream = self.path.open("a", encoding="utf-8", newline="\n")
+            with _access_guard(self.directory, write=True):
+                self._safe_path(path)
+                if path == self.path and self.stream is not None:
+                    # The observer closes its snapshot reader before this guard
+                    # is acquired. Close the writer's append handle as well.
+                    self.stream.close()
+                os.replace(temporary, path)
+                if path == self.path and self.stream is not None:
+                    self.stream = self.path.open("a", encoding="utf-8", newline="\n")
         finally:
             if created and (temporary.exists() or temporary.is_symlink()):
-                self._safe_path(temporary)
-                temporary.unlink()
+                with _access_guard(self.directory, write=True):
+                    self._safe_path(temporary)
+                    temporary.unlink()
 
     def prune(self, *, now=None):
         """Remove rows with timestamp <= now-24h; retain their original suffix.
@@ -286,7 +435,7 @@ class ScratchLog:
             expired_ids = {"trace_id": set(), "call_id": set()}
             retained_ids = {"trace_id": set(), "call_id": set()}
             for path in self._managed_paths():
-                loaded = _load(path)
+                loaded = _load(path, writer=True)
                 checkpoint = loaded["checkpoint"]
                 if ((loaded["last_timestamp"] is not None and loaded["last_timestamp"] > now)
                         or (checkpoint and _utc_timestamp(checkpoint["pruned_at"]) > now)):
@@ -362,8 +511,9 @@ class ScratchLog:
                 changed_paths.add(path)
                 result["records_removed"] += removed
             for path, removed in deletions:
-                self._safe_path(path)
-                path.unlink()
+                with _access_guard(self.directory, write=True):
+                    self._safe_path(path)
+                    path.unlink()
                 changed_paths.add(path)
                 result["files_removed"] += 1
                 result["records_removed"] += removed

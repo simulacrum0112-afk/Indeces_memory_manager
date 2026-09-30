@@ -1,4 +1,4 @@
-# 交付状态：0.5.0
+# 交付状态：0.6.0
 
 截至用户时区日期 2026-09-30，本体已在 `D:\Indeces` 实现。GitHub 私有仓库为 [Indeces_memory_manager](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。源码提交/推送结果由交付消息及 Git 历史确认；创建仓库本身不代表服务已启动。
 
@@ -24,6 +24,7 @@ Console `scratch` 校验外层结构/hash 与新每轮记录合同，分别报�
 
 ## 验证证据
 
+- 0.6.0 本机完整离线测试：Windows/CPython 3.12.14，**387 tests / 0 failures / 7 skips**，20.850 秒。新增数据读取 28、服务 10、HTTP 路由 14、独立 HTTP 复审 6、scratch 并发 18、前端 Node 合约包装 1 项；7 项跳过为平台/本机符号链接权限相关。配置/导入、`pip check`、Console 退出与非 editable wheel 三个网页资源打包检查通过，记录见 [verification/OFFLINE_060.json](../verification/OFFLINE_060.json)。浏览器用临时合成图/版本/trace 确认搜索、分层、缩放、拖动、来源与逐步权重曲线、引用记录和安全文本渲染，390px 窄屏容器/SVG 边界复查通过，无页面错误。真实 Windows 线程/子进程/大小写路径别名/观察进程中断与超时测试确认读取不会阻碍原清理替换。没有读取或裁剪实际运行记录，没有模型或 Discord 连接；精确提交远端 CI 由交付消息核对。
 - 0.5.0 本机完整离线测试：Windows/CPython 3.12.14，**310 tests / 0 failures / 4 skips**，12.959 秒；scratch 45（原 19 + 新增 26）、跨窗口运行记录 15、服务维护 13 项。4 项跳过为当前 Windows 平台/符号链接权限相关用例。配置/导入、`pip check`、Console 退出烟雾与最终 Console checkpoint 显示回归通过，记录见 [verification/OFFLINE_050.json](../verification/OFFLINE_050.json)。只用临时合成数据，没有读取或清理实际 scratch，也未连接模型/Discord；远端 CI 以本版精确提交为准。
 - 0.4.0 历史本机完整离线测试：Windows/CPython 3.12.14，**256 tests / 0 failures / 2 skips**，8.255 秒；运行记录 33、Hebbian memory 27、scratch 19、审计故障边界 5 项。配置/导入、`pip check` 与 Console 退出烟雾检查通过，记录见 [verification/OFFLINE_040.json](../verification/OFFLINE_040.json)。精确提交 `e1cc53573ca631f5087ea7aad2de8ff165fcfdcd` 的 [main CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36782658061) 和 [v0.4.0 tag CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36782658922) 四个 job 均通过：Windows 256 项/0 失败/1 跳过，Ubuntu 256 项/0 失败/2 跳过，四个 CLI 检查通过。没有真实模型/Discord 验收。
 - 0.3.0 历史本机完整离线测试：Windows/CPython 3.12.14，**193 tests / 0 failures / 2 skips**，5.419 秒；知识生命周期 52 项（原 23 + 新增 29），人设 7 项。配置/导入、`pip check` 和 Console 退出烟雾检查通过；记录见 [verification/OFFLINE_030.json](../verification/OFFLINE_030.json)。精确提交 `96e3a56d0096c0a9d97a0afc7e5f635d5eb69af8` 的 [main CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36779788040) 与 [v0.3.0 tag CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36779788302) 四个 job 均通过：Windows 193 项/0 失败/1 跳过，Ubuntu 193 项/0 失败/2 跳过，CLI 配置/导入检查均通过。
@@ -50,6 +51,10 @@ Console `scratch` 校验外层结构/hash 与新每轮记录合同，分别报�
 0.5.0 默认 rolling 24h scratch 保留：按事件 UTC timestamp，启动和服务内每 60 秒清理，空闲也执行；停服下次启动再清理。保留行的原序号/hash 不改，同文件 checkpoint 声明删除前缀及仍活跃的截断 ID；`retention_partial` 不冒充完整历史。跨文件先发布待清理声明再剪正文/删全过期文件；失败可能留 `cleanup_pending` 中间状态，服务报告并停止，不称作全目录原子。仅清 scratch 管理文件，不删除知识/SQLite/图审计，不归档到期日志，不增加模型调用或外部定时任务。
 
 ## 未完成与边界
+
+0.6.0 新增用户要求的普通 scratch 目录说明/入口和本机只读图/trace 网页。Console `logs` 显示目录，`observe` 单独运行，`start` 自动显示观察 URL；只绑定 loopback 临时端口与随机路径，所有资产本地提供。数据只读、有范围与字节限额，图/知识和 scratch 截断明确显示。可看 NPMI、动态/有效权重、有效来源、已发布/待更新版本，以及记录过的种子/衰减/强化历史；页面查询与 Runtime 模型槽分离，观察启动失败不会阻止 Bot。
+
+scratch 网页按当前 UTC 的 24 小时窗口过滤；暂停或断网时，浏览器继续移除过期 scratch 事件原文。固定说明页不复制私有 trace，后端与浏览器不生成持久缓存/导出副本。页面的保留记录一致性检查不代替 Console 完整生命周期合同，也不核验语义支持。SQLite 图审计/来源历史独立持久保存。新观察层没有改变 NPMI、η/λ、阶段预算或聊天标词关闭；逐轮语义权重调整尚未启用。详细运行方法与数据/性能边界见 [OBSERVABILITY.md](OBSERVABILITY.md)。
 
 - 未连接真实 Discord、未发送真实消息，未调用真实 OpenAI 模型。需要用户在本地向导填写 Guild 与 token，再执行 `start`，完成一个专用频道的代表性往返与知识更新试验。向导保存成功仅证明本地设置完成，不证明 token 有效、Bot 已入服或有频道权限。
 - 未验证账号的模型访问、生产延迟、真实 token 分布、文件集标签质量、知识召回相关性或动态权重长期表现；当前预算是工程初值。

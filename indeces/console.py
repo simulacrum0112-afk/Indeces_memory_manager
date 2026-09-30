@@ -19,6 +19,7 @@ from .discord_bridge import DiscordBridge
 from .discord_wizard import configure_discord
 from .knowledge import KnowledgeService
 from .lock import InstanceLock
+from .observer import ObserverServer, observe, prepare_scratch_directory, show_logs
 from .runtime import Runtime
 from .run_records import verify_runs
 from .scratch import ScratchLog, retention_checkpoint, verify
@@ -56,7 +57,7 @@ async def serve(config, key, token):
     if not config.discord.guild_id:
         raise ValueError("set discord.guild_id before starting")
     lease = InstanceLock(config.state_dir)
-    scratch = store = adapter = bridge = knowledge = None
+    scratch = store = adapter = bridge = knowledge = observer = None
     maintenance_task = gateway_task = None
     try:
         try:
@@ -81,6 +82,18 @@ async def serve(config, key, token):
         print(f"{config.name} {__version__}: one Discord connection; model={config.adapter.model}; scratch={scratch.path}")
         print("Knowledge file updates trigger background labels. Chat labelling is closed. Ctrl+C stops the service.")
         print("Scratch retains a rolling 24-hour window; cleanup runs at startup and every 60 seconds while the service runs.")
+        try:
+            prepare_scratch_directory(config.scratch_dir)
+            observer = ObserverServer(config)
+            print(f"Indices read-only observer: {observer.start()}", flush=True)
+        except Exception as error:
+            if observer is not None:
+                try:
+                    observer.close()
+                except Exception:
+                    pass
+            observer = None
+            print(f"Observer unavailable: {type(error).__name__}; use observe in a separate console.", flush=True)
         knowledge.start()
         maintenance_task = asyncio.create_task(_maintain_scratch(scratch), name="indices-scratch-retention")
         gateway_task = asyncio.create_task(bridge.run(token), name="indices-discord-gateway")
@@ -106,6 +119,12 @@ async def serve(config, key, token):
                 except BaseException as error:
                     if not active_error:
                         cleanup_errors.append(error)
+        if observer is not None:
+            try:
+                # Its read-only SQLite/file work has a separate thread and lifetime.
+                await asyncio.to_thread(observer.close)
+            except BaseException as error:
+                cleanup_errors.append(error)
         for resource in (bridge, knowledge, adapter):
             if resource is not None:
                 try:
@@ -151,6 +170,7 @@ def status(config, config_path=None):
     print(f"{config.name} {__version__}; model {config.adapter.model}; one model request slot")
     print(f"Discord guild={config.discord.guild_id or '<not configured>'}; channels={config.discord.channel_ids or 'all explicitly mentioned channels'}")
     print(f"Knowledge: {config.knowledge_dir}; scratch: {config.scratch_dir}")
+    print("Read-only graph/trace page: observe; human-readable scratch directory guide: logs.")
     print("Scratch retention: rolling 24 hours; startup cleanup and every 60 seconds while the service runs. Stopped services do not clean logs.")
     if config_path is not None:
         print(f"Saved Discord credential file: {'present (checked at start)' if secret_path(config_path).exists() else 'absent'}")
@@ -220,7 +240,7 @@ def check_scratch(config):
 
 def main():
     parser = argparse.ArgumentParser(description="Indices: minimal Discord runtime console")
-    parser.add_argument("command", nargs="?", choices=["console", "init", "discord", "start", "status", "check", "scratch"], default="console")
+    parser.add_argument("command", nargs="?", choices=["console", "init", "discord", "start", "status", "check", "scratch", "observe", "logs"], default="console")
     parser.add_argument("--config", type=Path, default=Path("config.local.toml"))
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
@@ -245,10 +265,12 @@ def main():
             config = load_config(args.config)
             if args.command in {"start", "status"}:
                 {"start": run, "status": status}[args.command](config, args.config)
+            elif args.command in {"observe", "logs"}:
+                {"observe": observe, "logs": show_logs}[args.command](config)
             else:
                 check_scratch(config)
             return
-        print(f"Indices {__version__} console: discord | start | status | scratch | quit")
+        print(f"Indices {__version__} console: discord | start | status | scratch | observe | logs | quit")
         while True:
             try:
                 command = input("Indices> ").strip().lower()
@@ -263,14 +285,15 @@ def main():
                     configure_discord(args.config)
                     continue
                 config = load_config(args.config)
-                action = {"start": run, "status": status, "scratch": check_scratch}.get(command)
+                action = {"start": run, "status": status, "scratch": check_scratch,
+                          "observe": observe, "logs": show_logs}.get(command)
                 if action:
                     if command in {"start", "status"}:
                         action(config, args.config)
                     else:
                         action(config)
                 else:
-                    print("Commands: discord | start | status | scratch | quit")
+                    print("Commands: discord | start | status | scratch | observe | logs | quit")
             except CredentialError as error:
                 print(f"Credential error: {error.code}. Use discord setup to replace the saved token.")
             except Exception as error:

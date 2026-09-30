@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Indices · 记忆观察台</title>
+  <link rel="stylesheet" href="observer.css">
+  <script src="observer.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">i</span><div><h1>Indices <span>记忆观察台</span></h1><p>看见关联，也保留证据。</p></div></div>
+      <div class="refresh-controls"><span class="status-chip" id="connection-status" role="status">正在读取</span><button id="refresh" class="button" type="button">刷新</button><button id="pause" class="button subtle" type="button" aria-pressed="false">暂停刷新</button></div>
+    </header>
+    <div class="snapshot-meta"><span id="scope">本机 · 只读观察</span><span id="freshness">等待第一次快照</span></div>
+    <div class="notice error" id="error-banner" role="alert" hidden></div>
+    <div class="notice" id="limit-banner" hidden></div>
+    <nav class="tabs" aria-label="观察视图">
+      <button class="tab active" type="button" data-view="graph" aria-pressed="true">关联图谱 <span id="graph-count">—</span></button>
+      <button class="tab" type="button" data-view="knowledge" aria-pressed="false">知识版本 <span id="knowledge-count">—</span></button>
+      <button class="tab" type="button" data-view="scratch" aria-pressed="false">运行记录 <span id="scratch-count">—</span></button>
+    </nav>
+    <main class="workspace">
+      <section class="main-panel" aria-label="观察内容">
+        <div id="view-graph" class="view-panel">
+          <div class="graph-toolbar">
+            <label class="search-field"><span class="visually-hidden">查找标注词及相邻节点</span><input type="search" id="mark-search" placeholder="查找标注词及相邻节点" autocomplete="off" spellcheck="false"></label>
+            <label class="field-label">权重层<select id="weight-layer"><option value="effective">当前检索权重</option><option value="static">静态 NPMI</option><option value="dynamic">动态 Hebbian</option></select></label>
+            <label class="field-label compact">最低权重<input id="min-weight" type="number" min="0" step="0.05" value="0" inputmode="decimal"></label>
+          </div>
+          <div class="graph-subtoolbar"><label class="checkbox-label"><input type="checkbox" id="show-archived"> 显示失去有效来源的历史边</label><span class="graph-controls"><button id="zoom-out" class="icon-button" type="button" aria-label="缩小图谱">−</button><span id="zoom-value">100%</span><button id="zoom-in" class="icon-button" type="button" aria-label="放大图谱">+</button><button id="fit-graph" class="button small" type="button">居中</button></span></div>
+          <div class="graph-stage" id="graph-stage">
+            <svg id="network" viewBox="0 0 900 580" preserveAspectRatio="xMidYMid meet" aria-label="标注词关联图，可拖动节点、平移与缩放" role="img"><g id="network-transform"><g id="network-edges"></g><g id="network-nodes"></g></g></svg>
+            <div class="graph-empty" id="graph-empty" hidden><div class="empty-symbol" aria-hidden="true">⋅ ∴ ⋅</div><h2 id="graph-empty-title">还没有关联图谱</h2><p id="graph-empty-text">在 knowledge 目录添加 Markdown 或文本文件。服务完成后台标词后，这里会显示有来源支持的关联。</p></div>
+            <div class="graph-key"><span><i class="key-dot live"></i> 有效来源支持</span><span><i class="key-line"></i> 权重决定线宽</span><span id="visible-count">—</span></div>
+            <p class="graph-hint">拖动节点 · 空白处平移 · 滚轮缩放 · 点击连线查看来源与变化</p>
+          </div>
+          <div class="method-strip"><strong id="layer-description">动态值存在时用于排序，否则使用静态 NPMI。</strong><span>当前按字面命中更新；语义效果尚未评估。</span></div>
+        </div>
+        <div id="view-knowledge" class="view-panel padded" hidden>
+          <div class="section-heading"><div><h2>知识版本</h2><p>标词完成后原子发布；更新期间沿用上一完整版本。</p></div><span id="knowledge-summary" class="muted"></span></div>
+          <div id="knowledge-list" class="catalogue"></div>
+        </div>
+        <div id="view-scratch" class="view-panel padded" hidden>
+          <div class="section-heading"><div><h2>可核验的运行记录</h2><p>召回材料、版本、权重变化、输入输出与字面引用。</p></div><span class="status-chip quiet">滚动 24 小时</span></div>
+          <div class="directory-card"><span class="eyebrow">Scratch 目录</span><code id="scratch-directory">—</code><p>原始 .jsonl 可用文本编辑器查阅；目录中的说明页介绍核验入口。</p></div>
+          <div id="scratch-files" class="file-summary"></div>
+          <div id="trace-list" class="trace-list"></div>
+        </div>
+      </section>
+      <aside class="detail-panel" id="detail-panel" aria-label="所选对象的证据与详情" aria-live="polite"><div class="detail-empty"><span class="eyebrow">从图谱走向证据</span><h2>选择一条关联</h2><p>查看静态 NPMI、动态权重、有效来源与每次权重变更。</p><div class="mini-network" aria-hidden="true"><span></span><span></span><span></span></div><p class="small-note">召回与引用记录可核验。引用标记本身不证明语义支持，也不证明结论真实。</p></div></aside>
+    </main>
+    <footer><span>本机只读页面 · 不调用模型 · 不修改权重</span><span>Scratch 保留 24 小时；知识版本与 SQLite 图事件历史单独持久保存。</span></footer>
+  </div>
+</body>
+</html>
