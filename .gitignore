@@ -7,6 +7,7 @@ build/
 dist/
 .env
 config.local.toml
+*.secret
 state/
 scratch/
 *.sqlite3*

@@ -72,7 +72,7 @@ class MemoryGraph:
     """
 
     def __init__(self, connection: sqlite3.Connection,
-                 self_marks: tuple[str, ...] = ("Indeces",)) -> None:
+                 self_marks: tuple[str, ...] = ("Indices",)) -> None:
         self.connection = connection
         self.self_marks = {_canonical(mark) for mark in self_marks}
         had_support = connection.execute(

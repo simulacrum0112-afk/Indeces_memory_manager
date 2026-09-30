@@ -80,6 +80,14 @@ def _keys(data, allowed):
         raise ValueError("unknown configuration field")
 
 
+def snowflake(value: str) -> str:
+    if (not isinstance(value, str) or not 1 <= len(value) <= 20
+            or any(c not in "0123456789" for c in value)
+            or not 0 < int(value) < 2**64):
+        raise ValueError("invalid Discord snowflake ID")
+    return str(int(value))
+
+
 def load_config(path: Path) -> Config:
     path = path.resolve()
     with path.open("rb") as stream:
@@ -93,12 +101,13 @@ def load_config(path: Path) -> Config:
     _keys(r, RuntimeConfig.__dataclass_fields__)
     _keys(a, AdapterConfig.__dataclass_fields__)
     _keys(k, KnowledgeConfig.__dataclass_fields__)
-    if not isinstance(d.get("guild_id"), str) or (d["guild_id"] and not d["guild_id"].isdigit()):
+    if not isinstance(d.get("guild_id"), str):
         raise ValueError("guild_id must be a numeric string")
+    guild_id = snowflake(d["guild_id"]) if d["guild_id"] else ""
     channels = d.get("channel_ids", [])
-    if not isinstance(channels, list) or any(not isinstance(x, str) or not x.isdigit() for x in channels):
+    if not isinstance(channels, list):
         raise ValueError("channel_ids must be numeric strings")
-    dc = DiscordConfig(**{**d, "channel_ids": tuple(channels)})
+    dc = DiscordConfig(**{**d, "guild_id": guild_id, "channel_ids": tuple(snowflake(x) for x in channels)})
     rc = RuntimeConfig(**r)
     kc = KnowledgeConfig(**k)
     if type(dc.queue_capacity) is not int or not 1 <= dc.queue_capacity <= 256:
@@ -126,7 +135,7 @@ def load_config(path: Path) -> Config:
     if set(budgets) != {"label", "summary", "reply"}:
         raise ValueError("exactly label, summary and reply budgets required")
     ac = AdapterConfig(**{**a, "budgets": {k: Budget(**v) for k, v in budgets.items()}})
-    name = raw.get("name", "Indeces")
+    name = raw.get("name", "Indices")
     if not isinstance(name, str) or not name.strip() or len(name) > 80:
         raise ValueError("invalid agent name")
     def directory(key):

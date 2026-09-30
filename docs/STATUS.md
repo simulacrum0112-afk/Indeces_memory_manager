@@ -1,8 +1,14 @@
-# 交付状态：0.1.0
+# 交付状态：0.2.0
 
 截至用户时区日期 2026-09-30，本体已在 `D:\Indeces` 实现。GitHub 私有仓库为 [Indeces_memory_manager](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。源码提交/推送结果由交付消息及 Git 历史确认；创建仓库本身不代表服务已启动。
 
 已实现：无头/Console 入口、单实例存储锁、一个 Discord Gateway/有界消息队列、显式 @ 门禁、实际送达回执、短期 100%/70% 整轮水位摘要、GPT-6-Luna stateless adaptor、独立阶段预算、计量门禁、usage 核验、超时/阶段熔断、scratch hash 链与持久原文/checkpoint。
+
+本版新增 Console `discord` 命令与 `python -m indeces discord` 本地桥接向导：服务器 Guild ID、可选频道 ID、隐藏输入的 Bot token、无 token 预览与 `y` 保存确认。频道输入留空保留现有设置，`*` 允许目标服务器中的全部符合显式 @ 条件的频道。运行实例持有同一 state 锁时拒绝修改。向导不联网；完成后用户另行执行 `start`。
+
+Bot token 在 Windows 使用当前用户 DPAPI 加密，带应用 entropy、版本包络及 Guild 绑定，原子保存到 `config.local.discord.secret`；其他平台拒绝持久化，不降级为明文。启动来源顺序为 `DISCORD_BOT_TOKEN` → 匹配配置 Guild 的已保存 token → 隐藏的单次会话输入。`OPENAI_API_KEY` 仍只来自环境变量或启动时的隐藏输入。配置、审计日志和 Git 不包含认证密钥。
+
+默认智能体称呼为 **Indices**，项目/包名保留原名。新增人设用于长期记忆测试：自然简短对话，区分短期上下文、摘要与有来源的长期召回，引用实际提供的来源，不编造记忆、图指标或有效性结论。没有引入模型并发、额外工具或自动评测能力；图公式、阶段预算、聊天标词关闭和本地知识更新的被动标词策略保持既有基线。
 
 知识路径已按用户最新要求实现：聊天标词和聊天自动入库关闭；本地 Markdown/UTF-8 文本更新触发被动后台标词。不可变知识版本、当前文件 digest 二次检查、全部块完成后原子发布、旧版本归档、重启未知用量不重试、文件超限暂停索引均有测试。标签只附于原文，不由模型改写知识内容。
 
@@ -10,20 +16,22 @@
 
 ## 验证证据
 
-- CPython 3.12.14 / Windows，`python -m unittest discover -s tests -q`：**89 tests / 0 failures / 0 skips**，最近完整运行 4.291 秒。
-- 分类：adaptor 13；context/runtime 14；Discord bridge 16；被动知识版本 23；Hebbian memory 16；scratch 5；单实例锁 2。
-- `python -m indeces check`：配置解析和安装依赖导入通过，discord.py 2.7.1。
-- `requirements.lock` 固定当前运行依赖；Windows/Linux 离线 CI 已配置，远端运行状态需单独核对。
-- `python -m pip check` 无依赖冲突；可复现验证摘要保存在 [verification/OFFLINE_010.json](../verification/OFFLINE_010.json)。
+- 0.2.0 本机完整离线测试：Windows/CPython 3.12.14，**163 tests / 0 failures / 2 skips**，6.418 秒；含新增向导 28、Console 14、人设 6、凭据 26 项。配置/导入、`pip check`、Console 退出烟雾检查均通过，可复现摘要见 [verification/OFFLINE_020.json](../verification/OFFLINE_020.json)。远端 Windows/Linux CI 以对应提交的 GitHub checks 为准。
+- 当前凭据专项：**26 tests / 0 failures / 2 skips**。执行了真实 DPAPI 的合成 token 往返与密文篡改拒绝；另外覆盖 Guild 不匹配、密文/JSON 损坏、固定安全错误、原子替换失败保留旧文件、临时文件和句柄清理、禁止 getpass 回退到明文回显。跳过非 Windows 保存行为及本机无法创建符号链接的用例；非 Windows 原生 helper 拒绝持久化通过模拟平台检查。
+- 向导覆盖配置预算与无关注释保留、活动实例锁、旧 token 保留/重绑定/损坏修复、取消不保存、两次替换中断后恢复快照、外部修改拒绝覆盖、回滚失败明确报告，以及保存完成后取消的准确提示。Console 验证保存后重载与凭据来源顺序；未以 mock Gateway 的就绪事件作为真实连接证据。
+- 0.1.0 历史基线：**89 tests / 0 failures / 0 skips**，最近完整运行 4.291 秒；adaptor 13、context/runtime 14、Discord bridge 16、被动知识版本 23、Hebbian memory 16、scratch 5、单实例锁 2。
+- 0.1.0 的配置/依赖导入、`pip check` 和固定依赖检查通过，可复现摘要保存在 [verification/OFFLINE_010.json](../verification/OFFLINE_010.json)。`requirements.lock` 和 Windows/Linux 离线 CI 仍保留；本版远端状态须单独核对。
 - 测试使用合成消息、注入模型传输和临时文件/SQLite；覆盖预算超限不发送生成、取消/熔断、摘要失败保留覆盖边界、无聊天标词、文件在 await/索引期间替换、原子 ready 失败回滚、旧崩溃恢复、来源保留、日志损坏检测。
 
-本轮发现并修复：供应商输出类型未受控、排队调用绕过已打开熔断、非法标签漏记已知 usage、文件未扫描时旧标注发布、全局文件超限留下陈旧索引、ready 状态与索引提交的崩溃窗口、旧中断 active 索引恢复，以及 Windows 第二实例先读锁定字节导致 PermissionError/句柄未关闭。上游静态/在线匹配不一致、弱边先去重、时间戳/重复事件与来源错误吞没均在适配中修复或以显式事件替代。
+0.1.0 发现并修复：供应商输出类型未受控、排队调用绕过已打开熔断、非法标签漏记已知 usage、文件未扫描时旧标注发布、全局文件超限留下陈旧索引、ready 状态与索引提交的崩溃窗口、旧中断 active 索引恢复，以及 Windows 第二实例先读锁定字节导致 PermissionError/句柄未关闭。上游静态/在线匹配不一致、弱边先去重、时间戳/重复事件与来源错误吞没均在适配中修复或以显式事件替代。
 
-最后一次验证发现计时测试错误假定所有调用 elapsed>0：本机 `monotonic` 为 GetTickCount64，分辨率 0.015625 秒，即时 fake 调用可合法记为 0。已修正测试为允许非负测量，没有人为加 epsilon 或提高虚假精度；clock 信息一并存入验证摘要。
+0.1.0 最后一次验证发现计时测试错误假定所有调用 elapsed>0：本机 `monotonic` 为 GetTickCount64，分辨率 0.015625 秒，即时 fake 调用可合法记为 0。已修正测试为允许非负测量，没有人为加 epsilon 或提高虚假精度；clock 信息一并存入历史验证摘要。
+
+0.2.0 审计修复：原 `.isdigit()` 接受非 ASCII 数字和无效雪花 ID；向导加载配置与取得快照之间可能漂移；保存中断可能留下已变更 token 却提示未修改；保存后取消可能错误声称未保存；`fdopen` 失败可能泄漏临时文件句柄；默认 getpass 可能回退到回显输入。现分别以规范化 ID 校验、快照一致性检查、双文件异常回滚/失败报告、提交状态标记、描述符所有权管理及回显拒绝解决。回滚失败和进程突然终止不能被描述成两文件具有同一个原子事务；Guild 绑定可阻止范围不匹配凭据被直接使用。
 
 ## 未完成与边界
 
-- 未连接真实 Discord、未发送真实消息，未调用真实 OpenAI 模型。需要用户本地填写 guild、凭据后进行一个专用频道的代表性往返与知识更新试验。
+- 未连接真实 Discord、未发送真实消息，未调用真实 OpenAI 模型。需要用户在本地向导填写 Guild 与 token，再执行 `start`，完成一个专用频道的代表性往返与知识更新试验。向导保存成功仅证明本地设置完成，不证明 token 有效、Bot 已入服或有频道权限。
 - 未验证账号的模型访问、生产延迟、真实 token 分布、文件集标签质量、知识召回相关性或动态权重长期表现；当前预算是工程初值。
 - 当前每个有直接命中的检索为一个 `.99` 衰减周期，不等同每日周期。该选择明列于基线表，使用者应在真实 pilot 中评估检索频率影响。
 - 本地图排序、文件 I/O 和 fsync 不可由 asyncio 强制抢占；当前协作式本地时间检查不能当成任意规模计算的硬时间保证。

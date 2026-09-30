@@ -60,7 +60,7 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.directory = TemporaryDirectory()
         root = Path(self.directory.name)
-        self.config = SimpleNamespace(knowledge_dir=root / "knowledge", discord=DiscordConfig("10"),
+        self.config = SimpleNamespace(name="Indices", knowledge_dir=root / "knowledge", discord=DiscordConfig("10"),
             knowledge=KnowledgeConfig(poll_seconds=0.01, max_file_bytes=4096, max_files=8, chunk_characters=100,
                                       version_seconds=1.0, version_input_tokens=16384, version_output_tokens=256),
             adapter=AdapterConfig("gpt-6-luna", "https://api.openai.com/v1", {"label": Budget(2048, 32, 1.0)}))

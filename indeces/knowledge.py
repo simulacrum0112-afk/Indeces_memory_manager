@@ -117,13 +117,13 @@ class KnowledgeService:
                                    raw_text=text, chunk_count=len(chunks), scope=self.scope)
                 self._wake.set()
                 self._errors.pop(relative, None)
-                print(f"[Indeces] knowledge queued: {relative} ({len(chunks)} chunks)", flush=True)
+                print(f"[{self.config.name}] knowledge queued: {relative} ({len(chunks)} chunks)", flush=True)
             except (OSError, UnicodeError, GovernedError) as error:
                 code = error.code if isinstance(error, GovernedError) else type(error).__name__
                 self._retire(relative, code)
                 if self._errors.get(relative) != code:
                     self.scratch.write("knowledge_update_rejected", path=relative, code=code)
-                    print(f"[Indeces] knowledge rejected: {relative}; {code}", flush=True)
+                    print(f"[{self.config.name}] knowledge rejected: {relative}; {code}", flush=True)
                     self._errors[relative] = code
         heads = self.store.db.execute("SELECT path FROM knowledge_heads").fetchall()
         for head in heads:
@@ -200,7 +200,7 @@ class KnowledgeService:
                     self.store.db.execute("UPDATE knowledge_versions SET status='ready' WHERE source_id=?", (source_id,))
                 self.scratch.write("knowledge_version_ready", trace_id=trace_id, source_id=source_id, path=version["path"],
                                    digest=version["digest"], records=records)
-                print(f"[Indeces] knowledge ready: {version['path']}", flush=True)
+                print(f"[{self.config.name}] knowledge ready: {version['path']}", flush=True)
         except asyncio.CancelledError:
             with self.store.db:
                 self.store.db.execute("UPDATE knowledge_versions SET status='failed',error='interrupted_unknown_usage' WHERE source_id=? AND status='labelling'", (source_id,))
@@ -211,7 +211,7 @@ class KnowledgeService:
             with self.store.db:
                 self.store.db.execute("UPDATE knowledge_versions SET status='failed',error=? WHERE source_id=? AND status='labelling'", (code, source_id))
             self.scratch.write("label_job_end", trace_id=trace_id, source_id=source_id, status="failed", code=code)
-            print(f"[Indeces] labelling failed: {version['path']}; {code}", flush=True)
+            print(f"[{self.config.name}] labelling failed: {version['path']}; {code}", flush=True)
         else:
             self.scratch.write("label_job_end", trace_id=trace_id, source_id=source_id, status="ready")
         finally:
@@ -232,7 +232,7 @@ class KnowledgeService:
                 code = error.code if isinstance(error, GovernedError) else type(error).__name__
                 if self._errors.get("<scan>") != code:
                     self.scratch.write("knowledge_scan_failed", code=code)
-                    print(f"[Indeces] knowledge scan failed: {code}", flush=True)
+                    print(f"[{self.config.name}] knowledge scan failed: {code}", flush=True)
                     self._errors["<scan>"] = code
             await asyncio.sleep(self.config.knowledge.poll_seconds)
 

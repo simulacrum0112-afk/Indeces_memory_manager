@@ -1,6 +1,6 @@
 # Indeces_memory_manager
 
-一个小型 Python 无头智能体：一个 Discord Bot 连接、一个串行消息 worker、GPT-6-Luna adaptor、本地知识库、动态 Hebbian 标注词网络，以及可检查的输入输出 scratch log。
+一个名为 **Indices** 的小型 Python 无头智能体：一个 Discord Bot 连接、一个串行消息 worker、GPT-6-Luna adaptor、本地知识库、动态 Hebbian 标注词网络，以及可检查的输入输出 scratch log。项目仓库名保留 `Indeces_memory_manager`。
 
 只处理指定服务器中人类显式 `@Bot` 的文字消息，并回复一条 Discord 消息。短期上下文按频道隔离。没有工具执行、MCP、HTTP 服务、网页搜索、日程、主动发言或多 Bot 路由。
 
@@ -24,7 +24,7 @@ flowchart LR
 
 ## 启动
 
-需要 Python 3.12 或更新版本。已在 Windows / CPython 3.12.14 离线验证；Linux CI 已配置，首次远端运行结果另行核对。
+需要 Python 3.12 或更新版本。Windows / CPython 3.12.14 的历史基线与本版验证进度见 [docs/STATUS.md](docs/STATUS.md)；Windows/Linux 离线 CI 已配置。
 
 Windows 首次安装运行 `setup.cmd`，然后双击 `Indeces-Console.cmd`。已有本地 `.venv`，可直接打开 Console。
 
@@ -37,17 +37,33 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m indeces init
 ```
 
-Linux 使用 `.venv/bin/python`。编辑 `config.local.toml`，填写 `discord.guild_id`；`channel_ids` 可以限制频道，空列表允许该服务器中所有符合显式 @ 条件的频道。
+Linux 使用 `.venv/bin/python`。Windows 首次桥接可在 Console 输入 `discord`，或直接运行向导：
 
-API key 和 Discord Bot token 通过 `OPENAI_API_KEY`、`DISCORD_BOT_TOKEN` 环境变量提供，或者 `start` 时在本地隐藏输入；不写入配置、日志或仓库。不读取 Yuki 的秘密配置。`.env.example` 只说明变量名，不自动加载 `.env`。
+```powershell
+.\.venv\Scripts\python.exe -m indeces discord
+```
+
+向导接收服务器 **Guild ID**、可选频道 ID 和隐藏输入的 **Bot token**。Guild ID 是目标服务器 ID；频道 ID 以逗号分隔，留空保留现有配置，输入 `*` 允许该服务器中所有符合显式 @ 条件的频道。向导展示不含 token 的设置预览，输入 `y` 才保存；取消不应用桥接设置。已有 runtime 持有同一 state 目录的实例锁时，向导拒绝修改。
+
+Guild/频道设置写入 `config.local.toml`，名称同步为 `Indices`；Bot token 只在 Windows 以当前用户 DPAPI 加密，保存到相邻的 `config.local.discord.secret`，并绑定该 Guild ID。它不能作为明文配置迁移到其他 Windows 用户或系统。密钥不进入配置、scratch 或仓库。终端无法保证隐藏输入时拒绝回显输入；损坏或不匹配的旧凭据可在向导里提供新 token 修复。其他平台没有持久化明文回退，可手动设置配置中的 Guild/频道 ID，并使用环境变量或启动时的隐藏输入。
+
+**向导只做本地设置，不连接 Discord、不验证 token 是否被 Discord 接受，也不启动服务。** 保存后在 Console 明确执行 `start`。启动时 Discord token 来源按 `DISCORD_BOT_TOKEN` 环境变量 → 与配置 Guild 匹配的已保存 token → 本次会话隐藏输入的顺序选择。OpenAI API key 仍由 `OPENAI_API_KEY` 环境变量或每次启动的隐藏输入提供，不持久化。不读取 Yuki 的秘密配置。`.env.example` 只说明变量名，不自动加载 `.env`。
 
 ```powershell
 .\.venv\Scripts\python.exe -m indeces
 ```
 
-Console 命令：`start`、`status`、`scratch`、`quit`。`start` 在前台运行；Ctrl+C 停机并返回 Console。无头启动也可用 `python -m indeces start`。`status` 是配置和持久状态快照，不保证服务当前在线。
+Console 命令：`discord`、`start`、`status`、`scratch`、`quit`。`start` 在前台运行；Ctrl+C 停机并返回 Console。无头启动也可用 `python -m indeces start`。`status` 是配置和持久状态快照，不保证服务当前在线。
 
-Discord Bot 需启用服务器消息事件，并具有 View Channel、Send Messages、Read Message History 权限。显式提及应用的消息正文可使用 Message Content intent 的例外；本实现不申请该特权 intent。[Discord Gateway](https://docs.discord.com/developers/events/gateway#message-content-intent)
+Bot 需提前通过 Discord 的服务器安装流程加入目标服务器；向导不创建或邀请 Bot。Token 来自 Developer Portal 的 Bot 页面，安装步骤见 [Discord 官方入门](https://docs.discord.com/developers/quick-start/getting-started)。Bot 需接收服务器消息事件，并具有 View Channel、Send Messages、Read Message History [频道权限](https://docs.discord.com/developers/topics/permissions#permissions-bitwise-permission-flags)；在线程中回复还需 Send Messages in Threads。显式提及应用的消息正文可使用 Message Content intent 的例外；本实现不申请该特权 intent。[Discord Gateway](https://docs.discord.com/developers/events/gateway#message-content-intent)
+
+## Indices 人设与记忆测试
+
+默认提示词把 Indices 设为平静、好奇、温和且简洁的对话伙伴，使用当前用户的语言回复。目标是帮助观察 Hebbian 治理下的长期召回表现；日常交流不会自动改成测试报告。
+
+回答必须区分当前消息、最近对话/连续性摘要、带来源的长期知识和一般知识。涉及召回问题时，使用长期知识需引用实际提供的来源 ID；没有相关长期证据时说明未检索到，不编造记忆、来源、图权重或测试结果。知识文件中的说法仍需保留来源、冲突和不确定性。
+
+人设不把单次回答当成 Hebbian 有效性的证明，也不声称已把聊天保存为长期知识。测试长期记忆需由用户更新本地知识文件，再对照检索证据、来源版本与 scratch 记录；当前版本没有自动评测结果。
 
 ## 知识库与标词
 

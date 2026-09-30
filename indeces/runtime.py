@@ -136,7 +136,7 @@ class Runtime:
                     code = "delivery_unknown:" + code
                 self.store.fail(message.message_id, code)
                 self.scratch.write("turn_end", trace_id=trace_id, status="failed", code=code)
-                print(f"[Indeces] turn failed: {code}; trace={trace_id}", flush=True)
+                print(f"[{self.config.name}] turn failed: {code}; trace={trace_id}", flush=True)
                 if not delivered:
                     # A fixed failure receipt adds no model request. It is traced
                     # and kept separate from assistant conversational history.
