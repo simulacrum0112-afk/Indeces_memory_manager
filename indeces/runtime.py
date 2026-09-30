@@ -4,11 +4,13 @@ import asyncio
 import json
 import time
 import uuid
+from dataclasses import asdict
 
 from .adapter import reservation
 from .context import compaction_prefix, encode, groups, history_cost, history_data, raw_capacity, reply_messages
 from .contracts import GovernedError
 from .memory import MemoryGraph
+from .run_records import answer_record, digest, freeze_retrieval
 from . import prompts
 
 
@@ -97,8 +99,10 @@ class Runtime:
                 return
             self.scratch.write("turn_start", trace_id=trace_id, message_id=message.message_id, scope=message.scope,
                                input={"text": message.text, "raw_text": message.raw_text, "author_id": message.author_id},
-                               deadline_seconds=self.config.runtime.turn_seconds)
+                               deadline_seconds=self.config.runtime.turn_seconds, run_record_version=1,
+                               knowledge_scope=self.knowledge_scope)
             delivered = False
+            confirmed = False
             try:
                 async with asyncio.timeout(self.config.runtime.turn_seconds):
                     started = time.monotonic()
@@ -106,15 +110,30 @@ class Runtime:
                     # graph methods also bound their lookup/expansion outputs.
                     self.store.db.set_progress_handler(lambda: int(time.monotonic() - started > self.config.runtime.local_seconds), 1000)
                     try:
-                        knowledge = self.graph.retrieve(self.knowledge_scope, [], message.text, time.time(), event_id=message.message_id)
+                        graph_audit = {}
+                        records = self.graph.retrieve(self.knowledge_scope, [], message.text, time.time(),
+                                                      event_id=message.message_id, audit=graph_audit)
+                        self.scratch.write("memory_observation", trace_id=trace_id, audit=graph_audit,
+                                           audit_sha256=digest(graph_audit))
+                        retrieval = freeze_retrieval(self.store.db, self.knowledge_scope, message.message_id,
+                                                     message.text, records, graph_audit)
+                        knowledge = retrieval["model_materials"]
                     finally:
                         self.store.db.set_progress_handler(None, 0)
                     if time.monotonic() - started > self.config.runtime.local_seconds:
                         raise GovernedError("local_memory_timeout")
+                    retrieval_hash = digest(retrieval)
+                    self.scratch.write("retrieval_record", trace_id=trace_id, record=retrieval, record_sha256=retrieval_hash)
                     self.scratch.write("knowledge_retrieved", trace_id=trace_id, input_marks=[],
-                                       query=message.text, records=knowledge, elapsed_seconds=time.monotonic() - started)
+                                       query=message.text, records=knowledge, retrieval_sha256=retrieval_hash,
+                                       elapsed_seconds=time.monotonic() - started)
                     messages = await self._summary(message, knowledge, trace_id)
-                    result = await self.adapter.call("reply", prompts.reply_instructions(self.config.name), messages, trace_id)
+                    instructions = prompts.reply_instructions(self.config.name)
+                    self.scratch.write("reply_context", trace_id=trace_id, retrieval_sha256=retrieval_hash,
+                                       instructions=instructions, messages=messages)
+                    result = await self.adapter.call("reply", instructions, messages, trace_id)
+                    self.scratch.write("answer_generated", trace_id=trace_id, retrieval_sha256=retrieval_hash,
+                                       record=answer_record(result.text, retrieval), model_result=asdict(result))
                     self.store.generated(message.message_id, result.text)
                     self.scratch.write("delivery_start", trace_id=trace_id, message_id=message.message_id, text=result.text)
                     # Mark attempt before crossing Discord boundary. A timeout
@@ -122,15 +141,26 @@ class Runtime:
                     delivered = True
                     async with asyncio.timeout(self.config.discord.delivery_seconds):
                         receipt = await deliver(result.text)
+                    confirmed = True
                     self.store.finish(message, receipt)
+                    self.scratch.write("answer_delivered", trace_id=trace_id, retrieval_sha256=retrieval_hash,
+                                       record=answer_record(receipt.text, retrieval), receipt_ids=receipt.message_ids)
                     self.scratch.write("turn_end", trace_id=trace_id, status="delivered", receipt={"ids": receipt.message_ids, "text": receipt.text})
                     return
             except asyncio.CancelledError:
+                if confirmed:
+                    print(f"[{self.config.name}] Discord delivery confirmed; post-delivery recording interrupted; trace={trace_id}", flush=True)
+                    raise
                 code = "delivery_unknown" if delivered else "cancelled"
                 self.store.fail(message.message_id, code)
                 self.scratch.write("turn_end", trace_id=trace_id, status=code)
                 raise
             except Exception as error:
+                if confirmed:
+                    # A local audit failure cannot erase a confirmed Discord
+                    # receipt or trigger another delivery. Preserve history.
+                    print(f"[{self.config.name}] Discord delivery confirmed; post-delivery storage/audit failed: {type(error).__name__}; trace={trace_id}; inspect records before restarting.", flush=True)
+                    return
                 code = error.code if isinstance(error, GovernedError) else "turn_timeout" if isinstance(error, TimeoutError) else type(error).__name__
                 if delivered:
                     code = "delivery_unknown:" + code

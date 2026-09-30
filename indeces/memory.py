@@ -121,6 +121,16 @@ class MemoryGraph:
                 decay REAL NOT NULL, PRIMARY KEY(scope, cycle_id),
                 UNIQUE(scope, event_id)
             );
+            CREATE TABLE IF NOT EXISTS memory_event_audits (
+                scope TEXT NOT NULL, event_id TEXT NOT NULL,
+                payload_json TEXT NOT NULL, PRIMARY KEY(scope,event_id)
+            );
+            CREATE TRIGGER IF NOT EXISTS memory_event_audits_no_update
+                BEFORE UPDATE ON memory_event_audits
+                BEGIN SELECT RAISE(ABORT, 'memory event audit is immutable'); END;
+            CREATE TRIGGER IF NOT EXISTS memory_event_audits_no_delete
+                BEFORE DELETE ON memory_event_audits
+                BEGIN SELECT RAISE(ABORT, 'memory event audit is immutable'); END;
         """)
         columns = {row[1] for row in connection.execute("PRAGMA table_info(memory_records)")}
         migrated = "active" not in columns
@@ -262,14 +272,45 @@ class MemoryGraph:
                      _json(evidence[(a, b)]), count))
 
     def _observe(self, scope: str, hits: list[str], query: str,
-                 now: float, event_id: str) -> bool:
-        """Atomically seed once, decay once, and reinforce direct pairs once."""
-        with self.connection:
+                 now: float, event_id: str, *, audit: dict | None = None,
+                 commit: bool = True) -> bool:
+        """Seed, decay and reinforce once, capturing actual row transitions.
+
+        ``commit=False`` allows retrieval selection and its immutable audit to
+        commit in the same transaction as these transitions.
+        """
+        if not commit and not self.connection.in_transaction:
+            raise ValueError("commit=False requires a caller-owned transaction")
+        details = {"status": "applied", "applied": True, "original_changes_known": True,
+                   "parameters": {"eta": ETA, "decay": DECAY, "dynamic_round_digits": 6,
+                                  "static_round_digits": 4,
+                                  "rounding": "Python round after decay and each reinforcement"},
+                   "changed_edges": []}
+        with self.connection if commit else nullcontext():
+            state = self.connection.execute(
+                "SELECT dynamic_seeded FROM memory_scopes WHERE scope=?", (scope,)).fetchone()
+            details["seeded_before"] = bool(state[0]) if state else False
+            old = self.connection.execute(
+                "SELECT query,marks_json FROM memory_events WHERE scope=? AND event_id=?",
+                (scope, event_id)).fetchone()
+            if old is not None:
+                if old[0] != query or old[1] != _json(hits):
+                    raise ValueError("retrieval event ID reused with different input")
+                details.update(status="replay", applied=False, original_changes_known=False,
+                               seeded_after=details["seeded_before"], seeded_edges=0)
+                if audit is not None:
+                    audit.update(details)
+                return False
             self.connection.execute(
                 "INSERT OR IGNORE INTO memory_scopes(scope) VALUES(?)", (scope,))
             seeded = self.connection.execute(
                 "SELECT dynamic_seeded FROM memory_scopes WHERE scope=?", (scope,)).fetchone()[0]
+            seeded_pairs = set()
             if not seeded:
+                seeded_pairs = {tuple(row) for row in self.connection.execute(
+                    "SELECT s.a,s.b FROM memory_static s LEFT JOIN memory_dynamic d "
+                    "ON d.scope=s.scope AND d.a=s.a AND d.b=s.b "
+                    "WHERE s.scope=? AND d.a IS NULL", (scope,))}
                 self.connection.execute(
                     "INSERT OR IGNORE INTO memory_dynamic "
                     "(scope,a,b,weight,context_json,seed_weight) "
@@ -277,36 +318,68 @@ class MemoryGraph:
                     (scope,))
                 self.connection.execute(
                     "UPDATE memory_scopes SET dynamic_seeded=1 WHERE scope=?", (scope,))
-            old = self.connection.execute(
-                "SELECT query,marks_json FROM memory_events WHERE scope=? AND event_id=?",
-                (scope, event_id)).fetchone()
-            if old is not None:
-                if old[0] != query or old[1] != _json(hits):
-                    raise ValueError("retrieval event ID reused with different input")
-                return False
+            details.update(seeded_after=True, seeded_edges=len(seeded_pairs))
             self.connection.execute("INSERT INTO memory_events VALUES(?,?,?,?,?)",
                                     (scope, event_id, now, query, _json(hits)))
             self.connection.execute("INSERT INTO memory_cycles VALUES(?,?,?,?,?)",
                                     (scope, event_id, event_id, now, DECAY))
             # Upstream rounds after decay and after each reinforcement.
-            for a, b, weight in list(self.connection.execute(
-                    "SELECT a,b,weight FROM memory_dynamic WHERE scope=?", (scope,))):
+            transitions = {}
+            for a, b, weight, seed_weight, last_event, context, evidence, co_count, static in list(self.connection.execute(
+                    "SELECT d.a,d.b,d.weight,d.seed_weight,d.last_event_id,s.context_json,s.evidence_json,s.co_count,t.weight "
+                    "FROM memory_dynamic d LEFT JOIN memory_support s ON s.scope=d.scope AND s.a=d.a AND s.b=d.b "
+                    "LEFT JOIN memory_static t ON t.scope=d.scope AND t.a=d.a AND t.b=d.b "
+                    "WHERE d.scope=? ORDER BY d.a,d.b", (scope,))):
+                decayed = round(weight * DECAY, 6)
                 self.connection.execute(
                     "UPDATE memory_dynamic SET weight=?,last_event_id=? "
                     "WHERE scope=? AND a=? AND b=?",
-                    (round(weight * DECAY, 6), event_id, scope, a, b))
+                    (decayed, event_id, scope, a, b))
+                created = (a, b) in seeded_pairs
+                transitions[(a, b)] = {"a": a, "b": b, "created_by": "static_seed" if created else None,
+                    "before_weight": None if created else weight, "after_seed": weight if created else None,
+                    "decay_applied": True, "after_decay": decayed, "reinforcement_added": 0.0,
+                    "after_weight": decayed, "seed_weight": seed_weight,
+                    "before_last_event_id": last_event, "after_last_event_id": event_id,
+                    "active_source_support": evidence is not None,
+                    "source_record_ids": json.loads(evidence) if evidence is not None else [],
+                    "source_context": json.loads(context) if context is not None else [],
+                    "co_count": co_count if co_count is not None else 0,
+                    "static_score": static if static is not None else 0.0}
             for a, b in itertools.combinations(sorted(hits), 2):
-                self.connection.execute(
+                inserted = self.connection.execute(
                     "INSERT OR IGNORE INTO memory_dynamic "
                     "(scope,a,b,weight,context_json,seed_weight) VALUES(?,?,?,0,'[]',0)",
                     (scope, a, b))
                 weight = self.connection.execute(
                     "SELECT weight FROM memory_dynamic WHERE scope=? AND a=? AND b=?",
                     (scope, a, b)).fetchone()[0]
+                reinforced = round(weight + ETA, 6)
                 self.connection.execute(
                     "UPDATE memory_dynamic SET weight=?,last_event_id=? "
                     "WHERE scope=? AND a=? AND b=?",
-                    (round(weight + ETA, 6), event_id, scope, a, b))
+                    (reinforced, event_id, scope, a, b))
+                if inserted.rowcount:
+                    support = self.connection.execute(
+                        "SELECT context_json,evidence_json,co_count FROM memory_support WHERE scope=? AND a=? AND b=?",
+                        (scope, a, b)).fetchone()
+                    static = self.connection.execute(
+                        "SELECT weight FROM memory_static WHERE scope=? AND a=? AND b=?", (scope, a, b)).fetchone()
+                    transitions[(a, b)] = {"a": a, "b": b, "created_by": "direct_reinforcement",
+                        "before_weight": None, "after_seed": None, "decay_applied": False,
+                        "after_decay": None, "seed_weight": 0.0, "before_last_event_id": None,
+                        "after_last_event_id": event_id, "active_source_support": support is not None,
+                        "source_record_ids": json.loads(support[1]) if support else [],
+                        "source_context": json.loads(support[0]) if support else [],
+                        "co_count": support[2] if support else 0,
+                        "static_score": static[0] if static else 0.0}
+                transitions[(a, b)].update(reinforcement_before=weight, reinforcement_added=ETA,
+                                             after_weight=reinforced)
+            details["changed_edges"] = [dict(transition,
+                weight_changed=transition["before_weight"] != transition["after_weight"])
+                for _, transition in sorted(transitions.items())]
+            if audit is not None:
+                audit.update(details)
         return True
 
     def _edges(self, scope: str) -> dict[tuple[str, str], dict[str, Any]]:
@@ -338,30 +411,104 @@ class MemoryGraph:
         return {pair: edge for pair, edge in edges.items() if edge["effective_score"] > 0}
 
     def retrieve(self, scope: str, marks: list[str], query: str,
-                 now: float, *, event_id: str | None = None) -> list[dict[str, Any]]:
+                 now: float, *, event_id: str | None = None,
+                 audit: dict | None = None) -> list[dict[str, Any]]:
         """Return at most three sourced references, with <=400 text chars.
 
         Direct hits require literal current-message evidence and known
         labels in this scope. Expanded hits never feed Hebbian updates.
         Self-only and weak/no-hit requests return no historical reference.
+        ``audit`` receives committed observable transitions and selection. The
+        first event audit is durable and immutable; replay selection remains
+        based on current active sources without repeating graph learning.
         """
         self._validate_scope_time(scope, now)
         if not isinstance(query, str):
             raise ValueError("query must be a string")
+        if audit is not None and not isinstance(audit, dict):
+            raise ValueError("audit must be a dictionary")
         requested = self._marks(marks)
-        records = self._records(scope)
-        known = {m for record in records for m in record["marks"]} - self.self_marks
-        candidates = known | set(requested)
-        hits = sorted((m for m in candidates if m in known and _hit(m, query)),
-                      key=lambda m: (-len(m), m))[:MAX_DIRECT]
-        if not hits:
-            return []
         if event_id is None:
             event_id = hashlib.sha256(_json([scope, query, requested, now]).encode()).hexdigest()
         if not isinstance(event_id, str) or not event_id:
             raise ValueError("event_id must be a nonempty string")
-        self._observe(scope, hits, query, now, event_id)
-        edges = self._edges(scope)
+        payload = {"schema_version": 1, "scope": scope, "event_id": event_id,
+                   "request": {"query": query, "requested_marks": requested, "observed_at": now}}
+        with self.connection:
+            self.connection.execute("BEGIN IMMEDIATE")
+            records = self._records(scope)
+            known = {m for record in records for m in record["marks"]} - self.self_marks
+            candidates = known | set(requested)
+            literal = sorted((m for m in candidates if m in known and _hit(m, query)),
+                             key=lambda m: (-len(m), m))
+            hits = literal[:MAX_DIRECT]
+            payload["match"] = {"known_marks_count": len(known), "literal_matches": literal,
+                                "direct_hits": hits, "direct_limit": MAX_DIRECT,
+                                "discarded_direct_matches": literal[MAX_DIRECT:],
+                                "excluded_self_marks": sorted(self.self_marks)}
+            stored = self.connection.execute(
+                "SELECT payload_json FROM memory_event_audits WHERE scope=? AND event_id=?", (scope, event_id)).fetchone()
+            original = json.loads(stored[0]) if stored else None
+            legacy = self.connection.execute(
+                "SELECT query FROM memory_events WHERE scope=? AND event_id=?", (scope, event_id)).fetchone()
+            if (original and original["request"]["query"] != query) or (legacy and legacy[0] != query):
+                raise ValueError("retrieval event ID reused with different input")
+            observation = {}
+            if hits:
+                if original and not original["match"]["direct_hits"]:
+                    raise ValueError("retrieval event ID reused with different input")
+                self._observe(scope, hits, query, now, event_id, audit=observation, commit=False)
+                result, selection = self._selection(records, hits, self._edges(scope), query, event_id)
+            else:
+                state = self.connection.execute(
+                    "SELECT dynamic_seeded FROM memory_scopes WHERE scope=?", (scope,)).fetchone()
+                seeded = bool(state[0]) if state else False
+                observation = {"status": "no_hit", "applied": False, "original_changes_known": True,
+                               "seeded_before": seeded, "seeded_after": seeded, "seeded_edges": 0,
+                               "changed_edges": [], "reason": "no_literal_known_mark"}
+                result, selection = self._selection(records, [], {}, query, event_id)
+            if original:
+                observation["original_changes_known"] = original["observation"]["original_changes_known"]
+                payload["original_event"] = {"payload_sha256": hashlib.sha256(stored[0].encode()).hexdigest(),
+                    "observed_at": original["request"]["observed_at"],
+                    "observation_status": original["observation"]["status"],
+                    "changed_edges_count": len(original["observation"]["changed_edges"])}
+            elif legacy:
+                observation.update(status="legacy_replay", original_changes_known=False)
+            payload.update(observation=observation, selection=selection, replay=bool(original or legacy))
+            if not stored:
+                serialized = _json(payload)
+                self.connection.execute("INSERT INTO memory_event_audits VALUES(?,?,?)", (scope, event_id, serialized))
+            else:
+                serialized = stored[0]
+        payload["durable_payload_sha256"] = hashlib.sha256(serialized.encode()).hexdigest()
+        if audit is not None:
+            audit.clear()
+            audit.update(payload)
+        return result
+
+    def _selection(self, records, hits, edges, query, event_id):
+        """The existing one-hop/ranking policy, with observable decision data."""
+        frequencies = Counter()
+        for record in records:
+            frequencies.update(set(record["marks"]) - self.self_marks)
+        known = set(frequencies)
+        selection = {"active_record_count": len(records), "live_edge_count": len(edges),
+            "mark_frequencies": dict(sorted(frequencies.items())), "static_formula_reproducible": True,
+            "static_policy": {"formula": "log(p_ab/(p_a*p_b))/-log(p_ab)",
+                              "p_ab_one_value": 1.0, "retain_only_positive": True, "round_digits": 4},
+            "edge_statistics": [{"a": a, "b": b, "co_count": edge["co_count"],
+                                 "active_source_support": True, "source_record_ids": edge["source_record_ids"],
+                                 "context": edge["context"], "dynamic_last_event_id": edge["dynamic_last_event_id"],
+                                 "static_score": edge["static_score"], "dynamic_score": edge["dynamic_score"],
+                                 "effective_score": edge["effective_score"]}
+                                for (a, b), edge in sorted(edges.items())],
+            "limits": {"direct_marks": MAX_DIRECT, "neighbors_per_hit": 5,
+                       "expanded_marks": MAX_EXTRA, "references": MAX_REFERENCES,
+                       "total_text_characters": MAX_TEXT_CHARS, "entry_text_characters": MAX_ENTRY_CHARS},
+            "ranking_order": ["direct_match_count descending", "effective_score descending",
+                              "static_score descending", "record_id descending"],
+            "expansion_candidates": [], "ranked_candidates": [], "selected": []}
 
         # Rank first, THEN deduplicate, so the strongest provenance wins.
         expansion: dict[str, dict[str, Any]] = {}
@@ -375,8 +522,13 @@ class MemoryGraph:
                     continue
                 neighbors.append((neighbor, edge))
             neighbors.sort(key=lambda item: (-item[1]["effective_score"], item[0]))
-            for neighbor, edge in neighbors[:5]:
-                if edge["context"] and not any(_hit(m, query) for m in edge["context"]):
+            for neighbor_rank, (neighbor, edge) in enumerate(neighbors, 1):
+                context_passed = not edge["context"] or any(_hit(m, query) for m in edge["context"])
+                decision = dict(edge, from_mark=hit, mark=neighbor, neighbor_rank=neighbor_rank,
+                    within_neighbor_limit=neighbor_rank <= 5, context_passed=context_passed,
+                    considered=neighbor_rank <= 5 and context_passed)
+                selection["expansion_candidates"].append(decision)
+                if neighbor_rank > 5 or not context_passed:
                     continue
                 entry = dict(edge, from_mark=hit, mark=neighbor)
                 old = expansion.get(neighbor)
@@ -386,6 +538,11 @@ class MemoryGraph:
         expanded = sorted(expansion.values(),
                           key=lambda item: (-item["effective_score"], item["mark"]))[:MAX_EXTRA]
         allowed = set(hits) | {entry["mark"] for entry in expanded}
+        selection["expanded_marks"] = [entry["mark"] for entry in expanded]
+        for candidate in selection["expansion_candidates"]:
+            winner = expansion.get(candidate["mark"])
+            candidate["deduplication_winner"] = bool(winner and winner["from_mark"] == candidate["from_mark"])
+            candidate["selected_for_expansion"] = candidate["deduplication_winner"] and candidate["mark"] in selection["expanded_marks"]
 
         ranked = []
         for record in records:
@@ -415,6 +572,15 @@ class MemoryGraph:
                           retrieval_event_id=event_id)
             ranked.append((len(direct), effective, static, record["id"], result))
         ranked.sort(key=lambda item: (-item[0], -item[1], -item[2], -item[3]))
+        for rank, (direct_count, effective, static, record_id, record) in enumerate(ranked, 1):
+            selection["ranked_candidates"].append({"rank": rank, "record_id": record_id,
+                "source_id": record["source_id"], "marks": record["marks"],
+                "direct_marks": record["direct_marks"], "expanded_marks": record["expanded_marks"],
+                "direct_match_count": direct_count, "effective_score": effective, "static_score": static,
+                "dynamic_score": record["dynamic_score"], "evidence": record["evidence"],
+                "text_characters": len(record["text"]),
+                "text_sha256": hashlib.sha256(record["text"].encode()).hexdigest(),
+                "quote_sha256": hashlib.sha256(record["quote"].encode()).hexdigest()})
         result, used = [], 0
         for _, _, _, _, record in ranked:
             if len(result) == MAX_REFERENCES:
@@ -427,4 +593,11 @@ class MemoryGraph:
             record["text_truncated"] = len(record["text"]) < len(text)
             used += len(record["text"])
             result.append(record)
-        return result
+            selection["selected"].append({"rank": len(result), "record_id": record["id"],
+                "source_id": record["source_id"], "text_characters": len(record["text"]),
+                "text_truncated": record["text_truncated"],
+                "preview_sha256": hashlib.sha256(record["text"].encode()).hexdigest()})
+        selection["selected_record_ids"] = [r["id"] for r in result]
+        selection["excluded_record_count"] = len(records) - len(ranked)
+        selection["used_text_characters"] = used
+        return result, selection

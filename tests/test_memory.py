@@ -1,6 +1,12 @@
+import hashlib
 import json
+import math
+from contextlib import closing
+from pathlib import Path
 import sqlite3
+from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 from indeces.memory import DECAY, MemoryGraph
 
@@ -207,6 +213,205 @@ class MemoryGraphTests(unittest.TestCase):
         self.graph.deactivate_source("scope-a", "kb:same:v1")
         self.assertEqual(self.graph.retrieve("scope-a", [], "alpha", 2), [])
         self.assertEqual(len(self.graph.retrieve("scope-b", [], "alpha", 2)), 1)
+
+    def stored_audit(self, event_id, *, scope="guild/channel"):
+        return self.db.execute("SELECT payload_json FROM memory_event_audits WHERE scope=? AND event_id=?",
+                               (scope, event_id)).fetchone()[0]
+
+    def test_audit_reconstructs_static_seed_decay_and_direct_reinforcement(self):
+        record = self.fact("source", ["alpha", "beta"])
+        audit = {}
+        result = self.graph.retrieve("guild/channel", [], "alpha beta", 2, event_id="audited", audit=audit)
+        observation = audit["observation"]
+        self.assertTrue(observation["applied"])
+        self.assertFalse(observation["seeded_before"])
+        self.assertTrue(observation["seeded_after"])
+        transition = observation["changed_edges"][0]
+        self.assertEqual((transition["a"], transition["b"]), ("alpha", "beta"))
+        self.assertIsNone(transition["before_weight"])
+        self.assertEqual(transition["created_by"], "static_seed")
+        self.assertEqual(transition["after_seed"], 1.0)
+        self.assertEqual(transition["after_decay"], round(transition["after_seed"] * observation["parameters"]["decay"], 6))
+        self.assertEqual(transition["reinforcement_before"], transition["after_decay"])
+        self.assertEqual(transition["reinforcement_added"], observation["parameters"]["eta"])
+        self.assertEqual(transition["after_weight"], round(transition["after_decay"] + transition["reinforcement_added"], 6))
+        self.assertEqual(transition["after_weight"], self.weight("alpha", "beta"))
+        self.assertTrue(transition["active_source_support"])
+        self.assertEqual(transition["source_record_ids"], [record["id"]])
+        self.assertEqual(audit["selection"]["selected_record_ids"], [r["id"] for r in result])
+        serialized = self.stored_audit("audited")
+        self.assertEqual(audit["durable_payload_sha256"], hashlib.sha256(serialized.encode()).hexdigest())
+        self.assertEqual(json.loads(serialized)["observation"], observation)
+
+    def test_audit_reconstructs_npmi_from_active_global_counts(self):
+        self.fact("ab1", ["alpha", "beta"])
+        self.fact("ab2", ["alpha", "beta"])
+        self.fact("ac", ["alpha", "gamma"])
+        self.fact("c", ["gamma"])
+        audit = {}
+        self.graph.retrieve("guild/channel", [], "alpha beta", 2, event_id="statistics", audit=audit)
+        selection = audit["selection"]
+        self.assertTrue(selection["static_formula_reproducible"])
+        self.assertEqual(selection["active_record_count"], 4)
+        self.assertEqual(selection["mark_frequencies"], {"alpha": 3, "beta": 2, "gamma": 2})
+        for edge in selection["edge_statistics"]:
+            n = selection["active_record_count"]
+            p_ab = edge["co_count"] / n
+            p_a, p_b = (selection["mark_frequencies"][mark] / n for mark in (edge["a"], edge["b"]))
+            npmi = 1.0 if p_ab == 1 else math.log(p_ab / (p_a * p_b)) / -math.log(p_ab)
+            self.assertEqual(edge["static_score"], round(npmi, 4) if npmi > 0 else 0.0)
+            self.assertEqual(edge["co_count"], len(edge["source_record_ids"]))
+        live_edges = {(edge["a"], edge["b"]): edge for edge in selection["edge_statistics"]}
+        for candidate in selection["ranked_candidates"]:
+            for evidence in candidate["evidence"]:
+                pair = tuple(sorted((evidence["from_mark"], evidence["mark"])))
+                edge = live_edges[pair]
+                for field in ("co_count", "source_record_ids", "context", "dynamic_last_event_id",
+                              "static_score", "dynamic_score", "effective_score"):
+                    self.assertEqual(evidence[field], edge[field])
+
+    def test_audit_captures_decay_of_inactive_unsupported_dynamic_history(self):
+        self.fact("old", ["alpha", "beta"])
+        self.fact("current", ["alpha"])
+        self.graph.retrieve("guild/channel", [], "alpha beta", 2, event_id="old-learning")
+        before = self.weight("alpha", "beta")
+        self.graph.deactivate_source("guild/channel", "old")
+        audit = {}
+        self.graph.retrieve("guild/channel", [], "alpha", 3, event_id="inactive-decay", audit=audit)
+        transition = audit["observation"]["changed_edges"][0]
+        self.assertFalse(transition["active_source_support"])
+        self.assertEqual(transition["source_record_ids"], [])
+        self.assertEqual(transition["before_weight"], before)
+        self.assertEqual(transition["after_decay"], round(before * DECAY, 6))
+        self.assertEqual(transition["reinforcement_added"], 0)
+        self.assertEqual(transition["after_weight"], transition["after_decay"])
+        self.assertEqual(audit["selection"]["expanded_marks"], [])
+
+    def test_audit_captures_new_direct_pair_without_source_support_or_seed(self):
+        self.fact("a", ["alpha"])
+        self.fact("b", ["beta"])
+        audit = {}
+        self.graph.retrieve("guild/channel", [], "alpha beta", 2, event_id="unsupported-pair", audit=audit)
+        transition = audit["observation"]["changed_edges"][0]
+        self.assertEqual(transition["created_by"], "direct_reinforcement")
+        self.assertIsNone(transition["before_weight"])
+        self.assertIsNone(transition["after_seed"])
+        self.assertFalse(transition["decay_applied"])
+        self.assertIsNone(transition["after_decay"])
+        self.assertEqual(transition["reinforcement_before"], 0)
+        self.assertEqual(transition["after_weight"], 1)
+        self.assertFalse(transition["active_source_support"])
+        self.assertEqual(audit["selection"]["live_edge_count"], 0)
+
+    def test_no_hit_audit_is_durable_without_seeding_events_or_decay(self):
+        self.fact("source", ["alpha", "beta"])
+        audit = {}
+        self.assertEqual(self.graph.retrieve("guild/channel", [], "unrelated", 2, event_id="nohit", audit=audit), [])
+        self.assertEqual(audit["observation"]["status"], "no_hit")
+        self.assertFalse(audit["observation"]["applied"])
+        self.assertEqual(audit["observation"]["changed_edges"], [])
+        serialized = self.stored_audit("nohit")
+        for table in ("memory_dynamic", "memory_events", "memory_cycles", "memory_scopes"):
+            self.assertEqual(self.db.execute("SELECT COUNT(*) FROM " + table).fetchone()[0], 0)
+        self.graph.retrieve("guild/channel", [], "unrelated", 99, event_id="nohit", audit=audit)
+        self.assertTrue(audit["replay"])
+        self.assertEqual(self.stored_audit("nohit"), serialized)
+        with self.assertRaisesRegex(ValueError, "different input"):
+            self.graph.retrieve("guild/channel", [], "different", 99, event_id="nohit")
+
+    def test_replay_keeps_original_audit_but_selects_current_active_sources(self):
+        old = self.fact("old", ["alpha", "beta"])
+        self.graph.retrieve("guild/channel", [], "alpha beta", 2, event_id="replayed")
+        original = self.stored_audit("replayed")
+        weight = self.weight("alpha", "beta")
+        self.graph.deactivate_source("guild/channel", "old")
+        new = self.fact("new", ["alpha", "beta"])
+        audit = {}
+        results = self.graph.retrieve("guild/channel", [], "alpha beta", 99, event_id="replayed", audit=audit)
+        self.assertTrue(audit["replay"])
+        self.assertEqual(audit["observation"]["status"], "replay")
+        self.assertFalse(audit["observation"]["applied"])
+        self.assertEqual(audit["observation"]["changed_edges"], [])
+        self.assertEqual(self.weight("alpha", "beta"), weight)
+        self.assertEqual([r["id"] for r in results], [new["id"]])
+        self.assertEqual(json.loads(original)["selection"]["selected_record_ids"], [old["id"]])
+        self.assertEqual(self.stored_audit("replayed"), original)
+        self.assertEqual(audit["original_event"]["payload_sha256"], hashlib.sha256(original.encode()).hexdigest())
+        for statement in ("UPDATE memory_event_audits SET payload_json='{}'", "DELETE FROM memory_event_audits"):
+            with self.assertRaisesRegex(sqlite3.IntegrityError, "immutable"):
+                with self.db:
+                    self.db.execute(statement)
+
+    def test_audit_insert_failure_rolls_back_learning_selection_and_event(self):
+        self.fact("source", ["alpha", "beta"])
+        self.db.executescript("""
+            CREATE TRIGGER reject_audit BEFORE INSERT ON memory_event_audits
+            BEGIN SELECT RAISE(ABORT, 'synthetic audit write failure'); END;
+        """)
+        audit = {"untouched": True}
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "synthetic audit write failure"):
+            self.graph.retrieve("guild/channel", [], "alpha beta", 2, event_id="failed-audit", audit=audit)
+        self.assertEqual(audit, {"untouched": True})
+        for table in ("memory_dynamic", "memory_events", "memory_cycles", "memory_scopes", "memory_event_audits"):
+            self.assertEqual(self.db.execute("SELECT COUNT(*) FROM " + table).fetchone()[0], 0)
+        self.assertEqual(self.weight("alpha", "beta", kind="static"), 1.0)
+
+    def test_selection_failure_rolls_back_learning_before_audit_publication(self):
+        self.fact("source", ["alpha", "beta"])
+        with patch.object(self.graph, "_selection", side_effect=RuntimeError("synthetic selection failure")):
+            with self.assertRaisesRegex(RuntimeError, "selection failure"):
+                self.graph.retrieve("guild/channel", [], "alpha beta", 2, event_id="selection-failure")
+        for table in ("memory_dynamic", "memory_events", "memory_cycles", "memory_scopes", "memory_event_audits"):
+            self.assertEqual(self.db.execute("SELECT COUNT(*) FROM " + table).fetchone()[0], 0)
+
+    def test_selection_audit_explains_rank_caps_and_source_hashes(self):
+        for index in range(5):
+            self.fact("source-" + str(index), ["alpha"], text="知" * 300)
+        audit = {}
+        results = self.graph.retrieve("guild/channel", [], "alpha", 2, event_id="selection", audit=audit)
+        selection = audit["selection"]
+        self.assertEqual(len(selection["ranked_candidates"]), 5)
+        self.assertEqual(selection["selected_record_ids"], [r["id"] for r in results])
+        self.assertEqual(selection["used_text_characters"], sum(len(r["text"]) for r in results))
+        self.assertEqual(selection["limits"]["references"], 3)
+        self.assertEqual([c["record_id"] for c in selection["ranked_candidates"]], [5, 4, 3, 2, 1])
+        for selected, result in zip(selection["selected"], results):
+            self.assertTrue(selected["text_truncated"])
+            self.assertEqual(selected["preview_sha256"], hashlib.sha256(result["text"].encode()).hexdigest())
+        self.assertTrue(all(c["text_sha256"] == hashlib.sha256(("知" * 300).encode()).hexdigest()
+                            for c in selection["ranked_candidates"]))
+
+    def test_legacy_event_replay_does_not_invent_original_transitions(self):
+        self.fact("source", ["alpha", "beta"])
+        with self.db:
+            self.db.execute("INSERT INTO memory_scopes VALUES(?,1)", ("guild/channel",))
+            self.db.execute("INSERT INTO memory_dynamic VALUES(?,?,?,?,?,?,?)",
+                            ("guild/channel", "alpha", "beta", 7.0, "[]", 1.0, "legacy"))
+            self.db.execute("INSERT INTO memory_events VALUES(?,?,?,?,?)",
+                            ("guild/channel", "legacy", 1.0, "alpha beta", '["alpha","beta"]'))
+        audit = {}
+        self.graph.retrieve("guild/channel", [], "alpha beta", 2, event_id="legacy", audit=audit)
+        self.assertEqual(audit["observation"]["status"], "legacy_replay")
+        self.assertFalse(audit["observation"]["original_changes_known"])
+        self.assertFalse(audit["observation"]["applied"])
+        self.assertEqual(audit["observation"]["changed_edges"], [])
+        self.assertEqual(self.weight("alpha", "beta"), 7)
+
+    def test_audit_and_retry_survive_database_reopen(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "memory.sqlite3"
+            with closing(sqlite3.connect(path)) as db:
+                graph = MemoryGraph(db)
+                graph.add("scope", "source", "author", [{"text": "alpha beta", "quote": "alpha beta", "marks": ["alpha", "beta"]}], 1.0)
+                graph.retrieve("scope", [], "alpha beta", 2.0, event_id="durable")
+                original = db.execute("SELECT payload_json FROM memory_event_audits").fetchone()[0]
+            with closing(sqlite3.connect(path)) as db:
+                graph = MemoryGraph(db)
+                audit = {}
+                graph.retrieve("scope", [], "alpha beta", 3.0, event_id="durable", audit=audit)
+                self.assertTrue(audit["replay"])
+                self.assertEqual(db.execute("SELECT payload_json FROM memory_event_audits").fetchone()[0], original)
+                self.assertEqual(db.execute("SELECT weight FROM memory_dynamic").fetchone()[0], 1.99)
 
 
 if __name__ == "__main__":

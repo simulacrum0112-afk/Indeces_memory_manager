@@ -1,0 +1,92 @@
+# 可核验运行记录：0.4.0
+
+运行记录回答三个不同的问题：本轮召回了哪些材料、Hebbian 权重和排序如何变化、模型生成/Discord 实际送达的文字出现了哪些引用标记。它们不自动证明引用段落得到材料的语义支持，也不证明材料本身真实或 Hebbian 治理有效。
+
+所有检查使用可观察输入、输出和状态，不要求隐藏思维链。新增记录与本地校验不增加模型调用；模型、图公式、阶段和知识版本的 token/时间预算保持既有基线。
+
+## 文件与版本
+
+记录追加到 `scratch/` 的 JSONL 文件。文件名采用创建该日志实例时的 UTC 日期；长时间运行的实例不会在午夜自动换文件。每行采用外层 `version=1`，含连续整数 `sequence`、UTC ISO 时间、`event`、对象 `fields`、`previous_hash` 和 SHA-256 `hash`。hash 对移除 `hash` 后的规范 JSON 计算；JSON 为 UTF-8、键排序、紧凑分隔，拒绝重复键和非有限数。
+
+0.4.0 的 `turn_start.fields.run_record_version=1` 声明本轮具有下面的记录合同。它独立于外层日志版本、检索记录的 `version` 和图审计的 `schema_version`。旧日志保留，缺少这项声明的对话列为 `legacy`，不补造当时没有记录的证据。
+
+## 一轮回答的证据链
+
+| 事件 | 记录与关联 |
+|---|---|
+| `turn_start` | `trace_id`、Discord message ID、聊天 scope、knowledge scope、原始/规范化输入与本轮预算 |
+| `memory_observation` | 图事务提交后立即记录 audit 与 audit hash；即使随后材料冻结或本地时间检查失败，仍可查已提交权重的回执 |
+| `retrieval_record` | 在检索后、任何 await 前冻结的查询、event ID、完整材料和来源目录、图审计及记录 hash |
+| `knowledge_retrieved` | 提供给后续上下文的材料与同一个检索记录 hash、检索耗时 |
+| `reply_context` | 实际准备调用的 instructions/messages 与检索记录 hash；短期上下文与长期材料分开 |
+| `call_start` / HTTP 记录 / `call_end` | 既有 adaptor 的计量、请求/响应、usage、时间、成功/失败/未知计量；由 trace/call ID 关联 |
+| `answer_generated` | 完整模型输出、输出 hash、字面引用位置与对应材料；链接同一检索记录 hash |
+| `answer_delivered` | Discord 确认送达的实际文本、独立引用位置与 message receipt IDs |
+| `turn_end` | 本轮终态和送达回执；失败/中断可以在较早阶段结束 |
+
+模型完整输出与实际送达文本分开保存；Discord 长度截断可能改变引用出现情况。已经取证并等待模型的回复保持检索时快照与 trace，知识发布切换/删除不会事后改写该证据。
+
+## 召回材料与来源版本
+
+每轮最多三个材料，依次分配局部 ID `M1`、`M2`、`M3` 和可见标记 `[M1]` 等。这些 ID 只在本轮有效，通过 `source_id`、数据库 `record_id` 和 scope 绑定真实来源。
+
+| 冻结字段 | 可核验含义 |
+|---|---|
+| `materials` | 原存储文本、完整 quote、标注词、文本/quote 指纹、检索时 active 状态、块 ID 与来源 ID |
+| `model_materials` / `model_payload` | 本轮提供给模型的预览、完整 quote、标注词、排序依据和引用标记；不会把来源目录全文额外塞入模型输入 |
+| `sources` | 召回来源的版本目录：路径、`raw_text`、创建时间、scope、状态、分块文本/标注与检索时 desired/published 指针 |
+| `normalized_text_sha256` | 对已保存的解码文本 UTF-8 再编码后计算的 SHA-256，可以只靠冻结文本重算 |
+| `original_file_bytes_sha256` | 文件入库时原字节的 digest 元数据；本记录不保留原字节，`original_file_bytes_verifiable=false` |
+
+解码文本去除了 UTF-8 BOM；不能从这份文本证明原文件字节，包括 BOM，完全相同。因此文本 hash 与原字节 digest 是两种证据，校验器不把后者宣称为已重算通过。
+
+当前知识来源须在检索时属于该 scope 的完整 `ready` 已发布版本。正常编辑期间，desired 可以指向新版，published 仍指向旧版；被冻结的是当时实际召回的旧原文、旧标签和旧来源，而不是事后读取当前文件替换它们。非知识文件的合成/导入来源没有版本目录时明确标记元数据不可用，不伪造文件信息。
+
+## 图权重与排序
+
+图审计按 `(scope,event_id)` 绑定查询。首次事件的审计与动态权重更新在同一个 SQLite 事务内提交；首次审计保持不可更新/删除。同一事件重放记录原审计的 hash 链接，不重新执行学习和衰减；无字面命中明确记录未应用观察。
+
+审计包含直接字面命中、seed/decay/reinforce 的每一步、原权重与最终权重、实际改变标记、来源支持 ID、共现计数、静态 NPMI 计数/分数、一跳候选、排名依据和被选材料。保留 `η=1`、`λ=.99`、动态六位/静态四位舍入及既有限额。
+
+校验器依据冻结的字段重算权重步骤、NPMI 和排名算术，把排名使用的边与实际变化后的有效边关联，并检查被选记录、预览 hash 与材料一致。当前没有独立重建全部字面命中、上下文门控及候选扩展资格。它检查所记录证据的内部一致性，不能单凭本地记录证明作者没有遗漏图中的记录或边，也不证明排序更相关。
+
+## 召回、引用与语义支持
+
+| 状态 | 能说明什么 |
+|---|---|
+| 召回材料 | 检索选中且记录了材料；不说明模型采用了其中某个结论 |
+| `resolved` 引用 | 输出中出现本轮合法 `[M1]` 一类标记，可以绑定到材料/来源；不证明段落由材料支持 |
+| `unresolved` 引用 | 出现 `[M…]` 标记但无法绑定本轮材料，校验结果明确告警 |
+| `uncited_material_ids` | 本轮召回材料没有对应字面标记；不推断模型是否暗中使用 |
+| `semantic_support=not_evaluated` | 未做语义蕴含或事实核验 |
+| `citation_coverage=not_established` | 未证明所有结论或事实句均有正确引用 |
+
+解析器只识别字面的 `[M…]`，记录出现位置与所在段落。位置采用 Python Unicode 字符偏移，起点包含、终点不包含；段落按双换行分隔。引号、代码块或用户复述中的标记也会计入字面出现，不能解释成模型认可。重复标记保留各次出现，未知标记明确列出；没有标记是可观察结果，不自动判定所有结论错误或语义覆盖完整。
+
+## Console 校验
+
+在 Console 输入 `scratch`，或运行：
+
+```powershell
+.\.venv\Scripts\python.exe -m indeces scratch
+```
+
+命令先校验各 JSONL 的外层结构、连续序号和 hash 链，再跨文件按 trace 检查新运行记录合同，按 call ID 报告 adaptor 的 `call_counts`。完整调用核对计量与生成请求的共同输入、两次响应、input gate、call_start 预算、实际 usage/时间和 call_end 文本；reply_context 还与实际 `/responses` 的 instructions/input 对照。检查不调用模型，不读取当前知识文件或 SQLite 来替换历史证据，CLI 不打印原文或完整回复。
+
+| 报告状态 | 含义 |
+|---|---|
+| `complete` | 新合同的完整送达链符合记录关联和内部一致性检查；可能仍有引用告警 |
+| `failed` | 有合法失败终态，已有阶段证据符合合同；不表示模型/Discord 调用成功 |
+| `incomplete` | 缺少终态等证据，不能以 hash 合法代替流程完整 |
+| `invalid` | 合同字段、hash 关联、算术、材料/引用/送达绑定等不一致 |
+| `legacy` | 没有新合同声明的旧对话；不补算或假定其已满足新合同 |
+
+外层结构/hash 错误或 `invalid` 会使校验命令失败；`failed`、`incomplete`、`legacy` 和引用告警分别显示。调用另外报告 complete/failed/incomplete/invalid：失败或拒绝记录有终态不等于成功调用，缺少终态不能冒充完整响应。被动标词 trace 不当成回答链，但其 adaptor 调用参与 call ID 检查。`complete` 仅是记录合同完整，不是语义、事实或长期记忆效果验收。
+
+## 写入失败与证据边界
+
+Scratch 在序列化成功之前不推进序号，在 append/flush/fsync 全部成功后才推进本地状态。可能已写入后的 I/O 失败或中断会将当前 writer 标记不可续写；原文件保留，不自动截断、重写或修复。预写入序列化错误不污染 writer。启动时拒绝结构/hash 损坏的已有文件；完整记录能在本地读回，也不能反证之前失败的 fsync 已保证落盘。
+
+SQLite 图/审计事务与 scratch fsync 是两个持久性边界，没有跨数据库与日志的原子事务。进程退出或日志失败可能留下数据库已提交、scratch 缺失的阶段；校验器不能补造这些阶段。已经收到的 Discord 送达确认不会因后续本地日志失败改称网络送达未知，也不会自动重复发送；存储/日志失败会明确提示，清理仍尝试关闭组件、数据库和实例锁。
+
+hash 链没有外部锚点。中间记录删除、内容篡改和部分行损坏可以检测；在完整行边界删除整个尾部、删除整份日志、重新生成整条链不能仅凭剩余本地文件证明不存在。日志当前没有自动保留期限、压缩或外部公证。原文、完整调用及回复持续保留供用户本地查阅，认证密钥不能进入记录。

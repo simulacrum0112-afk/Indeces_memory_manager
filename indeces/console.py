@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import shutil
 import sqlite3
+import sys
 
 from . import __version__
 from .adapter import OpenAIAdapter
@@ -19,6 +20,7 @@ from .discord_wizard import configure_discord
 from .knowledge import KnowledgeService
 from .lock import InstanceLock
 from .runtime import Runtime
+from .run_records import verify_runs
 from .scratch import ScratchLog, verify
 from .store import Store
 
@@ -46,18 +48,36 @@ async def serve(config, key, token):
         knowledge.start()
         await bridge.run(token)
     finally:
-        if bridge is not None:
-            await bridge.close()
-        if knowledge is not None:
-            await knowledge.close()
-        if adapter is not None:
-            await adapter.close()
+        active_error = sys.exc_info()[0] is not None
+        cleanup_errors = []
+        for resource in (bridge, knowledge, adapter):
+            if resource is not None:
+                try:
+                    await resource.close()
+                except BaseException as error:
+                    cleanup_errors.append(error)
         if scratch is not None:
-            scratch.write("service_stop")
-            scratch.close()
+            try:
+                scratch.write("service_stop")
+            except BaseException as error:
+                cleanup_errors.append(error)
+            try:
+                scratch.close()
+            except BaseException as error:
+                cleanup_errors.append(error)
         if store is not None:
-            store.close()
-        lease.close()
+            try:
+                store.close()
+            except BaseException as error:
+                cleanup_errors.append(error)
+        try:
+            lease.close()
+        except BaseException as error:
+            cleanup_errors.append(error)
+        if cleanup_errors:
+            print("Service cleanup encountered: " + ", ".join(type(e).__name__ for e in cleanup_errors), flush=True)
+            if not active_error:
+                raise cleanup_errors[0]
 
 
 def initialize(path):
@@ -118,6 +138,21 @@ def check_scratch(config):
         print(f"{path.name}: {count} records, hash chain OK; head={digest}")
     if not files:
         print("No runtime scratch logs yet.")
+        return
+    report = verify_runs(files)
+    print("Run record contracts:", report["counts"])
+    print("Adaptor call records:", report["call_counts"])
+    for call in report["calls"]:
+        if call["status"] != "complete":
+            print(f"  call={call['call_id']}; trace={call['trace_id']}: {call['status']}")
+    for turn in report["turns"]:
+        if turn["status"] != "complete" or turn["warnings"]:
+            print(f"  trace={turn['trace_id']}: {turn['status']}; warnings={','.join(turn['warnings']) or 'none'}")
+    for issue in report["issues"]:
+        print(f"  trace={issue['trace_id']}: {issue['reason']}")
+    print("Checks cover frozen evidence, weight arithmetic and literal citation links; semantic support is not evaluated. Local hashes have no external anchor.")
+    if report["issues"]:
+        raise ValueError("run record contract verification failed")
 
 
 def main():

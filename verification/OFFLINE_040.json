@@ -1,0 +1,78 @@
+{
+  "version": "0.4.0",
+  "recorded_at_utc": "2026-09-30T21:55:22.210739+00:00",
+  "python": "3.12.14",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "monotonic_clock": {
+    "implementation": "GetTickCount64()",
+    "resolution_seconds": 0.015625
+  },
+  "checks": [
+    {
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-q"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 8.609,
+      "output": "[indeces.discord_bridge] Discord connected as namespace(id=99)\n[indeces.discord_bridge] Discord connected as namespace(id=99)\n----------------------------------------------------------------------\nRan 256 tests in 8.255s\n\nOK (skipped=2)"
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "check",
+        "--config",
+        "config.example.toml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.719,
+      "output": "Offline configuration/import check OK; Indices 0.4.0; discord.py 2.7.1.\nLive Discord and model calls were not made."
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "pip",
+        "check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.719,
+      "output": "No broken requirements found."
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "console",
+        "--config",
+        "config.example.toml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.265,
+      "output": "Indices 0.4.0 console: discord | start | status | scratch | quit\nIndices>"
+    }
+  ],
+  "live_model_calls": false,
+  "live_discord_connection": false,
+  "data": "Synthetic messages, knowledge files, SQLite and injected model transport; no user runtime data.",
+  "run_record_tests": 33,
+  "memory_tests": 27,
+  "scratch_tests": 19,
+  "audit_failure_tests": 5,
+  "verification_scope": [
+    "frozen material versions and model-visible payload",
+    "actual graph transition arithmetic and scoped source support",
+    "generated/delivered literal citations; no semantic support claim",
+    "adaptor transport/input/usage/time receipts",
+    "confirmed delivery preserved after audit failure",
+    "cleanup despite failed stop receipt"
+  ]
+}
