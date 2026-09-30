@@ -1,24 +1,29 @@
-# 交付状态：0.2.1
+# 交付状态：0.3.0
 
 截至用户时区日期 2026-09-30，本体已在 `D:\Indeces` 实现。GitHub 私有仓库为 [Indeces_memory_manager](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。源码提交/推送结果由交付消息及 Git 历史确认；创建仓库本身不代表服务已启动。
 
 已实现：无头/Console 入口、单实例存储锁、一个 Discord Gateway/有界消息队列、显式 @ 门禁、实际送达回执、短期 100%/70% 整轮水位摘要、GPT-6-Luna stateless adaptor、独立阶段预算、计量门禁、usage 核验、超时/阶段熔断、scratch hash 链与持久原文/checkpoint。
 
-本版新增 Console `discord` 命令与 `python -m indeces discord` 本地桥接向导：服务器 Guild ID、可选频道 ID、隐藏输入的 Bot token、无 token 预览与 `y` 保存确认。频道输入留空保留现有设置，`*` 允许目标服务器中的全部符合显式 @ 条件的频道。运行实例持有同一 state 锁时拒绝修改。向导不联网；完成后用户另行执行 `start`。
+0.2 系列已实现 Console `discord` 命令与 `python -m indeces discord` 本地桥接向导：服务器 Guild ID、可选频道 ID、隐藏输入的 Bot token、无 token 预览与 `y` 保存确认。频道输入留空保留现有设置，`*` 允许目标服务器中的全部符合显式 @ 条件的频道。运行实例持有同一 state 锁时拒绝修改。向导不联网；完成后用户另行执行 `start`。
 
 Bot token 在 Windows 使用当前用户 DPAPI 加密，带应用 entropy、版本包络及 Guild 绑定，原子保存到 `config.local.discord.secret`；其他平台拒绝持久化，不降级为明文。启动来源顺序为 `DISCORD_BOT_TOKEN` → 匹配配置 Guild 的已保存 token → 隐藏的单次会话输入。`OPENAI_API_KEY` 仍只来自环境变量或启动时的隐藏输入。配置、审计日志和 Git 不包含认证密钥。
 
 默认智能体称呼为 **Indices**，项目/包名保留原名。新增人设用于长期记忆测试：自然简短对话，区分短期上下文、摘要与有来源的长期召回，引用实际提供的来源，不编造记忆、图指标或有效性结论。没有引入模型并发、额外工具或自动评测能力；图公式、阶段预算、聊天标词关闭和本地知识更新的被动标词策略保持既有基线。
 
-知识路径已按用户最新要求实现：聊天标词和聊天自动入库关闭；本地 Markdown/UTF-8 文本更新触发被动后台标词。不可变知识版本、当前文件 digest 二次检查、全部块完成后原子发布、旧版本归档、重启未知用量不重试、文件超限暂停索引均有测试。标签只附于原文，不由模型改写知识内容。
+0.3.0 本轮知识路径：持续观察本地 Markdown/UTF-8 文本，保持默认 0.5 秒轮询与被动后台标词。Console 增加排队、开始、逐块进度、完成/失败回执，显示版本/来源 ID、digest、当前可检索的发布版本；进度显示已标注/总块数，结束回执显示已知 usage/耗时。未知远端计量在 scratch 明确标记，完整证据仍需查 scratch。聊天标词和聊天自动入库继续关闭，标签只附于原文，不由模型改写知识内容。
+
+有效文件编辑的新版本在 pending/labelling/failed 期间保留旧完整原文、标注词和来源 ID；新文件首次完成前没有旧版回退。所有块、digest 与预算校验通过后，在同一事务中撤回旧来源、添加新记录并切换已发布指针/ready。待处理与已发布指针均按服务器范围记录，避免切换 Guild 后相同 digest 跳过新范围的索引。
+
+删除或清空文档在下一次检测时撤回旧来源；无效输入、单文件超限和全局文件总数超限保留既有撤回/暂停策略。迁移只接纳旧当前 head 中归属明确、ready 且已有完整 active 记录的版本为发布快照，不重复标词；已归档或非当前证据不重新激活。归属/用量无法确认的旧待处理记录隔离至文件内容改变，并显示回执；未知用量的中断状态不自动重试。保存的原文、版本和已知 usage 不删除。
 
 图策略来自固定 MIT 上游，并按批准启用动态排序；NPMI、η=1、λ=.99、单跳来源门控、静态/动态分表、检索事件幂等与自身称呼排除已验证。改动粒度、周期、排名与日记过滤的适配差异在 `BASELINE.md` 如实列出。
 
 ## 验证证据
 
-- 0.2.1 本机完整离线测试：Windows/CPython 3.12.14，**163 tests / 0 failures / 2 skips**，3.201 秒。配置/导入、`pip check` 与 Console 退出烟雾检查均通过；可复现摘要见 [verification/OFFLINE_021.json](../verification/OFFLINE_021.json)。远端 Windows/Linux CI 以对应提交的 GitHub checks 为准。
+- 0.3.0 本机完整离线测试：Windows/CPython 3.12.14，**193 tests / 0 failures / 2 skips**，5.419 秒；知识生命周期 52 项（原 23 + 新增 29），人设 7 项。配置/导入、`pip check` 和 Console 退出烟雾检查通过；记录见 [verification/OFFLINE_030.json](../verification/OFFLINE_030.json)。远端 CI 以本次精确提交的 GitHub checks 为准。
+- 0.2.1 历史本机完整离线测试：Windows/CPython 3.12.14，**163 tests / 0 failures / 2 skips**，3.201 秒。配置/导入、`pip check` 与 Console 退出烟雾检查均通过；可复现摘要见 [verification/OFFLINE_021.json](../verification/OFFLINE_021.json)。对应精确提交 `0238ac34f558382c29884a1644b8c316eb7eccfd` 的 [main CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36776644617) 和 [v0.2.1 tag CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36776644454) 均通过：Windows 163 项/0 失败/1 跳过，Ubuntu 163 项/0 失败/2 跳过；四个 CLI 配置/导入检查通过。
 - 0.2.0 本机历史离线测试：**163 tests / 0 failures / 2 skips**，6.418 秒；含新增向导 28、Console 14、人设 6、凭据 26 项。摘要见 [verification/OFFLINE_020.json](../verification/OFFLINE_020.json)。[该提交的 CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36775737063) 中 Ubuntu 通过，但 Windows 的 3 项故障注入测试未触发预期失败；此历史结果不能称为跨平台验收通过。
-- 当前凭据专项：**26 tests / 0 failures / 2 skips**。执行了真实 DPAPI 的合成 token 往返与密文篡改拒绝；另外覆盖 Guild 不匹配、密文/JSON 损坏、固定安全错误、原子替换失败保留旧文件、临时文件和句柄清理、禁止 getpass 回退到明文回显。跳过非 Windows 保存行为及本机无法创建符号链接的用例；非 Windows 原生 helper 拒绝持久化通过模拟平台检查。
+- 0.2 系列凭据专项历史记录：**26 tests / 0 failures / 2 skips**。执行了真实 DPAPI 的合成 token 往返与密文篡改拒绝；另外覆盖 Guild 不匹配、密文/JSON 损坏、固定安全错误、原子替换失败保留旧文件、临时文件和句柄清理、禁止 getpass 回退到明文回显。跳过非 Windows 保存行为及本机无法创建符号链接的用例；非 Windows 原生 helper 拒绝持久化通过模拟平台检查。
 - 向导覆盖配置预算与无关注释保留、活动实例锁、旧 token 保留/重绑定/损坏修复、取消不保存、两次替换中断后恢复快照、外部修改拒绝覆盖、回滚失败明确报告，以及保存完成后取消的准确提示。Console 验证保存后重载与凭据来源顺序；未以 mock Gateway 的就绪事件作为真实连接证据。
 - 0.1.0 历史基线：**89 tests / 0 failures / 0 skips**，最近完整运行 4.291 秒；adaptor 13、context/runtime 14、Discord bridge 16、被动知识版本 23、Hebbian memory 16、scratch 5、单实例锁 2。
 - 0.1.0 的配置/依赖导入、`pip check` 和固定依赖检查通过，可复现摘要保存在 [verification/OFFLINE_010.json](../verification/OFFLINE_010.json)。`requirements.lock` 和 Windows/Linux 离线 CI 仍保留；本版远端状态须单独核对。
@@ -32,10 +37,14 @@ Bot token 在 Windows 使用当前用户 DPAPI 加密，带应用 entropy、版�
 
 0.2.1 修复测试的 Windows 路径兼容性：临时目录的 8.3 短路径与向导规范路径在字符串比较时不同，导致三处故障注入未执行。用 `GetShortPathNameW` 构造临时父目录，修改前复现 3 项失败，规范化 fixture 并显式断言注入发生后同样目录下 3 项全部通过。生产向导、图公式和预算没有因此修改；保留原 v0.2.0 标签与失败 CI 历史。
 
+0.3.0 针对知识生命周期审计：旧 head 同时承担文件目标版本与可检索版本，导致编辑时先丢失旧完整来源；旧 head 只按路径记录，切换 Guild 后相同 digest 可能使新范围没有索引。当前分开记录按范围的目标版本/已发布版本，并增加发布过程和迁移隔离回执。还修复空文档发布竞争误撤旧版、迁移遗漏未标注原文尾部却误判完整、日志异常误当文件拒绝，以及后台任务异常后静默停止标词但继续排队的问题。后台不可恢复异常会明确暂停观察/标词，保留已发布图，不自动重放请求；无法保证日志写入时，需修复后重启。图公式、标词模型、阶段与版本预算不变；以上有合成回归证据，真实文件/模型质量仍未验收。
+
 ## 未完成与边界
 
 - 未连接真实 Discord、未发送真实消息，未调用真实 OpenAI 模型。需要用户在本地向导填写 Guild 与 token，再执行 `start`，完成一个专用频道的代表性往返与知识更新试验。向导保存成功仅证明本地设置完成，不证明 token 有效、Bot 已入服或有频道权限。
 - 未验证账号的模型访问、生产延迟、真实 token 分布、文件集标签质量、知识召回相关性或动态权重长期表现；当前预算是工程初值。
+- 0.3.0 保留旧版意味着有效编辑完成之前、以及新版本失败期间，回答可能继续引用旧文件内容；回执和来源版本用于明确这一条件。已开始且等待模型的回答保持检索时的证据快照与 trace，删除/发布切换只影响下一次检索，不提供即时撤回已经开始的回复。默认 0.5 秒是目录轮询间隔，不能保证固定的文件检测或模型完成延迟。
+- 尚未完成真实运行数据上的 0.3.0 迁移验收；隔离的归属/用量不明待处理版本需内容变化后重建，不自动重激活或重试。离线迁移测试不证明旧知识标签质量。
 - 当前每个有直接命中的检索为一个 `.99` 衰减周期，不等同每日周期。该选择明列于基线表，使用者应在真实 pilot 中评估检索频率影响。
 - 本地图排序、文件 I/O 和 fsync 不可由 asyncio 强制抢占；当前协作式本地时间检查不能当成任意规模计算的硬时间保证。
 - 未收到允许后台标词与回复真实模型请求重叠的选择；当前两任务独立而 HTTP 串行。

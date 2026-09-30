@@ -1,0 +1,79 @@
+{
+  "version": "0.3.0",
+  "recorded_at_utc": "2026-09-30T21:27:50.486729+00:00",
+  "python": "3.12.14",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "monotonic_clock": {
+    "implementation": "GetTickCount64()",
+    "resolution_seconds": 0.015625
+  },
+  "checks": [
+    {
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-q"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.797,
+      "output": "[indeces.discord_bridge] Discord connected as namespace(id=99)\n[indeces.discord_bridge] Discord connected as namespace(id=99)\n----------------------------------------------------------------------\nRan 193 tests in 5.419s\n\nOK (skipped=2)"
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "check",
+        "--config",
+        "config.example.toml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.828,
+      "output": "Offline configuration/import check OK; Indices 0.3.0; discord.py 2.7.1.\nLive Discord and model calls were not made."
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "pip",
+        "check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.797,
+      "output": "No broken requirements found."
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "console"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.344,
+      "output": "Indices 0.3.0 console: discord | start | status | scratch | quit\nIndices>"
+    }
+  ],
+  "live_model_calls": false,
+  "live_discord_connection": false,
+  "credential_tests": "Synthetic tokens only; Windows current-user DPAPI roundtrip/tamper cases included.",
+  "knowledge_tests": {
+    "total": 52,
+    "original": 23,
+    "added": 29,
+    "data": "Synthetic local files, temporary SQLite, fake model calls only.",
+    "coverage": [
+      "continuous updates without chat",
+      "old complete snapshot while labels wait/fail",
+      "atomic source and publication swap rollback",
+      "empty publication race",
+      "restart and scoped legacy migration",
+      "receipt usage/version accounting",
+      "fatal background failure is visible without automatic request replay"
+    ]
+  }
+}

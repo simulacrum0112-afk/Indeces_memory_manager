@@ -32,6 +32,12 @@ class PersonaTests(unittest.TestCase):
         self.assertIn("may still answer from recent context or general knowledge", self.instructions)
         self.assertIn("clearly identifying that basis", self.instructions)
 
+    def test_pending_file_edits_cannot_be_claimed_as_published_recall(self):
+        self.assertIn("previous completed text-and-marks snapshot", self.instructions)
+        self.assertIn("while new knowledge files are being labeled", self.instructions)
+        self.assertIn("Use exactly the supplied source IDs and text", self.instructions)
+        self.assertIn("do not claim that pending file edits have been incorporated", self.instructions)
+
     def test_evaluation_is_evidence_based_and_not_biased_to_success(self):
         self.assertIn("test whether Hebbian governance improves", self.instructions)
         self.assertIn("Do not claim that a single answer proves Hebbian effectiveness", self.instructions)

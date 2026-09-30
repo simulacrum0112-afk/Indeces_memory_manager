@@ -70,7 +70,7 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
         self.adapter = LabelAdapter()
         self.service = KnowledgeService(self.config, self.store, self.graph, self.adapter, self.scratch)
         self.quiet = patch("builtins.print")
-        self.quiet.start()
+        self.printed = self.quiet.start()
 
     async def asyncTearDown(self):
         await self.service.close()
@@ -85,7 +85,11 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
         return path
 
     def head(self, name="source.md"):
-        row = self.store.db.execute("SELECT v.* FROM knowledge_heads h JOIN knowledge_versions v ON v.source_id=h.source_id WHERE h.path=?", (name,)).fetchone()
+        row = self.store.db.execute("SELECT v.* FROM knowledge_desired h JOIN knowledge_versions v ON v.source_id=h.source_id WHERE h.scope=? AND h.path=?", (self.service.scope, name)).fetchone()
+        return dict(row) if row else None
+
+    def published(self, name="source.md", *, scope=None):
+        row = self.store.db.execute("SELECT v.* FROM knowledge_published p JOIN knowledge_versions v ON v.source_id=p.source_id WHERE p.scope=? AND p.path=?", (scope or self.service.scope, name)).fetchone()
         return dict(row) if row else None
 
     def version(self, source_id):
@@ -102,11 +106,45 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
             arguments.append(int(active))
         return [dict(row) for row in self.store.db.execute(query, arguments)]
 
+    async def ready_source(self, text="alpha topic stable snapshot", *, name="source.md"):
+        self.file(text, name=name)
+        self.service.scan_once()
+        source_id = self.head(name)["source_id"]
+        self.assertTrue(await self.service.label_next())
+        self.assertEqual(self.version(source_id)["status"], "ready")
+        self.assertEqual(self.published(name)["source_id"], source_id)
+        return source_id
+
+    def legacy_source(self, *, status="ready", active=True, scope=None, complete=True):
+        path = self.file("alpha topic legacy snapshot")
+        source_id = "kb:legacy-immutable-version"
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        with self.store.db:
+            self.store.db.execute("DELETE FROM knowledge_schema_meta WHERE key='published_snapshots'")
+            self.store.db.execute("INSERT INTO knowledge_versions(source_id,path,digest,raw_text,status,created_at,input_tokens,output_tokens,elapsed_seconds,scope) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                (source_id, "source.md", digest, "alpha topic legacy snapshot", status, 1.0, 25, 8, 0.01, ""))
+            self.store.db.execute("INSERT INTO knowledge_heads VALUES('source.md',?)", (source_id,))
+            self.store.db.execute("INSERT INTO knowledge_chunks VALUES(?,0,?,0,?)",
+                (source_id, "alpha topic legacy snapshot", encode(["alpha", "topic"]) if complete else None))
+        if active is not None:
+            owner = scope or self.service.scope
+            self.graph.add(owner, source_id, "knowledge:source.md", [{
+                "text": "alpha topic legacy snapshot", "quote": "alpha topic legacy snapshot", "marks": ["alpha", "topic"]}], 1.0)
+            if not active:
+                self.graph.deactivate_source(owner, source_id)
+        return source_id, digest
+
+    def receipts(self, source_id=None, kind=None):
+        return [fields for event, fields in self.scratch.events if event == "knowledge_receipt"
+                and (source_id is None or fields["source_id"] == source_id)
+                and (kind is None or fields["receipt"] == kind)]
+
     async def test_file_snapshot_is_pending_until_complete_labels_publish(self):
         path = self.file("alpha topic original source\nexact second line")
         self.service.scan_once()
         pending = self.head()
         self.assertEqual(pending["status"], "pending")
+        self.assertIsNone(self.published())
         self.assertEqual(pending["raw_text"], path.read_bytes().decode("utf-8-sig"))
         self.assertEqual(pending["digest"], hashlib.sha256(path.read_bytes()).hexdigest())
         self.assertEqual(self.adapter.calls, [])
@@ -115,6 +153,7 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await self.service.label_next())
         ready = self.head()
         self.assertEqual(ready["status"], "ready")
+        self.assertEqual(self.published()["source_id"], ready["source_id"])
         self.assertEqual((ready["input_tokens"], ready["output_tokens"]), (25, 8))
         # An immediate fake transport can finish within a Windows monotonic
         # clock tick. Zero is a valid measurement, not missing accounting.
@@ -149,15 +188,21 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
         self.service.scan_once()
         second = self.head()["source_id"]
         self.assertEqual(self.version(first)["raw_text"], "alpha original A")
+        self.assertEqual(self.version(first)["status"], "ready")
+        self.assertEqual(len(self.records(first, active=True)), 1)
+        self.assertEqual(self.published()["source_id"], first)
+        await self.service.label_next()
         self.assertEqual(self.version(first)["status"], "superseded")
         self.assertEqual(len(self.records(first, active=False)), 1)
         self.assertEqual(self.records(first, active=True), [])
-        await self.service.label_next()
+        self.assertEqual(self.published()["source_id"], second)
         self.file("alpha original A")
         self.service.scan_once()
         third = self.head()["source_id"]
         self.assertEqual(len({first, second, third}), 3)
+        self.assertEqual(self.published()["source_id"], second)
         await self.service.label_next()
+        self.assertEqual(self.published()["source_id"], third)
         self.assertEqual([row["source_id"] for row in self.records(active=True)], [third])
         self.assertEqual(self.version(second)["raw_text"], "alpha replacement B")
         self.assertEqual(self.version(third)["raw_text"], "alpha original A")
@@ -219,6 +264,7 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
         path.unlink()
         self.service.scan_once()
         self.assertIsNone(self.head())
+        self.assertIsNone(self.published())
         self.assertEqual(self.version(source_id)["status"], "superseded")
         self.assertEqual(self.version(source_id)["raw_text"], "alpha topic original source")
         self.assertEqual(len(self.records(source_id, active=False)), 1)
@@ -384,6 +430,7 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
             self.service.scan_once()
         self.assertEqual(caught.exception.code, "knowledge_file_count_limit")
         self.assertIsNone(self.head())
+        self.assertIsNone(self.published())
         self.assertEqual(self.version(source_id)["status"], "superseded")
         self.assertEqual(self.version(source_id)["raw_text"], "alpha topic original source")
         self.assertEqual(len(self.records(source_id, active=False)), 1)
@@ -439,6 +486,27 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(0.005)
         self.assertEqual(len(self.adapter.calls), 2)
 
+    async def test_background_watcher_continuously_publishes_same_file_updates_without_chat(self):
+        self.service.start()
+        identities = []
+        for text in ("alpha topic first background revision", "alpha topic second background revision", "alpha topic third background revision"):
+            self.file(text)
+            async with asyncio.timeout(2):
+                while True:
+                    head = self.head()
+                    if head is not None and head["status"] == "ready" and head["source_id"] not in identities:
+                        break
+                    await asyncio.sleep(0.005)
+            identities.append(head["source_id"])
+            self.assertEqual(self.published()["source_id"], head["source_id"])
+            self.assertEqual(head["raw_text"], text)
+        self.assertEqual(len(set(identities)), 3)
+        self.assertEqual([call["stage"] for call in self.adapter.calls], ["label", "label", "label"])
+        self.assertEqual([record["source_id"] for record in self.records(active=True)], [identities[-1]])
+        self.assertEqual(len(self.receipts(kind="completed")), 3)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM turns").fetchone()[0], 0)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM messages").fetchone()[0], 0)
+
     async def test_unsupported_and_invalid_files_never_reach_model(self):
         self.file("alpha ignored", name="ignored.json")
         path = self.file(name="bad.txt")
@@ -448,6 +516,568 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.head("bad.txt"))
         self.assertFalse(await self.service.label_next())
         self.assertEqual(self.adapter.calls, [])
+
+    async def test_last_completed_snapshot_serves_while_replacement_labels_are_waiting(self):
+        old = await self.ready_source("alpha topic completed snapshot")
+        self.file("beta topic unfinished replacement")
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        self.adapter = LabelAdapter([labels(text=encode({"marks": ["beta", "topic"]}))], gate=asyncio.Event())
+        self.service.adapter = self.adapter
+        task = asyncio.create_task(self.service.label_next())
+        try:
+            async with asyncio.timeout(1):
+                await self.adapter.entered.wait()
+            self.assertEqual(self.head()["status"], "labelling")
+            self.assertEqual(self.published()["source_id"], old)
+            self.assertEqual(self.version(old)["status"], "ready")
+            found = self.graph.retrieve(self.service.scope, [], "alpha", 2.0, event_id="old-during-update")
+            self.assertEqual([record["source_id"] for record in found], [old])
+            self.assertEqual(found[0]["quote"], "alpha topic completed snapshot")
+            self.assertEqual(self.graph.retrieve(self.service.scope, [], "beta", 2.0, event_id="new-unpublished"), [])
+            self.assertEqual(self.records(new), [])
+        finally:
+            self.adapter.gate.set()
+            await task
+        self.assertEqual(self.published()["source_id"], new)
+        self.assertEqual(self.version(old)["status"], "superseded")
+        self.assertEqual(self.records(old, active=True), [])
+        self.assertEqual(self.graph.retrieve(self.service.scope, [], "alpha", 3.0, event_id="old-after-swap"), [])
+        found = self.graph.retrieve(self.service.scope, [], "beta", 3.0, event_id="new-after-swap")
+        self.assertEqual([record["source_id"] for record in found], [new])
+
+    async def test_failed_replacement_keeps_completed_snapshot_without_automatic_retry(self):
+        old = await self.ready_source()
+        self.file("alpha topic failed replacement")
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        self.adapter.outcomes.append(GovernedError("provider_network_error"))
+        self.assertTrue(await self.service.label_next())
+        self.assertEqual(self.version(new)["status"], "failed")
+        self.assertEqual(self.published()["source_id"], old)
+        self.assertEqual(self.version(old)["status"], "ready")
+        self.assertEqual(len(self.records(old, active=True)), 1)
+        self.assertEqual(self.records(new), [])
+        self.service.scan_once()
+        self.assertFalse(await self.service.label_next())
+        self.assertEqual(len(self.adapter.calls), 2)
+
+    async def test_newer_update_supersedes_incomplete_work_but_keeps_last_completed_snapshot(self):
+        old = await self.ready_source()
+        self.file("alpha topic replacement B")
+        self.service.scan_once()
+        second = self.head()["source_id"]
+        self.adapter = LabelAdapter(gate=asyncio.Event())
+        self.service.adapter = self.adapter
+        task = asyncio.create_task(self.service.label_next())
+        try:
+            async with asyncio.timeout(1):
+                await self.adapter.entered.wait()
+            self.file("alpha topic replacement C")
+            self.service.scan_once()
+            third = self.head()["source_id"]
+            self.assertEqual(self.version(second)["status"], "superseded")
+            self.assertEqual(self.published()["source_id"], old)
+            self.assertEqual(self.version(old)["status"], "ready")
+        finally:
+            self.adapter.gate.set()
+            await task
+        self.assertEqual((self.version(second)["input_tokens"], self.version(second)["output_tokens"]), (25, 8))
+        self.assertEqual(self.records(second), [])
+        self.assertEqual(self.published()["source_id"], old)
+        await self.service.label_next()
+        self.assertEqual(self.published()["source_id"], third)
+        self.assertEqual([record["source_id"] for record in self.records(active=True)], [third])
+
+    async def test_partial_labels_never_replace_completed_snapshot_when_later_chunk_fails(self):
+        old = await self.ready_source()
+        self.file("alpha topic " * 20)
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        self.adapter.outcomes.extend([labels(), GovernedError("provider_network_error")])
+        await self.service.label_next()
+        self.assertEqual(self.version(new)["status"], "failed")
+        self.assertEqual((self.version(new)["input_tokens"], self.version(new)["output_tokens"]), (25, 8))
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM knowledge_chunks WHERE source_id=? AND marks_json IS NOT NULL", (new,)).fetchone()[0], 1)
+        self.assertEqual(self.records(new), [])
+        self.assertEqual(self.published()["source_id"], old)
+        self.assertEqual(len(self.records(old, active=True)), 1)
+
+    async def test_swap_ready_commit_failure_restores_old_pointer_records_and_graph(self):
+        old = await self.ready_source()
+        static_before = [tuple(row) for row in self.store.db.execute("SELECT * FROM memory_static ORDER BY scope,a,b")]
+        support_before = [tuple(row) for row in self.store.db.execute("SELECT * FROM memory_support ORDER BY scope,a,b")]
+        self.file("beta topic replacement")
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        self.adapter.outcomes.append(labels(text=encode({"marks": ["beta", "topic"]})))
+        self.store.db.executescript("""
+            CREATE TRIGGER reject_new_ready BEFORE UPDATE ON knowledge_versions
+            WHEN NEW.status='ready'
+            BEGIN SELECT RAISE(ABORT, 'synthetic publication rejection'); END;
+        """)
+        await self.service.label_next()
+        self.assertEqual(self.version(new)["status"], "failed")
+        self.assertEqual(self.published()["source_id"], old)
+        self.assertEqual(self.version(old)["status"], "ready")
+        self.assertEqual(len(self.records(old, active=True)), 1)
+        self.assertEqual(self.records(new), [])
+        self.assertEqual([tuple(row) for row in self.store.db.execute("SELECT * FROM memory_static ORDER BY scope,a,b")], static_before)
+        self.assertEqual([tuple(row) for row in self.store.db.execute("SELECT * FROM memory_support ORDER BY scope,a,b")], support_before)
+
+    async def test_physical_change_during_swap_rolls_back_old_deactivation(self):
+        old = await self.ready_source()
+        path = self.file("alpha topic desired B")
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        original_add = self.graph.add
+        injected = False
+
+        def change_file_during_add(*args, **kwargs):
+            nonlocal injected
+            result = original_add(*args, **kwargs)
+            path.write_text("alpha topic newer C", encoding="utf-8")
+            injected = True
+            return result
+
+        with patch.object(self.graph, "add", side_effect=change_file_during_add):
+            await self.service.label_next()
+        self.assertTrue(injected)
+        self.assertEqual(self.published()["source_id"], old)
+        self.assertEqual(self.version(old)["status"], "ready")
+        self.assertEqual(len(self.records(old, active=True)), 1)
+        self.assertEqual(self.records(new), [])
+        self.assertNotEqual(self.version(new)["status"], "ready")
+
+    async def test_empty_valid_replacement_publishes_zero_records_without_model_call(self):
+        old = await self.ready_source()
+        self.file(" \n\t")
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        if self.head()["status"] == "pending":
+            await self.service.label_next()
+        self.assertNotEqual(new, old)
+        self.assertEqual(self.head()["status"], "ready")
+        self.assertEqual(self.published()["source_id"], new)
+        self.assertEqual((self.head()["input_tokens"], self.head()["output_tokens"]), (0, 0))
+        self.assertEqual(len(self.adapter.calls), 1)
+        self.assertEqual(self.records(active=True), [])
+        self.assertEqual(self.version(old)["status"], "superseded")
+
+    async def test_deletion_retires_both_desired_and_completed_snapshots(self):
+        old = await self.ready_source()
+        path = self.file("alpha topic pending replacement")
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        path.unlink()
+        self.service.scan_once()
+        self.assertIsNone(self.head())
+        self.assertIsNone(self.published())
+        self.assertEqual(self.version(old)["status"], "superseded")
+        self.assertEqual(self.version(new)["status"], "superseded")
+        self.assertEqual(self.records(active=True), [])
+        self.assertFalse(await self.service.label_next())
+
+    async def test_invalid_update_retires_completed_snapshot_without_erasing_versions(self):
+        old = await self.ready_source()
+        path = self.file("alpha topic pending replacement")
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        path.write_bytes(b"\xff\xfe")
+        self.service.scan_once()
+        self.assertIsNone(self.head())
+        self.assertIsNone(self.published())
+        self.assertEqual(self.records(active=True), [])
+        self.assertEqual(self.version(old)["raw_text"], "alpha topic stable snapshot")
+        self.assertEqual(self.version(new)["raw_text"], "alpha topic pending replacement")
+        self.assertFalse(await self.service.label_next())
+
+    async def test_restart_preserves_old_publication_with_failed_interrupted_replacement(self):
+        old = await self.ready_source()
+        self.file("alpha topic interrupted replacement")
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        with self.store.db:
+            self.store.db.execute("UPDATE knowledge_versions SET status='labelling',input_tokens=17 WHERE source_id=?", (new,))
+        restarted = KnowledgeService(self.config, self.store, self.graph, self.adapter, self.scratch)
+        self.service = restarted
+        self.assertEqual(self.version(new)["status"], "failed")
+        self.assertEqual(self.version(new)["error"], "interrupted_unknown_usage")
+        self.assertEqual(self.version(new)["input_tokens"], 17)
+        self.assertEqual(self.published()["source_id"], old)
+        self.assertEqual(len(self.records(old, active=True)), 1)
+        restarted.scan_once()
+        self.assertFalse(await restarted.label_next())
+        self.assertEqual(len(self.adapter.calls), 1)
+
+    async def test_restart_can_finish_owned_pending_replacement_without_archiving_old(self):
+        old = await self.ready_source()
+        self.file("alpha topic queued replacement")
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        self.service = KnowledgeService(self.config, self.store, self.graph, self.adapter, self.scratch)
+        self.assertEqual(self.head()["status"], "pending")
+        self.assertEqual(self.published()["source_id"], old)
+        self.assertEqual(len(self.records(old, active=True)), 1)
+        await self.service.label_next()
+        self.assertEqual(self.published()["source_id"], new)
+
+    async def test_same_files_in_new_guild_get_independent_owned_versions(self):
+        old = await self.ready_source()
+        old_scope = self.service.scope
+        other_config = SimpleNamespace(**vars(self.config))
+        other_config.discord = DiscordConfig("20")
+        other_adapter = LabelAdapter()
+        other_service = KnowledgeService(other_config, self.store, self.graph, other_adapter, self.scratch)
+        try:
+            self.assertEqual(self.graph.retrieve(other_service.scope, [], "alpha", 2.0, event_id="other-before-ingest"), [])
+            other_service.scan_once()
+            pending = self.store.db.execute("SELECT v.* FROM knowledge_desired h JOIN knowledge_versions v ON v.source_id=h.source_id WHERE h.scope=? AND h.path='source.md'", (other_service.scope,)).fetchone()
+            self.assertIsNotNone(pending)
+            self.assertNotEqual(pending["source_id"], old)
+            self.assertEqual(pending["scope"], other_service.scope)
+            await other_service.label_next()
+            self.assertEqual(self.published(scope=old_scope)["source_id"], old)
+            self.assertEqual(len(self.records(old, active=True)), 1)
+            found = self.graph.retrieve(other_service.scope, [], "alpha", 3.0, event_id="other-after-ingest")
+            self.assertEqual([record["source_id"] for record in found], [pending["source_id"]])
+            self.assertEqual(len(other_adapter.calls), 1)
+        finally:
+            await other_service.close()
+
+    async def test_recovery_and_retirement_in_new_guild_do_not_mutate_other_guild(self):
+        old = await self.ready_source()
+        self.file("alpha topic owned pending replacement")
+        self.service.scan_once()
+        pending_id = self.head()["source_id"]
+        with self.store.db:
+            self.store.db.execute("UPDATE knowledge_versions SET status='labelling' WHERE source_id=?", (pending_id,))
+        other_config = SimpleNamespace(**vars(self.config))
+        other_config.discord = DiscordConfig("20")
+        other_service = KnowledgeService(other_config, self.store, self.graph, LabelAdapter(), self.scratch)
+        try:
+            self.assertEqual(self.version(pending_id)["status"], "labelling")
+            self.assertEqual(self.published()["source_id"], old)
+            self.file().write_bytes(b"\xff")
+            other_service.scan_once()
+            self.assertEqual(self.published()["source_id"], old)
+            self.assertEqual(len(self.records(old, active=True)), 1)
+            self.assertEqual(self.version(pending_id)["status"], "labelling")
+        finally:
+            await other_service.close()
+
+    async def test_legacy_complete_active_snapshot_is_adopted_without_model_call(self):
+        source_id, digest = self.legacy_source()
+        self.service = KnowledgeService(self.config, self.store, self.graph, self.adapter, self.scratch)
+        self.assertEqual(self.head()["source_id"], source_id)
+        self.assertEqual(self.head()["scope"], self.service.scope)
+        self.assertEqual(self.published()["source_id"], source_id)
+        self.assertEqual(self.published()["digest"], digest)
+        self.assertEqual(len(self.records(source_id, active=True)), 1)
+        self.service.scan_once()
+        self.assertFalse(await self.service.label_next())
+        self.assertEqual(self.adapter.calls, [])
+
+    async def test_old_schema_without_scope_column_migrates_and_preserves_ready_snapshot(self):
+        source_id, _ = self.legacy_source()
+        with self.store.db:
+            self.store.db.execute("ALTER TABLE knowledge_versions DROP COLUMN scope")
+        self.service = KnowledgeService(self.config, self.store, self.graph, self.adapter, self.scratch)
+        self.assertIn("scope", {row[1] for row in self.store.db.execute("PRAGMA table_info(knowledge_versions)")})
+        self.assertEqual(self.version(source_id)["scope"], self.service.scope)
+        self.assertEqual(self.published()["source_id"], source_id)
+        self.assertEqual(len(self.records(source_id, active=True)), 1)
+        self.assertFalse(await self.service.label_next())
+        self.assertEqual(self.adapter.calls, [])
+
+    async def test_legacy_inactive_snapshot_is_not_silently_reactivated(self):
+        source_id, _ = self.legacy_source(active=False)
+        self.service = KnowledgeService(self.config, self.store, self.graph, self.adapter, self.scratch)
+        self.assertIsNone(self.published())
+        self.assertEqual(self.version(source_id)["error"], "legacy_publication_incomplete")
+        self.assertEqual(self.records(source_id, active=True), [])
+        self.assertEqual(len(self.records(source_id, active=False)), 1)
+        self.service.scan_once()
+        self.assertFalse(await self.service.label_next())
+        self.assertEqual(self.adapter.calls, [])
+
+    async def test_unknown_legacy_request_is_held_until_file_content_changes(self):
+        source_id, digest = self.legacy_source(status="labelling", active=None)
+        self.service = KnowledgeService(self.config, self.store, self.graph, self.adapter, self.scratch)
+        held = self.store.db.execute("SELECT * FROM knowledge_migration_hold WHERE scope=? AND path='source.md'", (self.service.scope,)).fetchone()
+        self.assertEqual(held["source_id"], source_id)
+        self.assertEqual(held["digest"], digest)
+        self.assertIsNone(self.head())
+        self.assertIsNone(self.published())
+        self.service.scan_once()
+        self.assertFalse(await self.service.label_next())
+        self.assertEqual(self.adapter.calls, [])
+        self.assertEqual(self.version(source_id)["raw_text"], "alpha topic legacy snapshot")
+        self.assertEqual(self.version(source_id)["input_tokens"], 25)
+        self.file("alpha topic explicit new snapshot")
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        self.assertNotEqual(new, source_id)
+        await self.service.label_next()
+        self.assertEqual(self.published()["source_id"], new)
+        self.assertEqual(len(self.adapter.calls), 1)
+        self.assertEqual(self.records(source_id), [])
+
+    async def test_legacy_ready_without_complete_labels_is_not_published(self):
+        source_id, _ = self.legacy_source(complete=False)
+        self.service = KnowledgeService(self.config, self.store, self.graph, self.adapter, self.scratch)
+        self.assertIsNone(self.published())
+        self.assertEqual(self.version(source_id)["error"], "legacy_publication_incomplete")
+        self.assertEqual(self.records(source_id, active=True), [])
+        self.assertEqual(len(self.records(source_id, active=False)), 1)
+        self.assertFalse(await self.service.label_next())
+
+    async def test_legacy_chunks_matching_records_cannot_hide_unlabelled_raw_tail(self):
+        source_id, _ = self.legacy_source()
+        raw = "alpha topic legacy snapshot\nnonwhitespace unlabelled tail"
+        path = self.file(raw)
+        with self.store.db:
+            self.store.db.execute("UPDATE knowledge_versions SET raw_text=?,digest=? WHERE source_id=?",
+                (raw, hashlib.sha256(path.read_bytes()).hexdigest(), source_id))
+        self.service = KnowledgeService(self.config, self.store, self.graph, self.adapter, self.scratch)
+        self.assertIsNone(self.published())
+        self.assertEqual(self.version(source_id)["error"], "legacy_publication_incomplete")
+        self.assertEqual(self.version(source_id)["raw_text"], raw)
+        self.assertEqual(self.records(source_id, active=True), [])
+        self.assertEqual(len(self.records(source_id, active=False)), 1)
+        self.service.scan_once()
+        self.assertFalse(await self.service.label_next())
+        self.assertEqual(self.adapter.calls, [])
+
+    async def test_legacy_other_guild_snapshot_is_preserved_without_cross_guild_transfer(self):
+        other_scope = "20:knowledge"
+        source_id, _ = self.legacy_source(scope=other_scope)
+        self.service = KnowledgeService(self.config, self.store, self.graph, self.adapter, self.scratch)
+        self.assertIsNone(self.head())
+        self.assertIsNone(self.published())
+        self.assertEqual(self.published(scope=other_scope)["source_id"], source_id)
+        self.assertEqual(self.version(source_id)["scope"], other_scope)
+        self.assertEqual(self.graph.retrieve(self.service.scope, [], "alpha", 2.0, event_id="legacy-other-guild"), [])
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        self.assertNotEqual(new, source_id)
+        await self.service.label_next()
+        self.assertEqual(self.published(scope=other_scope)["source_id"], source_id)
+        self.assertEqual(self.published()["source_id"], new)
+        self.assertEqual(len(self.records(source_id, active=True)), 1)
+
+    async def test_completion_receipt_matches_durable_published_version_and_accounting(self):
+        source_id = await self.ready_source()
+        version = self.version(source_id)
+        receipts = self.receipts(source_id)
+        self.assertEqual([receipt["receipt"] for receipt in receipts], ["queued", "started", "progress", "completed"])
+        done = receipts[-1]
+        self.assertEqual(done["scope"], self.service.scope)
+        self.assertEqual(done["path"], version["path"])
+        self.assertEqual(done["digest"], version["digest"])
+        self.assertEqual(done["reply_source_id"], self.published()["source_id"])
+        self.assertEqual((done["labelled_chunks"], done["total_chunks"], done["records"]), (1, 1, 1))
+        self.assertEqual((done["input_tokens"], done["output_tokens"], done["elapsed_seconds"]),
+                         (version["input_tokens"], version["output_tokens"], version["elapsed_seconds"]))
+        printed = "\n".join(str(call.args[0]) for call in self.printed.call_args_list)
+        self.assertIn("知识库更新完成", printed)
+        self.assertIn(source_id, printed)
+        self.assertIn(version["digest"], printed)
+        self.assertIn("input_tokens=25", printed)
+        self.assertIn("output_tokens=8", printed)
+
+    async def test_failed_publication_has_only_failed_receipt_with_prior_reply_version(self):
+        old = await self.ready_source()
+        self.file("alpha topic rejected replacement")
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        self.store.db.executescript("""
+            CREATE TRIGGER reject_receipt_ready BEFORE UPDATE ON knowledge_versions
+            WHEN NEW.status='ready'
+            BEGIN SELECT RAISE(ABORT, 'synthetic rejection before completion receipt'); END;
+        """)
+        await self.service.label_next()
+        self.assertEqual(self.receipts(new, "completed"), [])
+        failed = self.receipts(new, "failed")
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(failed[0]["reply_source_id"], old)
+        self.assertEqual(failed[0]["input_tokens"], 25)
+        self.assertEqual(failed[0]["output_tokens"], 8)
+        self.assertEqual(self.published()["source_id"], old)
+
+    async def test_cancelled_replacement_preserves_prior_snapshot_and_reports_unknown_request_usage(self):
+        old = await self.ready_source()
+        self.file("alpha topic cancelled replacement")
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        self.adapter = LabelAdapter(gate=asyncio.Event())
+        self.service.adapter = self.adapter
+        task = asyncio.create_task(self.service.label_next())
+        async with asyncio.timeout(1):
+            await self.adapter.entered.wait()
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.assertEqual(self.version(new)["status"], "failed")
+        self.assertEqual(self.version(new)["error"], "interrupted_unknown_usage")
+        self.assertEqual(self.published()["source_id"], old)
+        self.assertEqual(len(self.records(old, active=True)), 1)
+        self.assertEqual(self.records(new), [])
+        cancelled = self.receipts(new, "cancelled")
+        self.assertEqual(len(cancelled), 1)
+        self.assertEqual(cancelled[0]["reply_source_id"], old)
+        self.assertTrue(cancelled[0]["remote_usage_unknown"])
+        job_end = [fields for event, fields in self.scratch.events if event == "label_job_end" and fields["source_id"] == new]
+        self.assertTrue(job_end[-1]["remote_usage_unknown"])
+        self.assertEqual(self.receipts(new, "completed"), [])
+
+    async def test_queued_audit_failure_does_not_retire_completed_publication(self):
+        old = await self.ready_source()
+        self.file("alpha topic queued audit failure")
+        write = self.scratch.write
+        injected = False
+
+        def fail_queued_receipt(event, **fields):
+            nonlocal injected
+            if event == "knowledge_receipt" and fields["receipt"] == "queued":
+                injected = True
+                raise OSError("synthetic queued audit failure")
+            return write(event, **fields)
+
+        with patch.object(self.scratch, "write", side_effect=fail_queued_receipt):
+            with self.assertRaises(OSError):
+                self.service.scan_once()
+        self.assertTrue(injected)
+        new = self.head()["source_id"]
+        self.assertNotEqual(new, old)
+        self.assertEqual(self.head()["status"], "pending")
+        self.assertEqual(self.published()["source_id"], old)
+        self.assertEqual(self.version(old)["status"], "ready")
+        self.assertEqual(len(self.records(old, active=True)), 1)
+        self.assertEqual(self.receipts(new, "completed"), [])
+        self.assertFalse(any(event == "knowledge_retired" for event, _ in self.scratch.events))
+
+    async def test_fatal_worker_receipt_failure_pauses_watcher_and_preserves_old_publication(self):
+        old = await self.ready_source()
+        self.file("alpha topic started audit failure")
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        write = self.scratch.write
+        injected = False
+
+        def fail_started_receipt(event, **fields):
+            nonlocal injected
+            if event == "knowledge_receipt" and fields["receipt"] == "started":
+                injected = True
+                raise OSError("synthetic private diagnostic never printed")
+            return write(event, **fields)
+
+        with patch.object(self.scratch, "write", side_effect=fail_started_receipt):
+            self.service.start()
+            async with asyncio.timeout(1):
+                while self.service.background_error is None or not all(task.done() for task in self.service._tasks):
+                    await asyncio.sleep(0.005)
+        self.assertTrue(injected)
+        self.assertEqual(self.service.background_error, "OSError")
+        watcher = next(task for task in self.service._tasks if task.get_name() == "indeces-knowledge-watch")
+        self.assertTrue(watcher.cancelled())
+        self.assertEqual(self.published()["source_id"], old)
+        self.assertEqual(len(self.records(old, active=True)), 1)
+        self.assertEqual(self.receipts(new, "completed"), [])
+        stopped = [fields for event, fields in self.scratch.events if event == "knowledge_background_stopped"]
+        self.assertEqual(len(stopped), 1)
+        self.assertEqual(stopped[0]["code"], "OSError")
+        self.assertFalse(stopped[0]["automatically_replayed"])
+        printed = "\n".join(str(call.args[0]) for call in self.printed.call_args_list)
+        self.assertIn("后台已暂停", printed)
+        self.assertNotIn("synthetic private diagnostic", printed)
+        self.assertEqual(len(self.adapter.calls), 1)
+        await self.service.close()
+        self.service = KnowledgeService(self.config, self.store, self.graph, self.adapter, self.scratch)
+        self.assertEqual(self.version(new)["error"], "interrupted_unknown_usage")
+        self.assertFalse(await self.service.label_next())
+        self.assertEqual(len(self.adapter.calls), 1)
+        self.assertEqual(self.published()["source_id"], old)
+
+    async def test_fatal_watcher_log_failure_cancels_unknown_request_without_replaying_it(self):
+        old = await self.ready_source()
+        self.file("alpha topic interrupted background request")
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        self.adapter = LabelAdapter(gate=asyncio.Event())
+        self.service.adapter = self.adapter
+        self.service.start()
+        async with asyncio.timeout(1):
+            await self.adapter.entered.wait()
+        write = self.scratch.write
+        injected = False
+
+        def fail_scan_error_receipt(event, **fields):
+            nonlocal injected
+            if event == "knowledge_scan_failed":
+                injected = True
+                raise OSError("synthetic watcher private diagnostic")
+            return write(event, **fields)
+
+        with patch.object(self.service, "scan_once", side_effect=RuntimeError("synthetic scan private diagnostic")), \
+                patch.object(self.scratch, "write", side_effect=fail_scan_error_receipt):
+            async with asyncio.timeout(1):
+                while self.service.background_error is None or not all(task.done() for task in self.service._tasks):
+                    await asyncio.sleep(0.005)
+        self.assertTrue(injected)
+        self.assertEqual(self.service.background_error, "OSError")
+        self.assertTrue(self.adapter.cancelled)
+        self.assertEqual(self.version(new)["status"], "failed")
+        self.assertEqual(self.version(new)["error"], "interrupted_unknown_usage")
+        self.assertEqual(self.published()["source_id"], old)
+        self.assertEqual(len(self.records(old, active=True)), 1)
+        self.assertEqual(self.receipts(new, "completed"), [])
+        self.assertTrue(self.receipts(new, "cancelled")[0]["remote_usage_unknown"])
+        printed = "\n".join(str(call.args[0]) for call in self.printed.call_args_list)
+        self.assertNotIn("private diagnostic", printed)
+        await self.service.close()
+        self.service = KnowledgeService(self.config, self.store, self.graph, self.adapter, self.scratch)
+        self.service.scan_once()
+        self.assertFalse(await self.service.label_next())
+        self.assertEqual(len(self.adapter.calls), 1)
+
+    async def test_expected_background_shutdown_is_not_reported_as_supervisor_failure(self):
+        old = await self.ready_source()
+        self.file("alpha topic pending normal shutdown")
+        self.service.scan_once()
+        self.adapter = LabelAdapter(gate=asyncio.Event())
+        self.service.adapter = self.adapter
+        self.service.start()
+        async with asyncio.timeout(1):
+            await self.adapter.entered.wait()
+        await self.service.close()
+        self.assertIsNone(self.service.background_error)
+        self.assertFalse(any(event == "knowledge_background_stopped" for event, _ in self.scratch.events))
+        self.assertEqual(self.published()["source_id"], old)
+        self.assertEqual(len(self.records(old, active=True)), 1)
+
+    async def test_empty_snapshot_changed_during_publication_keeps_previous_complete_snapshot(self):
+        old = await self.ready_source()
+        path = self.file("")
+        original_add = self.graph.add
+        injected = False
+
+        def change_empty_file_during_add(*args, **kwargs):
+            nonlocal injected
+            result = original_add(*args, **kwargs)
+            path.write_text("alpha topic newer nonempty snapshot", encoding="utf-8")
+            injected = True
+            return result
+
+        with patch.object(self.graph, "add", side_effect=change_empty_file_during_add):
+            self.service.scan_once()
+        self.assertTrue(injected)
+        self.assertEqual(self.published()["source_id"], old)
+        self.assertEqual(self.version(old)["status"], "ready")
+        self.assertEqual(len(self.records(old, active=True)), 1)
+        new = self.head()["source_id"]
+        self.assertEqual(self.receipts(new, "completed"), [])
+        self.assertEqual(self.receipts(new, "failed")[0]["reply_source_id"], old)
 
 
 if __name__ == "__main__":
