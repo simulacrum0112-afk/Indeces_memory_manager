@@ -21,8 +21,35 @@ from .knowledge import KnowledgeService
 from .lock import InstanceLock
 from .runtime import Runtime
 from .run_records import verify_runs
-from .scratch import ScratchLog, verify
+from .scratch import ScratchLog, retention_checkpoint, verify
 from .store import Store
+
+
+RETENTION_SECONDS = 24 * 60 * 60
+RETENTION_MAINTENANCE_SECONDS = 60.0
+
+
+def _retention_receipt(scratch, summary, *, phase):
+    if not isinstance(summary, dict):
+        return
+    temporary_removed = summary.get("temporary_files_removed", 0)
+    if not (summary["files_changed"] or summary["files_removed"] or temporary_removed):
+        return
+    print(f"Scratch retention ({phase}): removed {summary['records_removed']} records and "
+          f"{summary['files_removed']} files and {temporary_removed} temporary files; "
+          f"cutoff={summary['cutoff']}", flush=True)
+    scratch.write("scratch_retention", phase=phase, summary=summary)
+
+
+async def _maintain_scratch(scratch):
+    while True:
+        await asyncio.sleep(RETENTION_MAINTENANCE_SECONDS)
+        try:
+            _retention_receipt(scratch, scratch.prune(), phase="maintenance")
+        except Exception as error:
+            # Private file contents and arbitrary I/O messages never reach Console.
+            print(f"Scratch retention failed: {type(error).__name__}; service stopped.", flush=True)
+            raise
 
 
 async def serve(config, key, token):
@@ -30,8 +57,14 @@ async def serve(config, key, token):
         raise ValueError("set discord.guild_id before starting")
     lease = InstanceLock(config.state_dir)
     scratch = store = adapter = bridge = knowledge = None
+    maintenance_task = gateway_task = None
     try:
-        scratch = ScratchLog(config.scratch_dir)
+        try:
+            scratch = ScratchLog(config.scratch_dir)
+        except Exception as error:
+            print(f"Scratch retention/startup failed: {type(error).__name__}; service stopped.", flush=True)
+            raise
+        _retention_receipt(scratch, getattr(scratch, "startup_retention", None), phase="startup")
         store = Store(config.state_dir)
         interrupted = store.recover()
         if interrupted:
@@ -42,14 +75,37 @@ async def serve(config, key, token):
         bridge = DiscordBridge(config, runtime, scratch)
         scratch.write("service_start", version=__version__, guild_id=config.discord.guild_id,
                       stage_budgets={k: asdict(v) for k, v in config.adapter.budgets.items()},
-                      knowledge_limits=asdict(config.knowledge), model_concurrency=1, chat_labelling=False)
+                      knowledge_limits=asdict(config.knowledge), model_concurrency=1, chat_labelling=False,
+                      scratch_retention_seconds=RETENTION_SECONDS,
+                      scratch_maintenance_seconds=RETENTION_MAINTENANCE_SECONDS)
         print(f"{config.name} {__version__}: one Discord connection; model={config.adapter.model}; scratch={scratch.path}")
         print("Knowledge file updates trigger background labels. Chat labelling is closed. Ctrl+C stops the service.")
+        print("Scratch retains a rolling 24-hour window; cleanup runs at startup and every 60 seconds while the service runs.")
         knowledge.start()
-        await bridge.run(token)
+        maintenance_task = asyncio.create_task(_maintain_scratch(scratch), name="indices-scratch-retention")
+        gateway_task = asyncio.create_task(bridge.run(token), name="indices-discord-gateway")
+        done, _ = await asyncio.wait({maintenance_task, gateway_task}, return_when=asyncio.FIRST_COMPLETED)
+        if maintenance_task in done:
+            await maintenance_task
+            print("Scratch retention failed: RuntimeError; service stopped.", flush=True)
+            raise RuntimeError("scratch retention task stopped unexpectedly")
+        await gateway_task
     finally:
         active_error = sys.exc_info()[0] is not None
         cleanup_errors = []
+        # Await both users of scratch before closing resources or its append stream.
+        for task in (maintenance_task, gateway_task):
+            if task is not None and not task.done():
+                task.cancel()
+        for task in (maintenance_task, gateway_task):
+            if task is not None:
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                except BaseException as error:
+                    if not active_error:
+                        cleanup_errors.append(error)
         for resource in (bridge, knowledge, adapter):
             if resource is not None:
                 try:
@@ -95,6 +151,7 @@ def status(config, config_path=None):
     print(f"{config.name} {__version__}; model {config.adapter.model}; one model request slot")
     print(f"Discord guild={config.discord.guild_id or '<not configured>'}; channels={config.discord.channel_ids or 'all explicitly mentioned channels'}")
     print(f"Knowledge: {config.knowledge_dir}; scratch: {config.scratch_dir}")
+    print("Scratch retention: rolling 24 hours; startup cleanup and every 60 seconds while the service runs. Stopped services do not clean logs.")
     if config_path is not None:
         print(f"Saved Discord credential file: {'present (checked at start)' if secret_path(config_path).exists() else 'absent'}")
     print("Chat labelling: CLOSED; passive knowledge-update labelling: ENABLED while service runs")
@@ -136,6 +193,12 @@ def check_scratch(config):
     for path in files:
         count, digest = verify(path)
         print(f"{path.name}: {count} records, hash chain OK; head={digest}")
+        checkpoint = retention_checkpoint(path)
+        if checkpoint is not None:
+            print(f"  retained window: cutoff={checkpoint['cutoff']}; pruned_at={checkpoint['pruned_at']}; "
+                  f"removed_through_sequence={checkpoint['removed_through_sequence']}; "
+                  f"removed_head_hash={checkpoint['removed_head_hash']}; "
+                  f"cleanup_pending={checkpoint.get('cleanup_pending', False)}")
     if not files:
         print("No runtime scratch logs yet.")
         return

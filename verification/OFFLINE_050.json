@@ -1,0 +1,100 @@
+{
+  "version": "0.5.0",
+  "recorded_at_utc": "2026-09-30T22:15:22.229660+00:00",
+  "python": "3.12.14",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "monotonic_clock": {
+    "implementation": "GetTickCount64()",
+    "resolution_seconds": 0.015625
+  },
+  "checks": [
+    {
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-q"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 13.391,
+      "output": "[indeces.discord_bridge] Discord connected as namespace(id=99)\n[indeces.discord_bridge] Discord connected as namespace(id=99)\n----------------------------------------------------------------------\nRan 310 tests in 12.959s\n\nOK (skipped=4)"
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "check",
+        "--config",
+        "config.example.toml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.703,
+      "output": "Offline configuration/import check OK; Indices 0.5.0; discord.py 2.7.1.\nLive Discord and model calls were not made."
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "pip",
+        "check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.703,
+      "output": "No broken requirements found."
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "console",
+        "--config",
+        "config.example.toml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.265,
+      "output": "Indices 0.5.0 console: discord | start | status | scratch | quit\nIndices>"
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_retention_service.py",
+        "-q"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.781,
+      "output": "----------------------------------------------------------------------\nRan 13 tests in 0.476s\n\nOK",
+      "purpose": "Verify final read-only Console cleanup_pending display adjustment."
+    }
+  ],
+  "live_model_calls": false,
+  "live_discord_connection": false,
+  "data": "Synthetic messages, temporary files/SQLite, injected HTTP only; no user runtime data read or pruned.",
+  "scratch_tests": 45,
+  "retention_record_tests": 15,
+  "retention_service_tests": 13,
+  "retention_policy": {
+    "seconds": 86400,
+    "maintenance_seconds": 60,
+    "expiration": "timestamp <= UTC(now)-24h",
+    "stopped_service": "cleanup on next start",
+    "scope": "managed scratch date logs and reserved temporary files only"
+  },
+  "verification_scope": [
+    "boundary/idle/startup deletion and original surviving hashes",
+    "cross-file partial IDs and pending cleanup restart",
+    "atomic replace/short write/reopen/clock/link fault injection",
+    "window partial records retain local material/citation/HTTP checks",
+    "maintenance failure stops service; shutdown waits for tasks"
+  ]
+}

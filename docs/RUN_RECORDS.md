@@ -1,4 +1,4 @@
-# 可核验运行记录：0.4.0
+# 可核验运行记录：0.5.0
 
 运行记录回答三个不同的问题：本轮召回了哪些材料、Hebbian 权重和排序如何变化、模型生成/Discord 实际送达的文字出现了哪些引用标记。它们不自动证明引用段落得到材料的语义支持，也不证明材料本身真实或 Hebbian 治理有效。
 
@@ -6,9 +6,21 @@
 
 ## 文件与版本
 
-记录追加到 `scratch/` 的 JSONL 文件。文件名采用创建该日志实例时的 UTC 日期；长时间运行的实例不会在午夜自动换文件。每行采用外层 `version=1`，含连续整数 `sequence`、UTC ISO 时间、`event`、对象 `fields`、`previous_hash` 和 SHA-256 `hash`。hash 对移除 `hash` 后的规范 JSON 计算；JSON 为 UTF-8、键排序、紧凑分隔，拒绝重复键和非有限数。
+记录追加到 `scratch/` 的日期 JSONL 文件。文件名采用创建该日志实例时的 UTC 日期；长时间运行的实例不会在午夜自动换文件。每条普通事件采用外层 `version=1`，含原整数 `sequence`、UTC ISO 时间、`event`、对象 `fields`、`previous_hash` 和 SHA-256 `hash`。hash 对移除 `hash` 后的规范 JSON 计算；JSON 为 UTF-8、键排序、紧凑分隔，拒绝重复键和非有限数。裁剪后序号继续从真实尾序号追加，不重新编号；第一条保留事件链接 retention checkpoint 的原前缀锚。
 
-0.4.0 的 `turn_start.fields.run_record_version=1` 声明本轮具有下面的记录合同。它独立于外层日志版本、检索记录的 `version` 和图审计的 `schema_version`。旧日志保留，缺少这项声明的对话列为 `legacy`，不补造当时没有记录的证据。
+0.4.0 引入的 `turn_start.fields.run_record_version=1` 声明本轮具有下面的记录合同。它独立于外层日志版本、检索记录的 `version` 和图审计的 `schema_version`。保留窗口内缺少这项声明的旧对话列为 `legacy`，不补造当时没有记录的证据；旧格式到期日志也遵循 24 小时清理。
+
+## 滚动 24 小时保留
+
+服务先取得实例锁，再在启动时清理；运行期间每 60 秒检查一次，即使没有消息也执行。UTC `timestamp <= now - 24h` 的事件到期；按记录时间裁剪过期前缀，而不是按文件名或 mtime 删除整天。在线清理会有维护间隔与本地 I/O/调度延迟，停服期间不运行，下次 `start` 先清；没有外部计划任务。`scratch` 命令只读检查，不触发删除。
+
+保留事件行的原字节、序号和 hash 不变。文件首行可有 `kind=scratch_retention_checkpoint`、`version=1` 的独立声明，字段包含 `removed_through_sequence`、`removed_head_hash`、`pruned_at`、`cutoff`、`partial_trace_ids`、`partial_call_ids`、`cleanup_pending` 和自己的 hash。它没有原文或模型 payload；只留仍有窗口内片段的 opaque ID。全过期的非当前日期文件删除；当前写入文件即使正文全过期，也用 checkpoint 延续序号/hash。跨文件过期起点的声明放到仍有对应片段的文件，起锚可为序号 0/零 hash。
+
+UTC 时间须非递减；相等时间允许。时钟回拨、未来原记录、非法结构或损坏链会拒绝写入/清理，不伪造时间，不借保留策略修复日志。清理只枚举 scratch 根内正规日期 JSONL，拒绝链接、reparse point 和越界路径，不递归处理未知文件。专有 `.scratch-retention-<uuid>.tmp` 为未提交替换副本：启动持锁后清理这些普通孤儿文件，不读正文，不保留其额外副本。
+
+每个文件采用同目录临时文件、flush/fsync 和原子 replace；Windows 当前写入句柄先关闭再替换、重开。先持久化所有受影响文件的截断 ID 声明，再裁剪前缀，最后删除全过期文件；目录没有一个共同原子事务。中间失败可能留下 `cleanup_pending=true` 和尚未清完的原行，服务明确停止，无成功清理回执；校验器显示待完成，不能说已满足保留期限。完成声明为 `cleanup_pending=false`，保留行须晚于其 cutoff。下一次启动基于现有可验证原链执行清理，不重放模型调用。
+
+清理数量、文件数量与 cutoff 在 Console/scratch 有回执。这项策略仅删除 scratch 中的到期日志；知识文件、SQLite 消息/来源版本/checkpoint 和持久图事件审计不在删除范围。到期日志不自动归档；窗口外完整调用/引用证据将无法再从 scratch 查阅，已有 checkpoint 只证明剩余链与本地声明一致，不能恢复或公证已删除内容。
 
 ## 一轮回答的证据链
 
@@ -80,8 +92,9 @@
 | `incomplete` | 缺少终态等证据，不能以 hash 合法代替流程完整 |
 | `invalid` | 合同字段、hash 关联、算术、材料/引用/送达绑定等不一致 |
 | `legacy` | 没有新合同声明的旧对话；不补算或假定其已满足新合同 |
+| `retention_partial` | 起点因计划清理到期，而窗口内仍有片段；只检查现存可验证字段，不推断过期的材料或预算 |
 
-外层结构/hash 错误或 `invalid` 会使校验命令失败；`failed`、`incomplete`、`legacy` 和引用告警分别显示。调用另外报告 complete/failed/incomplete/invalid：失败或拒绝记录有终态不等于成功调用，缺少终态不能冒充完整响应。被动标词 trace 不当成回答链，但其 adaptor 调用参与 call ID 检查。`complete` 仅是记录合同完整，不是语义、事实或长期记忆效果验收。
+外层结构/hash 错误或 `invalid` 会使校验命令失败；`failed`、`incomplete`、`legacy`、`retention_partial` 和引用告警分别显示。只有 checkpoint 明确列出的缺起点对象才能列为 `retention_partial`；起点仍在的对象沿用完整合同，不因目录存在 checkpoint 就放宽校验。部分记录的材料 hash、引用位置/可用绑定、HTTP 响应/usage、保留门禁与输出上限仍校验，已有矛盾仍为 invalid；依赖已到期时明确告警，不补造。调用同样单独报告部分状态；被动标词 trace 不当成回答链。`complete` 仅是记录合同完整，不是语义、事实或长期记忆效果验收。
 
 ## 写入失败与证据边界
 
@@ -89,4 +102,4 @@ Scratch 在序列化成功之前不推进序号，在 append/flush/fsync 全部�
 
 SQLite 图/审计事务与 scratch fsync 是两个持久性边界，没有跨数据库与日志的原子事务。进程退出或日志失败可能留下数据库已提交、scratch 缺失的阶段；校验器不能补造这些阶段。已经收到的 Discord 送达确认不会因后续本地日志失败改称网络送达未知，也不会自动重复发送；存储/日志失败会明确提示，清理仍尝试关闭组件、数据库和实例锁。
 
-hash 链没有外部锚点。中间记录删除、内容篡改和部分行损坏可以检测；在完整行边界删除整个尾部、删除整份日志、重新生成整条链不能仅凭剩余本地文件证明不存在。日志当前没有自动保留期限、压缩或外部公证。原文、完整调用及回复持续保留供用户本地查阅，认证密钥不能进入记录。
+hash 链没有外部锚点。中间记录删除、内容篡改和部分行损坏可以检测；在完整行边界删除整个尾部、删除整份日志、重新生成整条链不能仅凭剩余本地文件证明不存在。日志采用上述滚动 24 小时保留，没有压缩或外部公证；窗口内原文、完整调用及回复供用户本地查阅，认证密钥不能进入记录。

@@ -13,7 +13,7 @@ import math
 from pathlib import Path
 import re
 
-from .scratch import canonical
+from .scratch import canonical, read_records, retention_checkpoint
 
 
 def digest(value):
@@ -208,6 +208,144 @@ def _validate_call(events):
     return "complete"
 
 
+def _validate_partial_call(events):
+    """Check available transport receipts without inventing expired budgets."""
+    ends = [f for e, f in events if e in {"call_end", "call_rejected"}]
+    _require(len(ends) <= 1, "duplicate retained call end")
+    _require(len({f["trace_id"] for _, f in events}) == 1, "retained call trace mismatch")
+    requests, responses = {}, {}
+    for event, fields in events:
+        if event not in {"http_request", "http_response"}:
+            continue
+        target = requests if event == "http_request" else responses
+        path = fields["path"]
+        _require(path in {"/responses/input_tokens", "/responses"} and path not in target,
+                 "duplicate/unknown retained transport stage")
+        _require(isinstance(fields["payload"], dict), "retained transport schema invalid")
+        target[path] = fields["payload"]
+    if len(requests) == 2:
+        _require({k: v for k, v in requests["/responses"].items()
+                  if k not in {"max_output_tokens", "store", "stream", "truncation", "tools"}}
+                 == requests["/responses/input_tokens"], "retained count/generation input mismatch")
+    gates = [f for e, f in events if e == "input_gate"]
+    _require(len(gates) <= 1, "duplicate retained input gate")
+    if gates:
+        gate = gates[0]
+        _require(type(gate["input_tokens"]) is int and gate["input_tokens"] >= 0
+                 and type(gate["limit"]) is int and gate["limit"] > 0 and type(gate["admitted"]) is bool
+                 and gate["admitted"] == (gate["input_tokens"] <= gate["limit"]), "retained input gate policy mismatch")
+        if "/responses" in requests:
+            _require(gate["admitted"] is True, "retained generation bypassed input gate")
+    if gates and "/responses/input_tokens" in responses:
+        _require(gates[0]["input_tokens"] == responses["/responses/input_tokens"]["input_tokens"],
+                 "retained input gate mismatch")
+    completed = ends and ends[0].get("status") == "completed"
+    if completed:
+        result = ends[0]["result"]
+        _require(isinstance(result["text"], str) and bool(result["text"].strip())
+                 and all(type(result[k]) is int and result[k] >= 0 for k in ("input_tokens", "output_tokens"))
+                 and isinstance(result["response_id"], str) and result["elapsed_seconds"] >= 0,
+                 "retained call result invalid")
+        if "/responses" in requests:
+            cap = requests["/responses"]["max_output_tokens"]
+            _require(type(cap) is int and cap > 0 and result["output_tokens"] <= cap,
+                     "retained output token cap mismatch")
+        if "/responses" in responses:
+            response = responses["/responses"]
+            text = "".join(part["text"] for item in response["output"]
+                           if item.get("type") == "message" and item.get("role") == "assistant"
+                           for part in item["content"] if part.get("type") == "output_text")
+            _require(response["status"] == "completed" and text == result["text"]
+                     and str(response.get("id", "")) == result["response_id"], "retained provider output mismatch")
+            _require(all(response["usage"][k] == result[k] for k in ("input_tokens", "output_tokens")),
+                     "retained provider usage mismatch")
+    return "retention_partial"
+
+
+def _validate_unbound_answer(record):
+    """Verify literal spans when the source-binding snapshot has expired."""
+    _require(record["version"] == 1 and text_digest(record["text"]) == record["text_sha256"],
+             "retained answer text digest mismatch")
+    expected = answer_record(record["text"], {"materials": []})
+    citations = record["citations"]
+    _require(len(citations) == len(expected["citations"]), "retained citation count mismatch")
+    bindings = {}
+    for actual, literal in zip(citations, expected["citations"]):
+        _require({k: v for k, v in actual.items() if k not in {"status", "source_id", "record_id"}}
+                 == {k: v for k, v in literal.items() if k != "status"}, "retained citation span mismatch")
+        _require(actual["status"] in {"resolved", "unresolved"}, "retained citation status invalid")
+        if actual["status"] == "resolved":
+            _require(actual["citation_id"] in {"M1", "M2", "M3"} and isinstance(actual["source_id"], str)
+                     and bool(actual["source_id"]) and type(actual["record_id"]) is int and actual["record_id"] > 0,
+                     "retained citation binding invalid")
+            binding = (actual["source_id"], actual["record_id"])
+            _require(actual["citation_id"] not in bindings or bindings[actual["citation_id"]] == binding,
+                     "retained citation binding conflict")
+            bindings[actual["citation_id"]] = binding
+        else:
+            _require("source_id" not in actual and "record_id" not in actual, "unresolved citation has a binding")
+    _require(record["cited_material_ids"] == sorted(bindings) and record["unresolved_markers"]
+             == [c["marker"] for c in citations if c["status"] == "unresolved"], "retained citation summary mismatch")
+    uncited = record["uncited_material_ids"]
+    _require(uncited == sorted(set(uncited)) and all(c in {"M1", "M2", "M3"} for c in uncited)
+             and not set(uncited) & set(bindings), "retained uncited material IDs invalid")
+    _require(record["semantic_support"] == "not_evaluated" and record["citation_coverage"] == "not_established",
+             "retained answer claims unevaluated support")
+
+
+def _validate_partial_turn(events, report):
+    stages = {"memory_observation": 1, "retrieval_record": 2, "reply_context": 3,
+              "answer_generated": 4, "delivery_start": 5, "answer_delivered": 6, "turn_end": 7}
+    present = [stages[e] for e, _ in events if e in stages]
+    _require(present == sorted(present) and len(present) == len(set(present)), "retained turn stage ordering mismatch")
+    by_event = {e: f for e, f in events if e in stages}
+    observation = by_event.get("memory_observation")
+    if observation:
+        _require(digest(observation["audit"]) == observation["audit_sha256"], "retained graph observation digest mismatch")
+        validate_graph_audit(observation["audit"])
+    retrieval_fields = by_event.get("retrieval_record")
+    retrieval = retrieval_fields["record"] if retrieval_fields else None
+    if retrieval is not None:
+        _require(digest(retrieval) == retrieval_fields["record_sha256"], "retained retrieval digest mismatch")
+        validate_retrieval(retrieval)
+        validate_graph_audit(retrieval["graph_audit"], retrieval)
+        if observation:
+            _require(observation["audit"] == retrieval["graph_audit"], "retained graph/retrieval mismatch")
+        context = by_event.get("reply_context")
+        if context:
+            _require(context["retrieval_sha256"] == digest(retrieval), "retained context link mismatch")
+            data = json.loads(context["messages"][0]["content"].split("\n", 1)[1])
+            _require(data["memory_citations"] == retrieval["model_materials"], "retained model materials mismatch")
+    for stage in ("answer_generated", "answer_delivered"):
+        response = by_event.get(stage)
+        if response:
+            if retrieval is not None:
+                _require(response["retrieval_sha256"] == digest(retrieval), "retained answer retrieval link mismatch")
+                validate_answer(response["record"], retrieval)
+            else:
+                _validate_unbound_answer(response["record"])
+                report["warnings"].append("expired_material_binding")
+            if response["record"]["unresolved_markers"]:
+                report["warnings"].append("unresolved_citation")
+    generated, delivered, end = (by_event.get(e) for e in ("answer_generated", "answer_delivered", "turn_end"))
+    if generated:
+        _require(generated["model_result"]["text"] == generated["record"]["text"], "retained generated output mismatch")
+        calls = [f for e, f in events if e == "call_end" and f.get("stage") == "reply" and f.get("status") == "completed"]
+        if calls:
+            _require(len(calls) == 1 and calls[0]["result"] == generated["model_result"], "retained generated receipt mismatch")
+    if end and delivered:
+        _require(end["status"] == "delivered" and end["receipt"]["text"] == delivered["record"]["text"]
+                 and end["receipt"]["ids"] == delivered["receipt_ids"], "retained delivery receipt mismatch")
+    context = by_event.get("reply_context")
+    if context:
+        requests = [f for e, f in events if e == "http_request" and f["path"] == "/responses"]
+        reply_call_ids = {f["call_id"] for e, f in events if e == "call_end" and f.get("stage") == "reply"}
+        for request in requests:
+            if request["call_id"] in reply_call_ids:
+                _require(request["payload"]["input"] == context["messages"] and request["payload"]["instructions"] == context["instructions"],
+                         "retained actual reply context mismatch")
+
+
 def verify_runs(paths: list[Path]):
     """Verify new record contracts across files; report legacy/incomplete turns.
 
@@ -215,28 +353,33 @@ def verify_runs(paths: list[Path]):
     current knowledge files are required, and private text is never printed.
     """
     turns, issues, calls = {}, [], {}
+    partial_traces, partial_calls, checkpoints = set(), set(), []
     for path in paths:
-        with path.open(encoding="utf-8") as stream:
-            for line in stream:
-                item = json.loads(line)
-                fields = item["fields"]
-                trace = fields.get("trace_id")
-                if trace is not None and (not isinstance(trace, str) or not trace):
-                    issues.append({"trace_id": None, "reason": "invalid trace identifier"})
-                    continue
-                call_id = fields.get("call_id")
-                if call_id is not None and (not isinstance(call_id, str) or not call_id):
-                    issues.append({"trace_id": trace, "reason": "invalid call identifier"})
-                    continue
-                if trace:
-                    turns.setdefault(trace, []).append((item["event"], fields))
-                if fields.get("call_id"):
-                    calls.setdefault(fields["call_id"], []).append((item["event"], fields))
+        checkpoint = retention_checkpoint(path)
+        if checkpoint:
+            checkpoints.append({"file": path.name, **checkpoint})
+            partial_traces.update(checkpoint["partial_trace_ids"])
+            partial_calls.update(checkpoint["partial_call_ids"])
+        for item in read_records(path):
+            fields = item["fields"]
+            trace = fields.get("trace_id")
+            if trace is not None and (not isinstance(trace, str) or not trace):
+                issues.append({"trace_id": None, "reason": "invalid trace identifier"})
+                continue
+            call_id = fields.get("call_id")
+            if call_id is not None and (not isinstance(call_id, str) or not call_id):
+                issues.append({"trace_id": trace, "reason": "invalid call identifier"})
+                continue
+            if trace:
+                turns.setdefault(trace, []).append((item["event"], fields))
+            if fields.get("call_id"):
+                calls.setdefault(fields["call_id"], []).append((item["event"], fields))
     call_reports = []
     for call_id, events in calls.items():
         trace = events[0][1].get("trace_id")
         try:
-            status = _validate_call(events)
+            missing_start = not any(e == "call_start" for e, _ in events)
+            status = _validate_partial_call(events) if missing_start and call_id in partial_calls else _validate_call(events)
         except (ValueError, KeyError, TypeError, IndexError, AttributeError, OverflowError, ZeroDivisionError) as error:
             status = "invalid"
             issues.append({"trace_id": trace, "reason": str(error) if type(error) is ValueError else "call schema invalid"})
@@ -245,7 +388,23 @@ def verify_runs(paths: list[Path]):
     for trace, events in turns.items():
         starts = [f for e, f in events if e == "turn_start"]
         if not starts:
-            continue  # Passive label traces are not conversation turns.
+            # Passive label traces do not have conversation stages.
+            is_turn = any(e in {"memory_observation", "retrieval_record", "knowledge_retrieved", "reply_context",
+                                 "answer_generated", "delivery_start", "answer_delivered", "turn_end"}
+                          or f.get("stage") in {"reply", "summary"} for e, f in events)
+            if not is_turn:
+                continue
+            report = {"trace_id": trace, "status": "retention_partial", "warnings": ["expired_turn_start"]}
+            reports.append(report)
+            try:
+                _require(trace in partial_traces, "turn start missing without retention evidence")
+                _validate_partial_turn(events, report)
+                _require(not any(c["status"] == "invalid" for c in call_reports if c["trace_id"] == trace),
+                         "retained turn has invalid call evidence")
+            except (ValueError, KeyError, TypeError, IndexError, AttributeError, OverflowError, ZeroDivisionError) as error:
+                report["status"] = "invalid"
+                issues.append({"trace_id": trace, "reason": str(error) if type(error) is ValueError else "retained record schema invalid"})
+            continue
         report = {"trace_id": trace, "status": "legacy", "warnings": []}
         reports.append(report)
         if starts[0].get("run_record_version") != 1:
@@ -323,9 +482,9 @@ def verify_runs(paths: list[Path]):
             # Fixed diagnostic messages; never echo private source/reply text.
             issues.append({"trace_id": trace, "reason": str(error) if type(error) is ValueError else "record schema invalid"})
     return {"turns": reports, "counts": {s: sum(r["status"] == s for r in reports)
-            for s in ("complete", "failed", "incomplete", "invalid", "legacy")}, "issues": issues,
+            for s in ("complete", "failed", "incomplete", "invalid", "legacy", "retention_partial")}, "issues": issues,
             "calls": call_reports, "call_counts": {s: sum(c["status"] == s for c in call_reports)
-            for s in ("complete", "failed", "incomplete", "invalid")}}
+            for s in ("complete", "failed", "incomplete", "invalid", "retention_partial")}, "retention_checkpoints": checkpoints}
 
 
 def validate_graph_audit(audit, retrieval=None):

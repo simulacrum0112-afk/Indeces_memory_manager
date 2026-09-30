@@ -1,4 +1,4 @@
-# 交付状态：0.4.0
+# 交付状态：0.5.0
 
 截至用户时区日期 2026-09-30，本体已在 `D:\Indeces` 实现。GitHub 私有仓库为 [Indeces_memory_manager](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。源码提交/推送结果由交付消息及 Git 历史确认；创建仓库本身不代表服务已启动。
 
@@ -24,7 +24,8 @@ Console `scratch` 校验外层结构/hash 与新每轮记录合同，分别报�
 
 ## 验证证据
 
-- 0.4.0 本机完整离线测试：Windows/CPython 3.12.14，**256 tests / 0 failures / 2 skips**，8.255 秒；运行记录 33、Hebbian memory 27、scratch 19、审计故障边界 5 项。配置/导入、`pip check` 与 Console 退出烟雾检查通过，记录见 [verification/OFFLINE_040.json](../verification/OFFLINE_040.json)。使用合成输入和注入传输，未调用真实模型或 Discord；本版远端结果以对应精确提交的 CI 为准。
+- 0.5.0 本机完整离线测试：Windows/CPython 3.12.14，**310 tests / 0 failures / 4 skips**，12.959 秒；scratch 45（原 19 + 新增 26）、跨窗口运行记录 15、服务维护 13 项。4 项跳过为当前 Windows 平台/符号链接权限相关用例。配置/导入、`pip check`、Console 退出烟雾与最终 Console checkpoint 显示回归通过，记录见 [verification/OFFLINE_050.json](../verification/OFFLINE_050.json)。只用临时合成数据，没有读取或清理实际 scratch，也未连接模型/Discord；远端 CI 以本版精确提交为准。
+- 0.4.0 历史本机完整离线测试：Windows/CPython 3.12.14，**256 tests / 0 failures / 2 skips**，8.255 秒；运行记录 33、Hebbian memory 27、scratch 19、审计故障边界 5 项。配置/导入、`pip check` 与 Console 退出烟雾检查通过，记录见 [verification/OFFLINE_040.json](../verification/OFFLINE_040.json)。精确提交 `e1cc53573ca631f5087ea7aad2de8ff165fcfdcd` 的 [main CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36782658061) 和 [v0.4.0 tag CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36782658922) 四个 job 均通过：Windows 256 项/0 失败/1 跳过，Ubuntu 256 项/0 失败/2 跳过，四个 CLI 检查通过。没有真实模型/Discord 验收。
 - 0.3.0 历史本机完整离线测试：Windows/CPython 3.12.14，**193 tests / 0 failures / 2 skips**，5.419 秒；知识生命周期 52 项（原 23 + 新增 29），人设 7 项。配置/导入、`pip check` 和 Console 退出烟雾检查通过；记录见 [verification/OFFLINE_030.json](../verification/OFFLINE_030.json)。精确提交 `96e3a56d0096c0a9d97a0afc7e5f635d5eb69af8` 的 [main CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36779788040) 与 [v0.3.0 tag CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36779788302) 四个 job 均通过：Windows 193 项/0 失败/1 跳过，Ubuntu 193 项/0 失败/2 跳过，CLI 配置/导入检查均通过。
 - 0.2.1 历史本机完整离线测试：Windows/CPython 3.12.14，**163 tests / 0 failures / 2 skips**，3.201 秒。配置/导入、`pip check` 与 Console 退出烟雾检查均通过；可复现摘要见 [verification/OFFLINE_021.json](../verification/OFFLINE_021.json)。对应精确提交 `0238ac34f558382c29884a1644b8c316eb7eccfd` 的 [main CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36776644617) 和 [v0.2.1 tag CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36776644454) 均通过：Windows 163 项/0 失败/1 跳过，Ubuntu 163 项/0 失败/2 跳过；四个 CLI 配置/导入检查通过。
 - 0.2.0 本机历史离线测试：**163 tests / 0 failures / 2 skips**，6.418 秒；含新增向导 28、Console 14、人设 6、凭据 26 项。摘要见 [verification/OFFLINE_020.json](../verification/OFFLINE_020.json)。[该提交的 CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36775737063) 中 Ubuntu 通过，但 Windows 的 3 项故障注入测试未触发预期失败；此历史结果不能称为跨平台验收通过。
@@ -46,6 +47,8 @@ Console `scratch` 校验外层结构/hash 与新每轮记录合同，分别报�
 
 0.4.0 记录审计修复：原 hash 校验未验证连续序号、版本、事件/字段和 UTC 时间结构；预写入序列化失败会提前推进序号，fsync 失败后继续写入可能破坏后续链。现先序列化/冻结再写入，完整 I/O 成功后推进状态，可能写入后的失败 latch 禁止续写，保留文件不自动修复。另修复已确认送达后本地审计异常错误覆盖为 delivery_unknown，以及关闭日志失败跳过数据库/实例锁清理的路径；本次最终测试证据另列，不据设计说明宣称全部验收。
 
+0.5.0 默认 rolling 24h scratch 保留：按事件 UTC timestamp，启动和服务内每 60 秒清理，空闲也执行；停服下次启动再清理。保留行的原序号/hash 不改，同文件 checkpoint 声明删除前缀及仍活跃的截断 ID；`retention_partial` 不冒充完整历史。跨文件先发布待清理声明再剪正文/删全过期文件；失败可能留 `cleanup_pending` 中间状态，服务报告并停止，不称作全目录原子。仅清 scratch 管理文件，不删除知识/SQLite/图审计，不归档到期日志，不增加模型调用或外部定时任务。
+
 ## 未完成与边界
 
 - 未连接真实 Discord、未发送真实消息，未调用真实 OpenAI 模型。需要用户在本地向导填写 Guild 与 token，再执行 `start`，完成一个专用频道的代表性往返与知识更新试验。向导保存成功仅证明本地设置完成，不证明 token 有效、Bot 已入服或有频道权限。
@@ -58,6 +61,6 @@ Console `scratch` 校验外层结构/hash 与新每轮记录合同，分别报�
 - 本地图排序、文件 I/O 和 fsync 不可由 asyncio 强制抢占；当前协作式本地时间检查不能当成任意规模计算的硬时间保证。
 - 未收到允许后台标词与回复真实模型请求重叠的选择；当前两任务独立而 HTTP 串行。
 - 尚无长时间运行/网络断开/真实 Discord rate-limit 验收。Discord 超时可能已经产生外部消息，不能承诺 exactly-once；无主动发送重试。
-- scratch hash 链只检测本地序列一致性，不是外部不可篡改公证；原文和日志持续保留，尚无自动保留期限或压缩策略。
+- scratch hash 链与裁剪 checkpoint 只检查本地一致性，不是外部公证；日志原文在滚动 24 小时后清除，窗口外完整证据不再可查，没有自动归档或压缩。数据库/知识保留不受该策略影响；停止服务和本地 I/O/时钟异常时不能保证实时到点清理。
 
 没有修改/启动现有 Yuki，没有科研参数变更、计算任务提交或旧结果迁移。不存在依据离线测试宣称“可发表”或“真实检索效果已验证”的结论。
