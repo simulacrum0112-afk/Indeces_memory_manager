@@ -1,0 +1,587 @@
+{
+  "version": "0.10.0",
+  "recorded_at_utc": "2026-10-01T05:59:31.548563+00:00",
+  "scope": "Documentation reconciliation and public metadata only; original runtime verification artifacts unchanged.",
+  "code_checkpoint": "f27013910ae52852a7084ad8f2d92132dcda31c7",
+  "baseline_remote_main": "f27013910ae52852a7084ad8f2d92132dcda31c7",
+  "repository": {
+    "url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager",
+    "public": true,
+    "default_branch": "main",
+    "license": "MIT"
+  },
+  "code_ci": {
+    "id": 36820824993,
+    "head_sha": "f27013910ae52852a7084ad8f2d92132dcda31c7",
+    "html_url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36820824993",
+    "status": "completed",
+    "conclusion": "success",
+    "updated_at": "2026-10-01T05:41:29Z"
+  },
+  "code_ci_jobs": [
+    {
+      "name": "check (windows-latest)",
+      "html_url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36820824993/job/110235817268",
+      "status": "completed",
+      "conclusion": "success",
+      "completed_at": "2026-10-01T05:41:28Z"
+    },
+    {
+      "name": "check (ubuntu-latest)",
+      "html_url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36820824993/job/110235817462",
+      "status": "completed",
+      "conclusion": "success",
+      "completed_at": "2026-10-01T05:39:57Z"
+    }
+  ],
+  "existing_evidence": {
+    "offline_report": "verification/OFFLINE_0100.json",
+    "unit_tests": {
+      "runner": "unittest discovery: tests (file entry point with main guard)",
+      "tests_run": 676,
+      "failures": 0,
+      "errors": 0,
+      "skips": 14,
+      "elapsed_seconds": 36.285,
+      "passed": true,
+      "skipped_cases": [
+        {
+          "test": "test_no_plaintext_fallback_on_other_platforms (test_credentials.NativePlatformTests.test_no_plaintext_fallback_on_other_platforms)",
+          "reason": "Non-Windows behavior"
+        },
+        {
+          "test": "test_symlink_target_is_neither_read_nor_replaced (test_credentials.PersistenceTests.test_symlink_target_is_neither_read_nor_replaced)",
+          "reason": "symlink creation unavailable for this Windows account"
+        },
+        {
+          "test": "test_explicit_root_symlink_alias_can_resolve_to_a_safe_actual_directory (test_knowledge_directory.KnowledgeDirectoryTests.test_explicit_root_symlink_alias_can_resolve_to_a_safe_actual_directory)",
+          "reason": "directory symlink creation unavailable on this host"
+        },
+        {
+          "test": "test_management_symlink_is_refused_without_following_it (test_knowledge_directory.KnowledgeDirectoryTests.test_management_symlink_is_refused_without_following_it)",
+          "reason": "directory symlink creation unavailable on this host"
+        },
+        {
+          "test": "test_external_directory_symlink_is_not_traversed (test_knowledge_directory_scan.DirectoryScanTests.test_external_directory_symlink_is_not_traversed)",
+          "reason": "directory symlink unavailable on this host"
+        },
+        {
+          "test": "test_real_database_symlink_is_refused_without_following (test_observer_data.ObserverDataTests.test_real_database_symlink_is_refused_without_following)",
+          "reason": "symlink creation unavailable on this host"
+        },
+        {
+          "test": "test_real_state_directory_symlink_is_refused_without_following (test_observer_data.ObserverDataTests.test_real_state_directory_symlink_is_refused_without_following)",
+          "reason": "symlink creation unavailable on this host"
+        },
+        {
+          "test": "test_save_on_other_platforms_leaves_no_credential_file (test_openai_credentials.OpenAiNativePlatformTests.test_save_on_other_platforms_leaves_no_credential_file)",
+          "reason": "Non-Windows durable-save behavior"
+        },
+        {
+          "test": "test_replaced_target_between_check_and_open_is_rejected (test_openai_credentials.OpenAiPersistenceTests.test_replaced_target_between_check_and_open_is_rejected)",
+          "reason": "Windows prevents replacing this open credential handle"
+        },
+        {
+          "test": "test_symlink_parent_is_rejected (test_openai_credentials.OpenAiPersistenceTests.test_symlink_parent_is_rejected)",
+          "reason": "directory symlink creation unavailable for this Windows account"
+        },
+        {
+          "test": "test_symlink_target_is_neither_read_nor_replaced (test_openai_credentials.OpenAiPersistenceTests.test_symlink_target_is_neither_read_nor_replaced)",
+          "reason": "symlink creation unavailable for this Windows account"
+        },
+        {
+          "test": "test_directory_link_is_rejected_without_creating_logs_in_its_target (test_scratch.RetentionTests.test_directory_link_is_rejected_without_creating_logs_in_its_target)",
+          "reason": "directory symlink creation is not permitted on this platform"
+        },
+        {
+          "test": "test_symlink_managed_log_and_reserved_temp_are_rejected_without_following (test_scratch.RetentionTests.test_symlink_managed_log_and_reserved_temp_are_rejected_without_following)",
+          "reason": "symlink creation is not permitted on this platform"
+        },
+        {
+          "test": "test_symlink_is_rejected_by_snapshot_and_opened_handle (test_scratch_observer.ScratchObserverTests.test_symlink_is_rejected_by_snapshot_and_opened_handle)",
+          "reason": "symlink creation unavailable on this host"
+        }
+      ]
+    },
+    "wheel_report": "verification/WHEEL_0100.json",
+    "wheel_passed": true,
+    "rerun_this_documentation_task": false
+  },
+  "version_check": {
+    "pyproject": "0.10.0",
+    "package": "0.10.0",
+    "runtime_tree_unchanged": true
+  },
+  "documentation": {
+    "files": [
+      "AGENTS.md",
+      "README.md",
+      "THIRD_PARTY_NOTICES.md",
+      "docs/ARCHITECTURE.md",
+      "docs/BASELINE.md",
+      "docs/CHECKPOINT.md",
+      "docs/KNOWLEDGE_DIRECTORY.md",
+      "docs/OBSERVABILITY.md",
+      "docs/PDF_IMPORT.md",
+      "docs/REPOSITORY_PRIVACY.md",
+      "docs/RUN_RECORDS.md",
+      "docs/STATUS.md"
+    ],
+    "file_count": 12,
+    "sha256": {
+      "AGENTS.md": "3706b6d02c0a7ce4a6a8157fe98453cd9697874cd4bf47d7814439889ed1b859",
+      "README.md": "492165299eec7bcc2beb07f56d66c9dc05d5c3962a6d9c431739f0147c2056dd",
+      "THIRD_PARTY_NOTICES.md": "daef6eb94e15848bc6f56538a59f29a8a90384c123c33e22bbad0fc941b19dc1",
+      "docs/ARCHITECTURE.md": "0552194818173fc7ab4c6dc227934190b96f9abd8e3e327aa9e47fc32e7c3513",
+      "docs/BASELINE.md": "73da491b31b9e9fea40506cae8802faa9c5827d9c95a36627d58b1f647d3785a",
+      "docs/CHECKPOINT.md": "14aad569ae28e21e1e960254fa108d19707d23b6f51c010a916ac86ce73db38d",
+      "docs/KNOWLEDGE_DIRECTORY.md": "6cae4368a3cf5ca3a8551b60c77c29336aecd6e34f4cbf9f9c0d14c83b6a36ee",
+      "docs/OBSERVABILITY.md": "a58f5b479c0e7c6099275a73d24444943a0f0254d0f3a4c57ba6aed15aeeb91b",
+      "docs/PDF_IMPORT.md": "7253a1441120662191ec74810d58a4530d8a4be769c8d6663a2222c737c8f4a4",
+      "docs/REPOSITORY_PRIVACY.md": "77f4d1e83f8bee47eb184f19d38691713fe15ff7f7102288952bc00e376d0b83",
+      "docs/RUN_RECORDS.md": "fd6aa5301dadb4492ce517b9185d7ae57a15ff43df43be502319ee5251b1a661",
+      "docs/STATUS.md": "380aad201b8b9c45e30141a6a426b2cea9a33989b8dd9c007f82137c0f3b6832"
+    },
+    "local_links_checked": 71,
+    "external_links_found_not_recrawled": 31,
+    "issues": [],
+    "passed": true,
+    "sha256_basis": "Exact Git index blob bytes, after line-ending normalization; reproducible from the committed files."
+  },
+  "publication_scan": {
+    "refs": [
+      "main"
+    ],
+    "main_reachable_commits": 16,
+    "unique_history_blobs": 305,
+    "current_public_files_scanned": 113,
+    "rules": [
+      "provider_key_shape",
+      "discord_token_shape",
+      "private_key_header",
+      "secret_assignment",
+      "private_runtime_path"
+    ],
+    "findings": [
+      {
+        "rule": "secret_assignment",
+        "path": "indeces/knowledge.py",
+        "line": 85,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_sql_schema_marker_not_credential"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_adapter.py",
+        "line": 55,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_mock_transport_fixture"
+      },
+      {
+        "rule": "provider_key_shape",
+        "path": "tests/test_api_key_wizard.py",
+        "line": 17,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "provider_key_shape",
+        "path": "tests/test_api_key_wizard.py",
+        "line": 18,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "provider_key_shape",
+        "path": "tests/test_api_key_wizard.py",
+        "line": 19,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console.py",
+        "line": 20,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console.py",
+        "line": 21,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console_start_lock.py",
+        "line": 21,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console_start_lock.py",
+        "line": 22,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_credentials.py",
+        "line": 17,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_discord_wizard.py",
+        "line": 21,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_discord_wizard.py",
+        "line": 22,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_knowledge.py",
+        "line": 126,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_sql_schema_marker_not_credential"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_name_migration.py",
+        "line": 26,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_openai_credentials.py",
+        "line": 17,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "indeces/knowledge.py",
+        "line": 85,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_sql_schema_marker_not_credential"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_adapter.py",
+        "line": 52,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_mock_transport_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console.py",
+        "line": 20,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console.py",
+        "line": 21,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_knowledge.py",
+        "line": 125,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_sql_schema_marker_not_credential"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_name_migration.py",
+        "line": 26,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console.py",
+        "line": 20,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console.py",
+        "line": 21,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "indeces/knowledge.py",
+        "line": 85,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_sql_schema_marker_not_credential"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console.py",
+        "line": 18,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console.py",
+        "line": 19,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_knowledge.py",
+        "line": 123,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_sql_schema_marker_not_credential"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "indeces/knowledge.py",
+        "line": 82,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_sql_schema_marker_not_credential"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console.py",
+        "line": 18,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console.py",
+        "line": 19,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_adapter.py",
+        "line": 49,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_mock_transport_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console.py",
+        "line": 17,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console.py",
+        "line": 18,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "indeces/knowledge.py",
+        "line": 73,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_sql_schema_marker_not_credential"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_discord_wizard.py",
+        "line": 21,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_discord_wizard.py",
+        "line": 22,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_knowledge.py",
+        "line": 123,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_sql_schema_marker_not_credential"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_discord_wizard.py",
+        "line": 21,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_discord_wizard.py",
+        "line": 22,
+        "scope": "main_reachable_history",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "indeces/knowledge.py",
+        "line": 85,
+        "scope": "current_public_files",
+        "classification": "confirmed_sql_schema_marker_not_credential"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_adapter.py",
+        "line": 55,
+        "scope": "current_public_files",
+        "classification": "confirmed_mock_transport_fixture"
+      },
+      {
+        "rule": "provider_key_shape",
+        "path": "tests/test_api_key_wizard.py",
+        "line": 17,
+        "scope": "current_public_files",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "provider_key_shape",
+        "path": "tests/test_api_key_wizard.py",
+        "line": 18,
+        "scope": "current_public_files",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "provider_key_shape",
+        "path": "tests/test_api_key_wizard.py",
+        "line": 19,
+        "scope": "current_public_files",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console.py",
+        "line": 20,
+        "scope": "current_public_files",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console.py",
+        "line": 21,
+        "scope": "current_public_files",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console_start_lock.py",
+        "line": 21,
+        "scope": "current_public_files",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console_start_lock.py",
+        "line": 22,
+        "scope": "current_public_files",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_credentials.py",
+        "line": 17,
+        "scope": "current_public_files",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_discord_wizard.py",
+        "line": 21,
+        "scope": "current_public_files",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_discord_wizard.py",
+        "line": 22,
+        "scope": "current_public_files",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_knowledge.py",
+        "line": 126,
+        "scope": "current_public_files",
+        "classification": "confirmed_sql_schema_marker_not_credential"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_name_migration.py",
+        "line": 26,
+        "scope": "current_public_files",
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_openai_credentials.py",
+        "line": 17,
+        "scope": "current_public_files",
+        "classification": "confirmed_named_synthetic_fixture"
+      }
+    ],
+    "private_path_findings": [],
+    "unreviewed": [],
+    "passed": true
+  },
+  "private_config_or_runtime_read": false,
+  "private_runtime_data_included": false,
+  "secret_values_printed_or_saved": false,
+  "live_model_calls": false,
+  "live_discord_connection": false,
+  "service_started_stopped_or_hotpatched": false,
+  "publish_scope": [
+    "main"
+  ],
+  "new_version_tag": false,
+  "limitations": [
+    "Finite regex and previously individually reviewed fixture checks; not proof of absence of arbitrary secrets.",
+    "No new Gitleaks run, full Actions-log audit, remote model/Discord acceptance or semantic recall evaluation.",
+    "This report records the fixed code checkpoint and current document contents; the document commit itself is identified by Git history."
+  ],
+  "passed": true,
+  "staged_scope": {
+    "changed_files": [
+      "AGENTS.md",
+      "README.md",
+      "THIRD_PARTY_NOTICES.md",
+      "docs/ARCHITECTURE.md",
+      "docs/BASELINE.md",
+      "docs/CHECKPOINT.md",
+      "docs/KNOWLEDGE_DIRECTORY.md",
+      "docs/OBSERVABILITY.md",
+      "docs/PDF_IMPORT.md",
+      "docs/REPOSITORY_PRIVACY.md",
+      "docs/RUN_RECORDS.md",
+      "docs/STATUS.md",
+      "verification/DOCUMENTATION_CHECKPOINT_0100.json"
+    ],
+    "markdown_files_updated": 12,
+    "runtime_source_unchanged": true,
+    "license_text_unchanged": true,
+    "existing_verification_artifacts_unchanged": true,
+    "passed": true
+  }
+}

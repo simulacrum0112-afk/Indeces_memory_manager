@@ -4,6 +4,8 @@
 
 0.10.0 修复旧代码仍用动态权重排序的接线偏差；新增 `npmi` 只读全范围诊断、静态图解释和 worker 故障监督。职责、状态归属与当前未验收项见 [架构合同](docs/ARCHITECTURE.md)。新代码在新进程加载后生效，不自动停止或重启已有服务。
 
+2026-10-01 文档同步：远端代码检查点为 `f270139`，该提交的 Windows / Ubuntu CI 均通过；完整提交号、验证附件、未验收项目及全部文档入口见 [检查点](docs/CHECKPOINT.md)。本次仅更新文档与公开证据，运行版本保持 0.10.0。
+
 项目使用 [MIT 许可证](LICENSE)，上游策略归属见 [第三方说明](THIRD_PARTY_NOTICES.md)。仓库只发布源码、空配置示例和合成离线验证记录；本地 API key、Bot token、加密凭据、原始材料、数据库和 scratch 不上传。提交前请按 [公开仓库与本地数据说明](docs/REPOSITORY_PRIVACY.md) 核验，`.gitignore` 不会移除已提交的历史。
 
 只处理指定服务器中人类显式 `@Bot` 的文字消息，并回复一条 Discord 消息。短期上下文按频道隔离。没有工具执行、MCP、外部聊天 API、网页搜索、日程、主动发言或多 Bot 路由；本机只读网页用于观察已有知识图和运行记录。
@@ -122,11 +124,11 @@ Console `npmi` 或 `python -m indeces npmi` 只读当前知识范围的完整静
 
 三个阶段均使用 `reasoning = "low"`，`adapter.verbosity = "high"` 控制输出话量；详细度仍受各阶段输出 token 和时间上限约束，不增加额度。Scratch 的 `call_start` 和实际请求记录该参数，并检查两者一致。旧 TOML 中显式配置的值仍按文件读取，旧日志没有该字段时按旧合同核验。
 
-各阶段先串行调用 `/responses/input_tokens`，超限不发生成请求；然后最多一次 `/responses`。计量请求与生成共享该阶段时间上限。输出上限包含模型不可见的生成 token，返回 usage 再次校验。具体接口见 [输入计量](https://developers.openai.com/api/reference/resources/responses/subresources/input_tokens/methods/count) 和 [Responses](https://developers.openai.com/api/reference/python/resources/responses/methods/create)。
+各阶段先串行调用 `/responses/input_tokens`，超限不发生成请求；然后最多一次 `/responses`。请求槽等待、计量与生成共同消耗原阶段总时限，不为等待另开预算。输出上限包含模型不可见的生成 token，返回 usage 再次校验。具体接口见 [输入计量](https://developers.openai.com/api/reference/resources/responses/subresources/input_tokens/methods/count) 和 [Responses](https://developers.openai.com/api/reference/python/resources/responses/methods/create)。
 
-一条普通聊天通常为 1 次计量 + 1 次回复；触发摘要时为 2 次计量 + 2 次生成。每个后台文本块为 1 次计量 + 1 次标词。模型调用没有并行 HTTP 请求，token 额度不借用，失败不扩额或隐式重试。每种阶段各自连续失败 3 次后冷却 30 秒；冷却结束只由新的实际任务重新尝试。
+一条普通聊天通常为 1 次计量 + 1 次回复；触发摘要时为 2 次计量 + 2 次生成。每个后台文本块为 1 次计量 + 1 次标词。模型调用没有并行 HTTP 请求，token 额度不借用，失败不扩额或隐式重试。计入供应商熔断的阶段失败连续 3 次后冷却 30 秒；纯槽等待超时等本地准入失败不计入，冷却结束只由新的实际任务重新尝试。
 
-聊天处理另有 100 秒总上限、120 秒队列等待上限、10 秒 Discord 发送上限。固定失败回执也受剩余聊天时间约束。超时取消本地网络等待，无法保证远端立即停止生成或免除已消耗费用；日志明确标记未知 usage。
+聊天处理另有 100 秒总上限、120 秒队列等待上限、10 秒 Discord 发送上限。固定失败回执也受剩余聊天时间约束。超时取消本地网络等待，无法保证远端立即停止生成或免除已消耗费用；已发生成但没有合法 usage 时明确标为未知，收到合法 usage 后即使输出失败仍保存已知用量，没有发生成时不推断生成费用。
 
 SQLite 扫描有协作式 5 秒检查；Python 图排序、文件 I/O 和 fsync 不是可被 asyncio 强制抢占的操作。因此模型异步调用和队列具有时间取消上限，任意规模本地计算尚不具备操作系统级硬时限。默认文件范围用于保持本体小型；扩大范围前需测量。
 
@@ -138,7 +140,7 @@ SQLite 扫描有协作式 5 秒检查；Python 图排序、文件 I/O 和 fsync 
 
 ## Scratch log 与复现
 
-Console 输入 `logs` 可查看人类可访问的 scratch 目录，包含固定说明 `README.md`、入口页 `index.html` 和原始日期 JSONL。Console 输入 `observe`，或另开终端执行 `python -m indeces observe`，打开打印的本机 URL：交互查看 NPMI 图、动态/有效权重、来源版本、逐步学习/衰减记录，以及最近 24 小时的可读运行 trace。`start` 也会显示观察 URL，服务停止时自动关闭该页面服务。
+Console 输入 `logs` 可查看人类可访问的 scratch 目录，包含固定说明 `README.md`、入口页 `index.html` 和原始日期 JSONL。Console 输入 `observe`，或另开终端执行 `python -m indeces observe`，打开打印的本机 URL：默认查看静态 NPMI，可切换 shadow 动态历史和当前静态有效层、来源版本、逐步学习/衰减记录，以及最近 24 小时的可读运行 trace。`start` 也会显示观察 URL，服务停止时自动关闭该页面服务。
 
 图支持搜索、拖动、缩放和分层切换；选边可查来源、权重时间线与触发查询。没有有效来源的历史动态边明确区分，不能据此取得检索资格。当前逐轮治理基于字面命中，尚未增加逐轮语义权重调整；NPMI 与动态权重不是同一个量，动态值可以超过 1。网页不增加模型调用，详细使用和读取边界见 [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md)。
 
@@ -168,3 +170,5 @@ hash 链可以检测局部损坏，没有外部锚点，不能证明整条日志
 ```
 
 当前交付状态与真实/离线验证边界见 [docs/STATUS.md](docs/STATUS.md)。未通过真实 Discord 往返、账号模型访问或真实知识集的召回评估前，不把这些能力写成已验收。
+
+需要生成合成离线回归与非 editable wheel 记录时，分别运行 `.\.venv\Scripts\python.exe verification/verify_offline.py` 与 `.\.venv\Scripts\python.exe verification/verify_wheel.py`；Linux 使用 `.venv/bin/python`。Windows 进程测试使用带 main guard 的文件入口，避免将整个测试器从 stdin 执行。wheel 构建可获取声明的构建依赖，但使用临时隔离环境，不升级服务运行 venv。既有检查点证据见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)。

@@ -1,5 +1,7 @@
 # Indeces 架构与调试合同
 
+文档基线：0.10.0；2026-10-01 核对。远端提交、CI 与验证范围见 [CHECKPOINT.md](CHECKPOINT.md)。
+
 本页描述 0.10.0 的实际职责、状态归属和验证边界。Indeces 是一个有检索增强的固定对话工作流；模型负责标词、必要的连续性摘要与回答，代码决定准入、证据版本、预算和交付。
 
 行业参考采用 [Anthropic 的简单可组合工作流原则](https://www.anthropic.com/engineering/building-effective-agents) 与 [OpenTelemetry 对指标、日志和 trace 的区分](https://opentelemetry.io/docs/concepts/observability-primer/)。这是设计取舍，不是已证明提高真实召回效果的实验结论。本版不引入新的框架或遥测依赖。

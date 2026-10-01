@@ -2,6 +2,8 @@
 
 用户已明确授权建立 `Indeces_memory_manager` 仓库，并将后续代码更新提交、上传到 `https://github.com/simulacrum0112-afk/Indeces_memory_manager`，现已要求以现有 MIT 许可证开源、将 GitHub 仓库设为公开。公开前须核验可达 Git 历史及已跟踪文件，密钥、token、scratch 和其他运行数据不得上传；`.gitignore` 不代替历史审计，不强制添加忽略文件。未跟踪的本地 `assets/` 保留且排除提交。本地工作区为 `D:\Indeces`。更新应完成与风险相称的验证、更新版本/交付状态、提交并推送；不据此创建定时任务或自动启动真实 Bot。
 
+2026-10-01 文档检查点见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)：0.10.0 代码提交 `f27013910ae52852a7084ad8f2d92132dcda31c7` 的 Windows/Ubuntu CI 已通过。本次只同步文档与公开证据，运行版本不变；后续不得将文档提交、CI 成功或持久化状态当作真实服务在线、模型/Discord 验收或召回质量证明。
+
 ## 已确定的产品边界
 
 - 智能体名为 **Indeces**（大写 I）；仓库名仍为 `Indeces_memory_manager`。Console 的 `discord` 向导接收服务器 Guild ID、可选频道与隐藏 Bot token；Windows 本机持久化只用当前用户 DPAPI，服务运行期间禁止向导修改配置。保存后由用户显式 `start`。
