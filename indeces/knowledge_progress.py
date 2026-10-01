@@ -15,6 +15,7 @@ from .observer_data import _database, _scope, _tables
 
 
 MAX_FILES = 256
+MAX_CONFIGURED_FILES = 1024
 _MESSAGES = {
     "scope_unconfigured": "尚未配置 Discord Guild；此视图未打开数据库。",
     "database_missing": "尚无知识库数据库；此视图不创建数据库。",
@@ -109,12 +110,14 @@ def _file(row):
             "warnings": warnings}
 
 
-def progress_snapshot(config):
+def progress_snapshot(config, *, offset=0):
     """Return one short, consistent, scope-isolated, read-only SQLite snapshot."""
     guild_id = getattr(getattr(config, "discord", None), "guild_id", None)
     if not isinstance(guild_id, str) or not guild_id.strip():
         return _empty(None, "scope_unconfigured")
     scope = _scope(config)
+    if type(offset) is not int or offset < 0:
+        raise ValueError("offset must be a nonnegative integer")
     try:
         with _database(config) as db:
             if db is None:
@@ -122,12 +125,30 @@ def progress_snapshot(config):
             if not _compatible(db):
                 return _empty(scope, "schema_unavailable")
             result = _empty(scope)
-            parameters = {"scope": scope, "limit": MAX_FILES}
+            configured_limit = getattr(getattr(config, "knowledge", None), "max_files", MAX_FILES)
+            limit = configured_limit if type(configured_limit) is int and 0 < configured_limit <= MAX_CONFIGURED_FILES else MAX_FILES
+            result["file_limit"] = limit
+            result["offset"] = offset
+            tables = _tables(db)
+            has_audit = "knowledge_file_audit" in tables
+            paths = _PATHS + (" UNION SELECT path FROM knowledge_file_audit WHERE scope=:scope AND state!='archived'" if has_audit else "")
+            parameters = {"scope": scope, "limit": limit, "offset": offset}
             result["total_files"] = db.execute(
-                "SELECT COUNT(*) FROM (" + _PATHS + ")", parameters).fetchone()[0]
-            result["files"] = [_file(row) for row in db.execute(_ROWS, parameters)]
+                "SELECT COUNT(*) FROM (" + paths + ")", parameters).fetchone()[0]
+            rows = _ROWS.replace(_PATHS, paths).replace("LIMIT :limit)", "LIMIT :limit OFFSET :offset)")
+            result["files"] = [_file(row) for row in db.execute(rows, parameters)]
+            if has_audit:
+                for item in result["files"]:
+                    audit = db.execute("""SELECT substr(suffix,1,32) AS suffix,byte_count,
+                        substr(state,1,64) AS state,substr(stage,1,64) AS stage,
+                        substr(error,1,256) AS error,remote_usage_unknown
+                        FROM knowledge_file_audit WHERE scope=? AND path=?""", (scope, item["path"])).fetchone()
+                    item["audit"] = dict(audit) if audit else None
+                    if item["desired"] is None and item["published"] is None and audit:
+                        item["state"] = audit["state"]
             result["displayed_files"] = len(result["files"])
             result["truncated"] = result["total_files"] > result["displayed_files"]
+            result["next_offset"] = offset + len(result["files"]) if offset + len(result["files"]) < result["total_files"] else None
             if any(item["warnings"] for item in result["files"]):
                 result["warnings"].append("version_pointer_inconsistency")
             return result
@@ -163,6 +184,7 @@ _STATES = {
     "unavailable": "版本不可用",
     "archived": "已归档",
     "superseded": "已替代",
+    "rejected": "文件校验拒绝",
 }
 _WARNING_MESSAGES = {
     "desired_pointer_invalid": "最新版本指针与当前 Guild/路径不一致或缺失；未展示该版本。",
@@ -205,6 +227,10 @@ def _render(snapshot):
         path = _terminal_text(item["path"]) + (" [路径已截断]" if item["path_truncated"] else "")
         state = "已发布完成" if item["complete"] else _STATES.get(item["state"], "未知状态")
         lines.append(f"- {path} | {state}")
+        if item.get("audit"):
+            audit = item["audit"]
+            lines.append(f"  文件：{_terminal_text(audit['suffix'])}；bytes={audit['byte_count']}；"
+                         f"阶段={_terminal_text(audit['stage'])}；code={_terminal_text(audit['error']) if audit['error'] else '无'}")
         lines.append(_version_line("最新版本", item["desired"]))
         label = "可检索发布版本" if item["published_retrievable"] else "发布指针（未确认可检索）"
         lines.append(_version_line(label, item["published"]))

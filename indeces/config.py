@@ -65,9 +65,30 @@ class KnowledgeConfig:
     max_file_bytes: int = 8192
     max_files: int = 256
     chunk_characters: int = 400
-    version_seconds: float = 360.0
-    version_input_tokens: int = 65536
-    version_output_tokens: int = 16384
+    version_seconds: float = 1080.0
+    version_input_tokens: int = 196608
+    version_output_tokens: int = 49152
+
+    def __post_init__(self):
+        # Direct construction and TOML loading share the same protection
+        # contract. max_file_bytes is the original UTF-8 text input limit;
+        # PDF input and converted Markdown have independent PdfConfig bounds.
+        for name in ("poll_seconds", "version_seconds"):
+            value = getattr(self, name)
+            if type(value) not in (int, float) or not math.isfinite(value) or not 0 < value <= 3600:
+                raise ValueError(f"knowledge.{name} must be finite and in (0, 3600]")
+        for name in ("max_file_bytes", "max_files", "chunk_characters", "version_input_tokens", "version_output_tokens"):
+            if type(getattr(self, name)) is not int or getattr(self, name) <= 0:
+                raise ValueError(f"knowledge.{name} must be a positive integer")
+        for name, upper in (("max_file_bytes", 1024 * 1024), ("max_files", 1024), ("chunk_characters", 4000)):
+            if getattr(self, name) > upper:
+                raise ValueError(f"knowledge.{name} exceeds supported bound {upper}")
+
+    def file_limit(self, suffix, pdf):
+        """Return the actual source-byte limit and its unambiguous config key."""
+        if suffix.lower() == ".pdf":
+            return pdf.max_file_bytes, "pdf.max_file_bytes"
+        return self.max_file_bytes, "knowledge.max_file_bytes"
 
 
 @dataclass(frozen=True)
@@ -149,14 +170,6 @@ def load_config(path: Path) -> Config:
         raise ValueError("invalid summary bound")
     if type(rc.low_watermark) not in (float, int) or not 0 < rc.low_watermark < 1:
         raise ValueError("invalid low watermark")
-    for field in (kc.poll_seconds, kc.version_seconds):
-        if type(field) not in (int, float) or not math.isfinite(field) or not 0 < field <= 3600:
-            raise ValueError("invalid knowledge deadline")
-    for field in (kc.max_file_bytes, kc.max_files, kc.chunk_characters, kc.version_input_tokens, kc.version_output_tokens):
-        if type(field) is not int or field <= 0:
-            raise ValueError("invalid knowledge bounds")
-    if kc.max_file_bytes > 1024 * 1024 or kc.max_files > 1024 or kc.chunk_characters > 4000:
-        raise ValueError("knowledge bounds exceed small-runtime contract")
     if a["model"] != "gpt-6-luna" or a["base_url"].rstrip("/") != "https://api.openai.com/v1":
         raise ValueError("this adaptor supports official OpenAI gpt-6-luna only")
     if type(a.get("failure_threshold", 3)) is not int or not 1 <= a.get("failure_threshold", 3) <= 20:

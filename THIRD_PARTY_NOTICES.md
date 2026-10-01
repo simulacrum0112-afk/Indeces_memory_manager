@@ -32,6 +32,6 @@ Yuki was inspected as an architectural reference for stateless transport, indepe
 
 ## Implementation checkpoint
 
-Documentation was reconciled on 2026-10-01 against Indeces 0.10.0. The public code commit, CI and evidence boundaries are listed in [docs/CHECKPOINT.md](docs/CHECKPOINT.md). The current reply path uses static NPMI; dynamic updates remain shadow history, as detailed in [docs/BASELINE.md](docs/BASELINE.md). This documentation update does not change the pinned upstream revision or the license text above.
+Documentation was reconciled on 2026-10-01 against Indeces 0.11.0. The public code commit, CI and evidence boundaries are listed in [docs/CHECKPOINT.md](docs/CHECKPOINT.md). The current reply path uses static NPMI; dynamic updates remain shadow history, as detailed in [docs/BASELINE.md](docs/BASELINE.md). This documentation update does not change the pinned upstream revision or the license text above.
 
 The 0.10.0 Yuki reference was limited to three tracked design documents for lifecycle ownership and call contracts. External design articles cited in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) are references only; no new framework or telemetry dependency was added.

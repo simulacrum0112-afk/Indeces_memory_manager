@@ -43,9 +43,9 @@ class LabelAdapter:
         self.calls = []
         self.cancelled = False
 
-    async def call(self, stage, instructions, messages, trace_id, schema=None):
+    async def call(self, stage, instructions, messages, trace_id, schema=None, *, input_limit=None):
         self.calls.append({"stage": stage, "instructions": instructions, "messages": deepcopy(messages),
-                           "trace_id": trace_id, "schema": deepcopy(schema)})
+                           "trace_id": trace_id, "schema": deepcopy(schema), "input_limit": input_limit})
         self.entered.set()
         if self.gate is not None and len(self.calls) == 1:
             try:
@@ -56,6 +56,8 @@ class LabelAdapter:
         outcome = self.outcomes.popleft() if self.outcomes else labels()
         if isinstance(outcome, Exception):
             raise outcome
+        if input_limit is not None and outcome.input_tokens > input_limit:
+            raise GovernedError("input_token_limit", remote_usage_unknown=False)
         return outcome
 
 
@@ -288,14 +290,14 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(await restarted.label_next())
         self.assertEqual(self.adapter.calls, [])
 
-    async def test_token_cap_rejects_before_first_dispatch(self):
+    async def test_input_budget_smaller_than_stage_cap_admits_actual_request(self):
         self.config.knowledge = replace(self.config.knowledge, version_input_tokens=2047)
         self.file()
         self.service.scan_once()
         await self.service.label_next()
-        self.assertEqual(self.adapter.calls, [])
-        self.assertEqual(self.head()["error"], "knowledge_version_token_limit")
-        self.assertEqual(self.records(), [])
+        self.assertEqual(len(self.adapter.calls), 1)
+        self.assertEqual(self.adapter.calls[0]["input_limit"], 2047)
+        self.assertEqual(self.head()["status"], "ready")
 
     async def test_output_cap_rejects_before_first_dispatch(self):
         self.config.knowledge = replace(self.config.knowledge, version_output_tokens=31)
@@ -305,16 +307,16 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.adapter.calls, [])
         self.assertEqual(self.head()["error"], "knowledge_version_token_limit")
 
-    async def test_cumulative_actual_usage_plus_reservation_stops_next_chunk(self):
+    async def test_cumulative_input_counts_use_remaining_allowance(self):
         self.config.knowledge = replace(self.config.knowledge, version_input_tokens=2048, version_output_tokens=256)
         self.file("alpha " * 30)
         self.service.scan_once()
         await self.service.label_next()
-        self.assertEqual(len(self.adapter.calls), 1)
-        self.assertEqual(self.head()["input_tokens"], 25)
-        self.assertEqual(self.head()["output_tokens"], 8)
-        self.assertEqual(self.head()["error"], "knowledge_version_token_limit")
-        self.assertEqual(self.records(), [])  # partial labels never expose an incomplete document
+        self.assertEqual(len(self.adapter.calls), 2)
+        self.assertEqual(self.adapter.calls[1]["input_limit"], 2023)
+        self.assertEqual(self.head()["input_tokens"], 50)
+        self.assertEqual(self.head()["output_tokens"], 16)
+        self.assertEqual(self.head()["status"], "ready")
 
     async def test_already_spent_time_cap_rejects_before_dispatch(self):
         self.file()

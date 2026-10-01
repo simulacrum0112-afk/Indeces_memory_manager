@@ -21,6 +21,7 @@ class LabelContractTests(unittest.TestCase):
                     with self.assertRaises(GovernedError):
                         label_data(json.dumps(output))
         pattern = marks["items"]["pattern"]
+        self.assertEqual(marks["items"]["maxLength"], 40)
         self.assertIsNone(re.search(pattern, " \t\n"))
         self.assertIsNotNone(re.search(pattern, "合成主题"))
 

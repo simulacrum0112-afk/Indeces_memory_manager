@@ -560,7 +560,7 @@ class PdfKnowledgeTests(unittest.IsolatedAsyncioTestCase):
         parser.assert_not_awaited()
         self.assertEqual(self.version(source_id)["error"], "pdf_frozen_snapshot_invalid")
 
-    async def test_existing_model_version_cap_still_blocks_paper_labels_without_borrowing(self):
+    async def test_remaining_version_input_admits_paper_below_stage_cap_without_borrowing(self):
         old = await self.ready()
         self.file(RAW_B)
         self.service.scan_once()
@@ -570,10 +570,12 @@ class PdfKnowledgeTests(unittest.IsolatedAsyncioTestCase):
         self.config.knowledge = replace(self.config.knowledge, version_input_tokens=4095)
         calls_before = len(self.adapter.calls)
         await self.service.label_next()
-        self.assertEqual(self.version(new)["error"], "knowledge_version_token_limit")
-        self.assertEqual(len(self.adapter.calls), calls_before)
-        self.assertEqual(self.published()["source_id"], old)
-        self.assertEqual(self.version(new)["input_tokens"], 0)
+        self.assertEqual(self.version(new)["status"], "ready")
+        self.assertEqual(len(self.adapter.calls), calls_before + 1)
+        self.assertEqual(self.adapter.calls[-1]["input_limit"], 4095)
+        self.assertEqual(self.published()["source_id"], new)
+        self.assertEqual(self.version(new)["input_tokens"], 25)
+        self.assertEqual(self.version(old)["status"], "superseded")
 
     async def test_conversion_database_failure_rolls_back_text_chunks_and_metadata(self):
         old = await self.ready()

@@ -85,6 +85,8 @@ def main():
             "private_config_or_runtime_read": False, "passed": True,
         }
     path = ROOT / "verification" / ("WHEEL_" + __version__.replace(".", "") + ".json")
+    if path.exists():
+        path = path.with_name(path.stem + "_" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") + path.suffix)
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False))
     return 0

@@ -6,5 +6,5 @@ if not exist ".venv\Scripts\python.exe" (
   pause
   exit /b 1
 )
-".venv\Scripts\python.exe" -m indeces knowledge
+".venv\Scripts\python.exe" -m indeces knowledge %*
 if errorlevel 1 pause

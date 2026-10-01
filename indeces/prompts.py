@@ -33,7 +33,7 @@ Return one concise Discord message, ideally below 1700 characters. Avoid pinging
 
 LABEL_SCHEMA = {"type": "object", "additionalProperties": False,
                 "properties": {"marks": {"type": "array", "minItems": 1, "maxItems": 8,
-                                         "items": {"type": "string", "pattern": r"\S"}}},
+                                         "items": {"type": "string", "pattern": r"\S", "maxLength": 40}}},
                 "required": ["marks"]}
 
 SUMMARY_SCHEMA = {"type": "object", "additionalProperties": False,

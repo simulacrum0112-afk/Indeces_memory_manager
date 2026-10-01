@@ -135,14 +135,25 @@ class OpenAIAdapter:
             raise GovernedError("invalid_provider_response")
         return data
 
-    async def call(self, stage: str, instructions: str, messages: list[dict], trace_id: str, schema=None) -> ModelResult:
+    async def call(self, stage: str, instructions: str, messages: list[dict], trace_id: str, schema=None,
+                   *, input_limit: int | None = None) -> ModelResult:
+        """Count the complete request before generating within unchanged stage caps.
+
+        A caller can narrow input admission to its remaining cumulative budget.
+        A larger caller allowance never expands the configured stage budget.
+        Output, reasoning, model, slot serialization and deadline are unchanged.
+        """
         budget = self.config.budgets[stage]
+        if input_limit is not None and (type(input_limit) is not int or input_limit <= 0):
+            raise GovernedError("invalid_call_input_limit", remote_usage_unknown=False)
+        effective_input_limit = min(budget.input_tokens, input_limit) if input_limit is not None else budget.input_tokens
         circuit = self._circuits[stage]
         call_id = uuid.uuid4().hex
         started = time.monotonic()
         self.scratch.write("call_start", trace_id=trace_id, call_id=call_id, stage=stage,
                            budget=asdict(budget), model=self.config.model,
                            verbosity=self.config.verbosity,
+                           requested_input_limit=input_limit, effective_input_limit=effective_input_limit,
                            usage_receipt_version=1,
                            planning_reservation=reservation(instructions, messages, schema))
         if circuit["until"] > started:
@@ -172,8 +183,9 @@ class OpenAIAdapter:
                     if type(tokens) is not int or tokens < 0:
                         raise GovernedError("invalid_input_token_count")
                     self.scratch.write("input_gate", trace_id=trace_id, call_id=call_id, stage=stage,
-                                       input_tokens=tokens, limit=budget.input_tokens, admitted=tokens <= budget.input_tokens)
-                    if tokens > budget.input_tokens:
+                                       input_tokens=tokens, limit=effective_input_limit,
+                                       stage_limit=budget.input_tokens, admitted=tokens <= effective_input_limit)
+                    if tokens > effective_input_limit:
                         raise GovernedError("input_token_limit")
                     if time.monotonic() - started >= budget.seconds:
                         raise GovernedError("stage_timeout")
@@ -187,7 +199,7 @@ class OpenAIAdapter:
                     inp, out = usage.get("input_tokens"), usage.get("output_tokens")
                     if type(inp) is not int or type(out) is not int or min(inp, out) < 0:
                         raise GovernedError("invalid_usage")
-                    if inp > budget.input_tokens or out > budget.output_tokens:
+                    if inp > effective_input_limit or out > budget.output_tokens:
                         raise GovernedError("provider_token_limit_breach")
                     if data.get("status") != "completed":
                         raise GovernedError("incomplete_response")

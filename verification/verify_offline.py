@@ -43,6 +43,8 @@ def main():
             "runner": "unittest discovery: tests (file entry point with main guard)",
             "tests_run": result.testsRun, "failures": len(result.failures),
             "errors": len(result.errors), "skips": len(result.skipped),
+            "failed_cases": [str(test) for test, _ in result.failures],
+            "error_cases": [str(test) for test, _ in result.errors],
             "elapsed_seconds": round(time.perf_counter() - started, 3),
             "passed": result.wasSuccessful(),
             "skipped_cases": [{"test": str(test), "reason": reason} for test, reason in result.skipped],
@@ -73,8 +75,10 @@ def main():
             })
     report["passed"] = result.wasSuccessful() and all(check["exit_code"] == 0 for check in report["checks"])
     path = ROOT / "verification" / ("OFFLINE_" + __version__.replace(".", "") + ".json")
+    if path.exists():
+        path = path.with_name(path.stem + "_" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") + path.suffix)
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"version": __version__, "unit_tests": report["unit_tests"],
+    print(json.dumps({"version": __version__, "report": path.name, "unit_tests": report["unit_tests"],
                       "checks_passed": all(check["exit_code"] == 0 for check in report["checks"]),
                       "passed": report["passed"]}, ensure_ascii=False))
     return 0 if report["passed"] else 1

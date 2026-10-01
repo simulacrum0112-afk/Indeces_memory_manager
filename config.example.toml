@@ -20,12 +20,12 @@ low_watermark = 0.70
 
 [knowledge]
 poll_seconds = 0.5
-max_file_bytes = 8192
+max_file_bytes = 8192 # UTF-8 .md/.markdown/.txt source bytes only; supported upper bound 1 MiB.
 max_files = 256 # Active supported files; root _staging is excluded.
 chunk_characters = 400
-version_seconds = 360.0
-version_input_tokens = 65536
-version_output_tokens = 16384
+version_seconds = 1080.0 # Approved cumulative bound; each label call retains its own 15-second bound.
+version_input_tokens = 196608
+version_output_tokens = 49152
 
 # PDF conversion is local and has its own limits. No OCR or model call.
 # These bounds do not increase the per-version labelling budgets above.

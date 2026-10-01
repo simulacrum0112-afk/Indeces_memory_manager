@@ -7,10 +7,8 @@ import json
 import logging
 import os
 from pathlib import Path
-import shlex
 import shutil
 import sqlite3
-import subprocess
 import sys
 
 from . import __version__
@@ -32,6 +30,7 @@ from .runtime import Runtime
 from .run_records import verify_runs
 from .scratch import ScratchLog, retention_checkpoint, verify
 from .store import Store
+from .console_instance import COMMANDS as CONSOLE_COMMANDS, route_existing
 
 
 RETENTION_SECONDS = 24 * 60 * 60
@@ -61,7 +60,7 @@ async def _maintain_scratch(scratch):
             raise
 
 
-async def serve(config, key, token, *, lease=None):
+async def serve(config, key, token, *, lease=None, knowledge_ready=None):
     if not config.discord.guild_id:
         raise ValueError("set discord.guild_id before starting")
     owns_lease = lease is None
@@ -87,6 +86,8 @@ async def serve(config, key, token, *, lease=None):
         adapter = OpenAIAdapter(config.adapter, scratch, key)
         runtime = Runtime(config, store, adapter, scratch)
         knowledge = KnowledgeService(config, store, runtime.graph, adapter, scratch)
+        if knowledge_ready is not None:
+            knowledge_ready(knowledge)
         bridge = DiscordBridge(config, runtime, scratch)
         scratch.write("service_start", version=__version__, guild_id=config.discord.guild_id,
                       stage_budgets={k: asdict(v) for k, v in config.adapter.budgets.items()},
@@ -95,7 +96,7 @@ async def serve(config, key, token, *, lease=None):
                       scratch_retention_seconds=RETENTION_SECONDS,
                       scratch_maintenance_seconds=RETENTION_MAINTENANCE_SECONDS)
         print(f"{config.name} {__version__}: one Discord connection; model={config.adapter.model}; scratch={scratch.path}")
-        print("Knowledge PDF updates trigger local Markdown conversion, then background labels. Use Indeces-Knowledge.cmd or knowledge in a separate terminal for progress. Chat labelling is closed. Ctrl+C stops the service.")
+        print("Knowledge PDF updates trigger local Markdown conversion, then background labels. Use the knowledge panel for progress. Chat labelling is closed. stop/Ctrl+C stops the owned service.")
         print("PDF text extraction has physical page provenance; OCR is closed and academic layout is not verified.")
         print("Scratch retains a rolling 24-hour window; cleanup runs at startup and every 60 seconds while the service runs.")
         try:
@@ -109,7 +110,7 @@ async def serve(config, key, token, *, lease=None):
                 except Exception:
                     pass
             observer = None
-            print(f"Observer unavailable: {type(error).__name__}; use observe in a separate console.", flush=True)
+            print(f"Observer unavailable: {type(error).__name__}; use the observe panel.", flush=True)
         knowledge.start()
         maintenance_task = asyncio.create_task(_maintain_scratch(scratch), name="indeces-scratch-retention")
         gateway_task = asyncio.create_task(bridge.run(token), name="indeces-discord-gateway")
@@ -241,6 +242,19 @@ def _check_start_config(config, config_path):
 
 
 def _run_with_lease(config, config_path, lease):
+    credentials = _startup_credentials(config, config_path)
+    if credentials is None:
+        return
+    key, token = credentials
+    _check_start_config(config, config_path)
+    try:
+        asyncio.run(serve(config, key, token, lease=lease))
+    except KeyboardInterrupt:
+        print(f"{config.name} stopped.")
+
+
+def _startup_credentials(config, config_path):
+    """Called on the input-owning main thread while the runtime lease is held."""
     _check_start_config(config, config_path)
     try:
         token = os.environ.get("DISCORD_BOT_TOKEN")
@@ -253,12 +267,8 @@ def _run_with_lease(config, config_path, lease):
         key = validate_api_key(key or prompt_secret("OpenAI API key (session only, not saved; use apikey to save): "))
     except (EOFError, KeyboardInterrupt):
         print("Startup cancelled; no connection was made.")
-        return
-    _check_start_config(config, config_path)
-    try:
-        asyncio.run(serve(config, key, token, lease=lease))
-    except KeyboardInterrupt:
-        print(f"{config.name} stopped.")
+        return None
+    return key, token
 
 
 def check_scratch(config):
@@ -308,7 +318,8 @@ def npmi(config):
             print("只读快照暂不可用或查询达到限额；本次无法判断图状态。")
         return
     print(f"完整范围：{stats['active_records']} 个有效块；{stats['active_source_versions']} 个来源版本；"
-          f"{stats['active_marks']} 个标注词；{stats['positive_edges']} 条正 NPMI 边。")
+          f"{stats.get('annotation_occurrences', '未统计')} 次标注出现；{stats['active_marks']} 个去重词节点；"
+          f"{stats['positive_edges']} 条正 NPMI 边。")
     print(f"共现词对：{stats['supported_pairs']}；未保存可用正权重的词对：{stats['supported_without_positive']}；"
           f"无共现支持的孤立词：{stats['isolated_marks']}；无正边的词：{stats['marks_without_positive_edges']}。")
     total = stats["positive_edges"]
@@ -326,135 +337,96 @@ def npmi(config):
 
 
 def open_command_window(command, config_path):
-    """Open a user-requested long-lived command without blocking Console input."""
-    labels = {"start": "服务入口", "observe": "只读观察", "knowledge": "知识库进度"}
-    if command not in labels:
-        raise ValueError("unsupported independent command")
-    label = labels[command]
-    path = Path(config_path).resolve()
-    code_root = Path(__file__).resolve().parent.parent
-    arguments = [sys.executable, "-m", "indeces", command, "--config", str(path)]
-    if os.name != "nt":
-        print(f"请在另一个终端运行{label}：")
-        print("cd -- " + shlex.quote(str(code_root)))
-        print(shlex.join(arguments))
-        return
-    # Keep exit/error receipts visible, including duplicate-instance failures.
-    # Credentials remain hidden stdin in the child; never put them in argv.
-    arguments.append("--keep-window")
-    try:
-        subprocess.Popen(arguments, cwd=code_root,
-                         creationflags=subprocess.CREATE_NEW_CONSOLE)
-    except OSError as error:
-        print(f"{label}窗口未打开：{type(error).__name__}；请另开终端运行 {command}。")
-        return
-    if command == "start":
-        print("服务入口已在独立窗口打开；请在该窗口查看启动结果。Ctrl+C 在服务窗口停止服务；主 Console 的 quit 不停止服务。")
-    else:
-        print(f"{label}已在独立窗口打开；关闭该窗口不会停止服务。")
+    """Compatibility entry: route to the single console; never open a window."""
+    if command not in {"start", "observe", "knowledge"}:
+        raise ValueError("unsupported console panel")
+    from .console_session import run_console
+    run_console(Path(config_path), command)
 
 
 def open_knowledge_window(config_path):
     open_command_window("knowledge", config_path)
 
 
-def _wait_for_window_close():
-    try:
-        input("此入口已结束；按 Enter 关闭窗口。")
-    except (EOFError, KeyboardInterrupt):
-        pass
+def offline_check(config_path):
+    path = config_path if config_path.exists() else Path(__file__).resolve().parent.parent / "config.example.toml"
+    config = load_config(path)
+    import discord
+    import pypdf
+    from .pdf_import import EXTRACTOR_VERSION
+    if pypdf.__version__ != EXTRACTOR_VERSION:
+        raise ValueError("PDF extractor version mismatch; reinstall requirements.lock")
+    print(f"Offline configuration/import check OK; {config.name} {__version__}; "
+          f"discord.py {discord.__version__}; pypdf {pypdf.__version__}.")
+    print("Live Discord and model calls were not made.")
+
+
+def retry_knowledge(config):
+    print("retry 需要当前 Console 持有运行中的服务。请显式 start 后执行 retry；此入口没有启动模型或修改检查点。")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Indeces: minimal Discord runtime console")
-    parser.add_argument("command", nargs="?", choices=["console", "init", "discord", "apikey", "knowledge", "start", "status", "npmi", "check", "scratch", "observe", "logs"], default="console")
+    parser = argparse.ArgumentParser(description="Indeces: single Discord runtime console")
+    parser.add_argument("command", nargs="?", choices=sorted(CONSOLE_COMMANDS), default="console")
     parser.add_argument("--config", type=Path, default=Path("config.local.toml"))
-    parser.add_argument("--once", action="store_true", help="knowledge: show one read-only progress snapshot and exit")
+    parser.add_argument("--once", action="store_true", help="read-only command: output one snapshot/report directly and exit")
+    parser.add_argument("--headless", action="store_true", help="start: explicit foreground runtime without interactive Console")
+    parser.add_argument("--path", help="retry: retry only this relative material path (case is preserved)")
     parser.add_argument("--keep-window", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
-    if args.once and args.command != "knowledge":
-        parser.error("--once is only supported by knowledge")
+    if args.once and args.command not in {"knowledge", "audit", "scratch", "npmi", "status", "logs", "check"}:
+        parser.error("--once requires a read-only snapshot/report command")
+    if args.headless and args.command != "start":
+        parser.error("--headless is only supported by start")
+    if args.path and args.command != "retry":
+        parser.error("--path is only supported by retry")
     if args.keep_window and args.command not in {"start", "observe", "knowledge"}:
         parser.error("--keep-window requires start, observe or knowledge")
     logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
+    args.config = args.config.resolve()
     try:
+        if not args.once and not args.headless:
+            receipt = route_existing(args.config, args.command, path=args.path)
+            if receipt is not None:
+                print("已连接现有 Indeces Console；功能请求已送达。" +
+                      ("已聚焦窗口。" if receipt.get("focused") else "当前终端不支持或未允许自动聚焦。"))
+                return
         if args.command == "init":
             initialize(args.config)
             return
         if args.command == "check":
-            path = args.config if args.config.exists() else Path(__file__).resolve().parent.parent / "config.example.toml"
-            config = load_config(path)
-            import discord
-            import pypdf
-            from .pdf_import import EXTRACTOR_VERSION
-            if pypdf.__version__ != EXTRACTOR_VERSION:
-                raise ValueError("PDF extractor version mismatch; reinstall requirements.lock")
-            print(f"Offline configuration/import check OK; {config.name} {__version__}; "
-                  f"discord.py {discord.__version__}; pypdf {pypdf.__version__}.")
-            print("Live Discord and model calls were not made.")
+            offline_check(args.config)
             return
         if not args.config.exists():
             if args.command == "npmi":
                 print("未找到配置；npmi 只读检查不会创建配置或启动服务。")
                 return
             initialize(args.config)
+        if args.command in {"console", "start", "observe", "knowledge", "retry"} and not args.once and not args.headless:
+            from .console_session import run_console
+            run_console(args.config, args.command + (" " + args.path if args.path else ""))
+            return
         if args.command in {"discord", "apikey"}:
             if not {"discord": configure_discord, "apikey": configure_api_key}[args.command](args.config):
                 raise SystemExit(2)
             return
-        if args.command != "console":
-            config = load_config(args.config)
-            if args.command in {"start", "status"}:
-                {"start": run, "status": status}[args.command](config, args.config)
-            elif args.command == "knowledge":
-                knowledge(config, once=args.once)
-            elif args.command in {"observe", "logs", "npmi"}:
-                {"observe": observe, "logs": show_logs, "npmi": npmi}[args.command](config)
-            else:
-                check_scratch(config)
-            return
-        print(f"Indeces {__version__} console: discord | apikey | knowledge | start | status | npmi | scratch | observe | logs | quit")
-        print("start、observe、knowledge 使用独立窗口/终端。主 Console 的 quit 只退出命令窗口；服务窗口内 Ctrl+C 停止服务。")
-        while True:
-            try:
-                command = input("Indeces> ").strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                break
-            if command in {"quit", "exit"}:
-                break
-            if not command:
-                continue
-            try:
-                if command in {"discord", "apikey"}:
-                    {"discord": configure_discord, "apikey": configure_api_key}[command](args.config)
-                    continue
-                if command == "knowledge":
-                    open_knowledge_window(args.config)
-                    continue
-                if command in {"start", "observe"}:
-                    open_command_window(command, args.config)
-                    continue
-                config = load_config(args.config)
-                action = {"status": status, "npmi": npmi, "scratch": check_scratch,
-                          "logs": show_logs}.get(command)
-                if action:
-                    if command == "status":
-                        action(config, args.config)
-                    else:
-                        action(config)
-                else:
-                    print("Commands: discord | apikey | knowledge | start | status | npmi | scratch | observe | logs | quit")
-            except CredentialError as error:
-                print(f"Credential error: {error.code}. Use discord setup for the Bot token, or apikey for the OpenAI key.")
-            except Exception as error:
-                # Never print arbitrary authentication transport exceptions.
-                print(f"Command failed: {type(error).__name__}. Check configuration and scratch records.")
+        config = load_config(args.config)
+        if args.command in {"start", "status"}:
+            {"start": run, "status": status}[args.command](config, args.config)
+        elif args.command == "knowledge":
+            knowledge(config, once=True)
+        elif args.command == "audit":
+            from .knowledge_audit import audit_snapshot, render_audit
+            print(render_audit(audit_snapshot(config)))
+        elif args.command in {"stop", "service"}:
+            print("当前配置没有可连接的 Console；未停止其他实例或进程。请先打开 console。")
+        elif args.command in {"logs", "npmi", "retry"}:
+            {"logs": show_logs, "npmi": npmi, "retry": retry_knowledge}[args.command](config)
+        else:
+            check_scratch(config)
     except CredentialError as error:
         print(f"Credential error: {error.code}. Use discord setup for the Bot token, or apikey for the OpenAI key, before starting.")
         raise SystemExit(2) from None
     except Exception as error:
         print(f"Startup failed: {type(error).__name__}. Check configuration and local file permissions.")
         raise SystemExit(2) from None
-    finally:
-        if args.keep_window:
-            _wait_for_window_close()

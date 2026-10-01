@@ -6,4 +6,4 @@ if not exist ".venv\Scripts\python.exe" (
   pause
   exit /b 1
 )
-".venv\Scripts\python.exe" -m indeces console
+".venv\Scripts\python.exe" -m indeces %*

@@ -54,8 +54,9 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         scratch = Scratch()
         return OpenAIAdapter(config, scratch, api_key="never-log-this-key", request=transport), scratch
 
-    async def invoke(self, adapter, stage="reply", schema=None):
-        return await adapter.call(stage, "instructions", [{"role": "user", "content": "source"}], "trace-1", schema)
+    async def invoke(self, adapter, stage="reply", schema=None, *, input_limit=None):
+        return await adapter.call(stage, "instructions", [{"role": "user", "content": "source"}], "trace-1", schema,
+                                  input_limit=input_limit)
 
     async def assert_code(self, adapter, code, *, stage="reply"):
         with self.assertRaises(GovernedError) as caught:
@@ -134,6 +135,76 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(not row["admitted"] for row in scratch.select("input_gate")))
         self.assertEqual(adapter._circuits["reply"]["failures"], 0)
 
+    async def test_remaining_input_allowance_uses_measured_count_and_preserves_stage_caps(self):
+        transport = SequenceTransport([{"input_tokens": 10}, completed()])
+        adapter, scratch = self.adapter(transport)
+        original_budget = adapter.config.budgets["label"]
+        result = await self.invoke(adapter, "label", input_limit=12)
+        self.assertEqual((result.input_tokens, result.output_tokens), (10, 4))
+        self.assertEqual(adapter.config.budgets["label"], original_budget)
+        start = scratch.select("call_start")[0]
+        self.assertEqual(start["budget"]["input_tokens"], 100)
+        self.assertEqual(start["requested_input_limit"], 12)
+        self.assertEqual(start["effective_input_limit"], 12)
+        gate = scratch.select("input_gate")[0]
+        self.assertEqual((gate["limit"], gate["stage_limit"], gate["admitted"]), (12, 100, True))
+        request = transport.requests[-1][1]
+        self.assertEqual(request["max_output_tokens"], 20)
+        self.assertEqual(request["reasoning"], {"effort": "low"})
+        self.assertEqual(request["text"]["verbosity"], "high")
+        self.assertEqual(request["model"], "gpt-6-luna")
+
+    async def test_count_above_remaining_allowance_never_generates_or_trips_circuit(self):
+        transport = SequenceTransport([{"input_tokens": 13}])
+        adapter, scratch = self.adapter(transport, threshold=1)
+        with self.assertRaises(GovernedError) as caught:
+            await self.invoke(adapter, "label", input_limit=12)
+        self.assertEqual(caught.exception.code, "input_token_limit")
+        self.assertFalse(caught.exception.remote_usage_unknown)
+        self.assertEqual([path for path, _ in transport.requests], ["/responses/input_tokens"])
+        self.assertEqual(adapter._circuits["label"], {"failures": 0, "until": 0.0})
+        self.assertFalse(scratch.select("input_gate")[0]["admitted"])
+
+    async def test_larger_caller_allowance_cannot_expand_stage_input_cap(self):
+        for counted, expected in ((100, "completed"), (101, "input_token_limit")):
+            with self.subTest(counted=counted):
+                transport = SequenceTransport([{"input_tokens": counted}, completed(inp=counted)])
+                adapter, scratch = self.adapter(transport)
+                if expected == "completed":
+                    self.assertEqual((await self.invoke(adapter, input_limit=1000)).input_tokens, counted)
+                else:
+                    with self.assertRaises(GovernedError) as caught:
+                        await self.invoke(adapter, input_limit=1000)
+                    self.assertEqual(caught.exception.code, expected)
+                    self.assertEqual(len(transport.requests), 1)
+                self.assertEqual(scratch.select("call_start")[0]["effective_input_limit"], 100)
+                self.assertEqual(scratch.select("input_gate")[0]["limit"], 100)
+
+    async def test_invalid_caller_allowance_rejected_before_any_request(self):
+        for value in (True, False, 0, -1, 1.5, "10", [], {}):
+            with self.subTest(value=value):
+                transport = SequenceTransport([])
+                adapter, _ = self.adapter(transport)
+                with self.assertRaises(GovernedError) as caught:
+                    await self.invoke(adapter, input_limit=value)
+                self.assertEqual(caught.exception.code, "invalid_call_input_limit")
+                self.assertFalse(caught.exception.remote_usage_unknown)
+                self.assertEqual(transport.requests, [])
+                self.assertEqual(adapter._circuits["reply"], {"failures": 0, "until": 0.0})
+
+    async def test_provider_usage_above_remaining_allowance_is_accounted_and_rejected(self):
+        transport = SequenceTransport([{"input_tokens": 10}, completed(inp=13, out=4)])
+        adapter, scratch = self.adapter(transport)
+        with self.assertRaises(GovernedError) as caught:
+            await self.invoke(adapter, "label", input_limit=12)
+        self.assertEqual(caught.exception.code, "provider_token_limit_breach")
+        self.assertEqual(caught.exception.known_usage, {"input_tokens": 13, "output_tokens": 4})
+        self.assertFalse(caught.exception.remote_usage_unknown)
+        end = scratch.select("call_end")[0]
+        self.assertEqual(end["known_usage"], caught.exception.known_usage)
+        self.assertTrue(end["generation_usage_received"])
+        self.assertEqual(len(transport.requests), 2)
+
     async def test_invalid_counts_never_generate(self):
         for value in (True, -1, "10", None, 3.5):
             with self.subTest(value=value):
@@ -185,22 +256,36 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_timeout_stops_request_and_stage_circuits_are_independent(self):
         requests = []
         cancelled = asyncio.Event()
+        timeouts = []
+        original_timeout = asyncio.timeout
+
+        def tracked_timeout(seconds):
+            timeout = original_timeout(seconds)
+            timeouts.append(timeout)
+            return timeout
 
         async def transport(path, payload):
             requests.append(path)
             if len(requests) == 1:
                 try:
+                    # Expire the real asyncio deadline only after this request
+                    # begins. A 10 ms wall-clock deadline could previously
+                    # expire during local admission under load, which correctly
+                    # issues no request and cannot cancel this transport.
+                    timeouts[-1].reschedule(asyncio.get_running_loop().time())
                     await asyncio.Event().wait()
                 finally:
                     cancelled.set()
             return {"input_tokens": 10} if path.endswith("input_tokens") else completed()
 
-        adapter, scratch = self.adapter(transport, seconds=0.01, threshold=1)
-        await self.assert_code(adapter, "stage_timeout")
-        self.assertTrue(cancelled.is_set())
-        await self.assert_code(adapter, "circuit_open")
-        self.assertEqual(requests, ["/responses/input_tokens"])
-        self.assertEqual((await self.invoke(adapter, "summary")).text, "a visible reply")
+        adapter, scratch = self.adapter(transport, seconds=5.0, threshold=1)
+        with patch("indeces.adapter.asyncio.timeout", side_effect=tracked_timeout):
+            await self.assert_code(adapter, "stage_timeout")
+            self.assertTrue(cancelled.is_set())
+            self.assertTrue(timeouts[0].expired())
+            await self.assert_code(adapter, "circuit_open")
+            self.assertEqual(requests, ["/responses/input_tokens"])
+            self.assertEqual((await self.invoke(adapter, "summary")).text, "a visible reply")
         timeout = next(row for row in scratch.select("call_end") if row.get("code") == "stage_timeout")
         self.assertEqual(timeout["phase"], "input_count")
         self.assertTrue(timeout["remote_request_started"])

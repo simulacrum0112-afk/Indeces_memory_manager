@@ -149,12 +149,13 @@
   function renderDiagnostics() {
     const graph=object(object(state.snapshot).graph),stats=graph.diagnostics,metrics=$("npmi-metrics");clear(metrics);
     if(!stats){$("npmi-summary").textContent=graph.diagnostics_status==="unavailable"||list(object(state.snapshot).warnings).some(value=>value.startsWith("database_snapshot_"))?"统计暂不可用；读取失败不能证明知识库为空。":"尚未建立图统计。添加材料并显式 start，完成后台标词发布后可查阅。";return;}
-    [["有效材料块",stats.active_records],["来源版本",stats.active_source_versions],["标注词",stats.active_marks],["正 NPMI 边",stats.positive_edges]].forEach(([label,value])=>append(metrics,append(el("div","overview-metric"),el("span","",label),el("strong","",value))));
+    [["有效材料块",stats.active_records],["来源版本",stats.active_source_versions],["标注出现次数",stats.annotation_occurrences],["去重词节点",stats.active_marks],["正 NPMI 边",stats.positive_edges]].forEach(([label,value])=>append(metrics,append(el("div","overview-metric"),el("span","",label),el("strong","",value))));
     const parts=["共现支持 "+text(stats.supported_pairs)+" 对；其中 "+text(stats.supported_without_positive)+" 对未保存正边；孤立词 "+text(stats.isolated_marks)+" 个。"];
     if(stats.positive_edges>0){
       parts.push("正边中位数 "+numberText(stats.median_positive_weight)+"；单块支持 "+text(stats.single_support_positive_edges)+" 条、单一来源支持 "+text(stats.single_source_positive_edges)+" 条、保存值为 1 的边 "+text(stats.unit_weight_edges)+" 条。");
       if(stats.single_support_positive_edges||stats.single_source_positive_edges||stats.unit_weight_edges)parts.push("高分也可能来自稀少或同一来源的样本，不能据此证明稳健关联。");
     } else if(stats.active_records>0)parts.push("尚无正关联边；已发布材料仍可通过标注词的直接字面命中召回。");
+    parts.push("标注出现次数按有效块中的词计数，同词跨块重复计数；去重词节点按整个范围去重。词数增长不代表召回改善或收敛。");
     parts.push(graph.truncated?"以上为整个 scope 的聚合统计；下方图谱只展示受限子集。":"以上为整个 scope 的聚合统计，不随下方筛选条件改变。");
     $("npmi-summary").textContent=parts.join(" ");
   }

@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import sqlite3
 import stat
 import time
 import uuid
@@ -34,6 +35,7 @@ class KnowledgeService:
         self._errors = {}
         self._closing = False
         self.background_error = None
+        self._backup_audit_migration()
         store.db.executescript("""
             CREATE TABLE IF NOT EXISTS knowledge_versions (
                 source_id TEXT PRIMARY KEY, path TEXT NOT NULL, digest TEXT NOT NULL,
@@ -61,6 +63,12 @@ class KnowledgeService:
             CREATE TABLE IF NOT EXISTS knowledge_pdf_versions (
                 source_id TEXT PRIMARY KEY, pdf_bytes BLOB NOT NULL,
                 metadata_json TEXT, markdown_path TEXT);
+            CREATE TABLE IF NOT EXISTS knowledge_file_audit (
+                scope TEXT NOT NULL, path TEXT NOT NULL, source_id TEXT,
+                suffix TEXT NOT NULL, byte_count INTEGER, state TEXT NOT NULL,
+                stage TEXT NOT NULL, error TEXT, details_json TEXT NOT NULL,
+                observed_at REAL NOT NULL, remote_usage_unknown INTEGER,
+                PRIMARY KEY(scope,path));
         """)
         if "scope" not in {r[1] for r in store.db.execute("PRAGMA table_info(knowledge_versions)")}:
             store.db.execute("ALTER TABLE knowledge_versions ADD COLUMN scope TEXT NOT NULL DEFAULT ''")
@@ -68,6 +76,7 @@ class KnowledgeService:
         # An interrupted HTTP request has unknown usage; do not retry it silently.
         with store.db:
             store.db.execute("UPDATE knowledge_versions SET status='failed',error='interrupted_unknown_usage' WHERE status='labelling' AND scope=?", (self.scope,))
+            store.db.execute("UPDATE knowledge_file_audit SET state='failed',stage='label',error='interrupted_unknown_usage',remote_usage_unknown=1 WHERE scope=? AND source_id IN (SELECT source_id FROM knowledge_versions WHERE scope=? AND error='interrupted_unknown_usage')", (self.scope, self.scope))
         # Reconcile any interrupted/older publication before opening Discord.
         # Current publication is one transaction, but recovery also handles an
         # existing partial snapshot without deleting raw knowledge or usage.
@@ -80,6 +89,59 @@ class KnowledgeService:
             archived = graph.deactivate_source(row[0], row[1])
             scratch.write("knowledge_recovery_archived", scope=row[0], source_id=row[1],
                           archived_records=archived, reason="non_ready_or_non_current_source", automatically_replayed=False)
+
+    def _backup_audit_migration(self):
+        """Back up an existing knowledge database before the additive migration."""
+        tables = {row[0] for row in self.store.db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "knowledge_versions" not in tables or "knowledge_file_audit" in tables:
+            return
+        filename = next(row[2] for row in self.store.db.execute("PRAGMA database_list") if row[1] == "main")
+        if not filename:  # In-memory test stores have no existing disk data.
+            return
+        if self.store.db.in_transaction:
+            raise GovernedError("knowledge_migration_requires_committed_store")
+        directory = Path(filename).parent / "migration_backups"
+        directory.mkdir(parents=True, exist_ok=True)
+        destination = directory / ("memory.before-file-audit-" + uuid.uuid4().hex + ".sqlite3")
+        # The source's backup API includes a consistent WAL snapshot. An
+        # exclusive placeholder prevents overwriting any existing backup.
+        with destination.open("xb"):
+            pass
+        backup = sqlite3.connect(destination)
+        try:
+            self.store.db.backup(backup)
+        finally:
+            backup.close()
+
+    def _audit_file(self, path, *, source_id=None, state, stage, error=None, details=None,
+                    remote_usage_unknown=None, byte_count=None):
+        relative = path if isinstance(path, str) else path.relative_to(self.root).as_posix()
+        if byte_count is None:
+            try:
+                byte_count = (self.root / relative).stat().st_size
+            except OSError:
+                pass
+        with self.store.db:
+            self.store.db.execute("""INSERT INTO knowledge_file_audit
+                (scope,path,source_id,suffix,byte_count,state,stage,error,details_json,observed_at,remote_usage_unknown)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(scope,path) DO UPDATE SET
+                source_id=excluded.source_id,suffix=excluded.suffix,byte_count=excluded.byte_count,
+                state=excluded.state,stage=excluded.stage,error=excluded.error,
+                details_json=excluded.details_json,observed_at=excluded.observed_at,
+                remote_usage_unknown=CASE WHEN knowledge_file_audit.source_id=excluded.source_id
+                    THEN COALESCE(excluded.remote_usage_unknown,knowledge_file_audit.remote_usage_unknown)
+                    ELSE excluded.remote_usage_unknown END""",
+                (self.scope, relative, source_id, Path(relative).suffix.lower(), byte_count, state, stage,
+                 error, json.dumps(details or {}, sort_keys=True), time.time(), remote_usage_unknown))
+
+    def _audit_version(self, version, *, stage, **fields):
+        row = self.store.db.execute("""SELECT v.status,v.error FROM knowledge_versions v
+            JOIN knowledge_desired d ON d.source_id=v.source_id AND d.scope=v.scope
+            WHERE v.source_id=? AND v.scope=? AND d.path=?""",
+            (version["source_id"], self.scope, version["path"])).fetchone()
+        if row is not None:
+            self._audit_file(version["path"], source_id=version["source_id"], state=row[0], stage=stage,
+                             error=row[1], **fields)
 
     def _migrate_legacy(self):
         if self.store.db.execute("SELECT 1 FROM knowledge_schema_meta WHERE key='published_snapshots'").fetchone():
@@ -127,17 +189,21 @@ class KnowledgeService:
                 break
             if parent.is_symlink() or parent.is_junction():
                 raise GovernedError("knowledge_path_outside_root")
-        limit = self.pdf_limits.max_file_bytes if path.suffix.lower() == ".pdf" else self.config.knowledge.max_file_bytes
+        limit, config_key = self.config.knowledge.file_limit(path.suffix, self.pdf_limits)
         before = path.stat()
         if before.st_size > limit:
-            raise GovernedError("knowledge_file_size_limit")
+            error = GovernedError("knowledge_file_size_limit")
+            error.file_details = {"actual_bytes": before.st_size, "limit_bytes": limit, "config_key": config_key}
+            raise error
         with path.open("rb") as stream:
             raw = stream.read(limit + 1)
         after = path.stat()
         if (before.st_dev, before.st_ino, before.st_mtime_ns, before.st_size) != (after.st_dev, after.st_ino, after.st_mtime_ns, after.st_size):
             return None
         if len(raw) > limit:
-            raise GovernedError("knowledge_file_size_limit")
+            error = GovernedError("knowledge_file_size_limit")
+            error.file_details = {"actual_bytes": len(raw), "limit_bytes": limit, "config_key": config_key}
+            raise error
         if path.suffix.lower() == ".pdf" and not raw:
             raise GovernedError("knowledge_pdf_empty")
         return (raw if path.suffix.lower() == ".pdf" else raw.decode("utf-8-sig")), hashlib.sha256(raw).hexdigest()
@@ -189,12 +255,16 @@ class KnowledgeService:
         return row[0] if row else None
 
     def _receipt(self, event, version, **fields):
+        stage = fields.get("failure_stage") or ("published" if event == "completed" else "label")
+        self._audit_version(version, stage=stage, remote_usage_unknown=fields.get("remote_usage_unknown"))
         current = self._published(version["path"])
         self.scratch.write("knowledge_receipt", receipt=event, scope=self.scope,
                            path=version["path"], source_id=version["source_id"], digest=version["digest"],
                            reply_source_id=current, **fields)
 
     def _conversion_receipt(self, event, version, **fields):
+        self._audit_version(version, stage="chunk" if event == "converted" else "conversion",
+                            remote_usage_unknown=False)
         current = self._published(version["path"])
         self.scratch.write("knowledge_pdf_receipt", receipt=event, scope=self.scope,
                            path=version["path"], source_id=version["source_id"], digest=version["digest"],
@@ -209,6 +279,8 @@ class KnowledgeService:
         rows = self.store.db.execute("SELECT source_id FROM knowledge_desired WHERE scope=? AND path=? UNION SELECT source_id FROM knowledge_published WHERE scope=? AND path=?", (self.scope, path, self.scope, path)).fetchall()
         held = self.store.db.execute("SELECT 1 FROM knowledge_migration_hold WHERE scope=? AND path=?", (self.scope, path)).fetchone()
         if not rows and held is None:
+            if reason == "source_file_removed" and self.store.db.execute("SELECT 1 FROM knowledge_file_audit WHERE scope=? AND path=?", (self.scope, path)).fetchone():
+                self._audit_file(path, state="archived", stage="discovery", error=reason)
             return
         archived = 0
         with self.store.db:
@@ -219,6 +291,7 @@ class KnowledgeService:
             for table in ("knowledge_desired", "knowledge_published", "knowledge_migration_hold"):
                 self.store.db.execute(f"DELETE FROM {table} WHERE scope=? AND path=?", (self.scope, path))
         self.scratch.write("knowledge_retired", scope=self.scope, path=path, source_ids=[r[0] for r in rows], archived_records=archived, reason=reason)
+        self._audit_file(path, state="archived", stage="discovery", error=reason)
         print(f"[{self.config.name}] 知识来源已撤下：{path} | reason={reason} | archived={archived}；不再用于回复。", flush=True)
 
     def _scan_files(self):
@@ -272,16 +345,27 @@ class KnowledgeService:
         if error is not None:
             code = error.code if isinstance(error, GovernedError) else type(error).__name__
             self._retire(relative, code)
+            details = getattr(error, "file_details", {})
+            self._audit_file(path, state="rejected", stage="decode" if isinstance(error, UnicodeError) else "validation",
+                             error=code, details=details)
             if self._errors.get(relative) != code:
-                self.scratch.write("knowledge_update_rejected", path=relative, code=code)
-                print(f"[{self.config.name}] knowledge rejected: {relative}; {code}", flush=True)
+                self.scratch.write("knowledge_update_rejected", path=relative, code=code, **details)
+                limits = (f"; actual_bytes={details['actual_bytes']}; limit_bytes={details['limit_bytes']}; {details['config_key']}"
+                          if details else "")
+                print(f"[{self.config.name}] knowledge rejected: {relative}; {code}{limits}", flush=True)
                 self._errors[relative] = code
             return
         if snapshot is None:
             return
         content, digest = snapshot
-        head = self.store.db.execute("SELECT v.digest FROM knowledge_desired h JOIN knowledge_versions v ON v.source_id=h.source_id WHERE h.scope=? AND h.path=?", (self.scope, relative)).fetchone()
+        head = self.store.db.execute("SELECT v.digest,v.source_id,v.status,v.error FROM knowledge_desired h JOIN knowledge_versions v ON v.source_id=h.source_id WHERE h.scope=? AND h.path=?", (self.scope, relative)).fetchone()
         if head and head[0] == digest:
+            # Backfill legacy metadata without overwriting a recorded failure
+            # stage or repeatedly writing unchanged observations on every poll.
+            if not self.store.db.execute("SELECT 1 FROM knowledge_file_audit WHERE scope=? AND path=? AND source_id=?", (self.scope, relative, head[1])).fetchone():
+                self._audit_file(path, source_id=head[1], state=head[2],
+                                 stage="published" if head[2] == "ready" else "conversion" if head[2] == "converting" else "label",
+                                 error=head[3], remote_usage_unknown=True if head[3] == "interrupted_unknown_usage" else None)
             return
         hold = self.store.db.execute("SELECT digest FROM knowledge_migration_hold WHERE scope=? AND path=?", (self.scope, relative)).fetchone()
         if hold and hold[0] == digest:
@@ -323,7 +407,7 @@ class KnowledgeService:
                                  [(source_id, i, chunk, start) for i, chunk, start in chunks])
 
     def _retire_missing(self, seen):
-        heads = self.store.db.execute("SELECT path FROM knowledge_desired WHERE scope=? UNION SELECT path FROM knowledge_published WHERE scope=? UNION SELECT path FROM knowledge_migration_hold WHERE scope=?", (self.scope, self.scope, self.scope)).fetchall()
+        heads = self.store.db.execute("SELECT path FROM knowledge_desired WHERE scope=? UNION SELECT path FROM knowledge_published WHERE scope=? UNION SELECT path FROM knowledge_migration_hold WHERE scope=? UNION SELECT path FROM knowledge_file_audit WHERE scope=? AND state!='archived'", (self.scope, self.scope, self.scope, self.scope)).fetchall()
         for head in heads:
             if head[0] not in seen:
                 self._retire(head[0], "source_file_removed")
@@ -379,15 +463,88 @@ class KnowledgeService:
             raise GovernedError("pdf_export_state_unavailable")
         return Path(filename).parent
 
-    async def convert_next(self) -> bool:
+    def retry_failed(self, path=None, *, include_incomplete=False):
+        """Explicitly resume only failed current versions, within spent budgets.
+
+        Call on the service's owner event loop. Completed chunks, confirmed
+        usage, elapsed time and source identity are preserved. Unknown remote
+        usage cannot be retried through this bounded operation.
+        """
+        if path is not None and (not isinstance(path, str) or not path or Path(path).is_absolute()
+                                 or ".." in Path(path).parts):
+            raise ValueError("retry path must be a relative knowledge path")
+        if path is not None:
+            path = Path(path).as_posix()
+        rows = self.store.db.execute("""SELECT v.*,a.remote_usage_unknown FROM knowledge_versions v
+            JOIN knowledge_desired d ON d.source_id=v.source_id AND d.scope=v.scope AND d.path=v.path
+            LEFT JOIN knowledge_file_audit a ON a.scope=v.scope AND a.path=v.path AND a.source_id=v.source_id
+            WHERE v.scope=? AND (? IS NULL OR v.path=?) ORDER BY v.path""", (self.scope, path, path)).fetchall()
+        result = {"queued": [], "blocked": [], "unchanged": []}
+        if path is not None and not rows:
+            result["blocked"].append({"path": path, "source_id": None, "code": "knowledge_retry_not_current"})
+        safe_legacy = {"invalid_labels", "invalid_output", "incomplete_response", "provider_token_limit_breach",
+                       "knowledge_version_token_limit", "knowledge_version_time_limit", "interrupted",
+                       "input_token_limit", "circuit_open", "missing_openai_key", "invalid_input_token_count", "model_slot_timeout"}
+        for row in rows:
+            version = dict(row)
+            item = {"path": version["path"], "source_id": version["source_id"]}
+            incomplete = include_incomplete and version["status"] in {"pending", "converting"}
+            if version["status"] != "failed" and not incomplete:
+                result["unchanged"].append({**item, "status": version["status"]})
+                continue
+            is_pdf = self.store.db.execute("SELECT metadata_json FROM knowledge_pdf_versions WHERE source_id=?", (version["source_id"],)).fetchone()
+            conversion = is_pdf is not None and is_pdf[0] is None
+            unknown = version["remote_usage_unknown"]
+            code = None
+            if not self._is_current(version["source_id"]):
+                code = "knowledge_retry_snapshot_changed"
+            elif not conversion and (unknown == 1 or (not incomplete and unknown is None and version["error"] not in safe_legacy)):
+                code = "knowledge_retry_unknown_usage"
+            elif not conversion:
+                unlabelled = self.store.db.execute("SELECT COUNT(*) FROM knowledge_chunks WHERE source_id=? AND marks_json IS NULL", (version["source_id"],)).fetchone()[0]
+                budget = self.config.adapter.budgets["label"]
+                if version["elapsed_seconds"] >= self.config.knowledge.version_seconds:
+                    code = "knowledge_version_time_limit"
+                elif unlabelled and (version["input_tokens"] >= self.config.knowledge.version_input_tokens
+                                     or version["output_tokens"] + budget.output_tokens > self.config.knowledge.version_output_tokens):
+                    code = "knowledge_version_token_limit"
+            if code is not None:
+                result["blocked"].append({**item, "code": code})
+                continue
+            with self.store.db:
+                self.store.db.execute("UPDATE knowledge_versions SET status=?,error=NULL WHERE source_id=? AND scope=? AND status IN ('failed','pending','converting')",
+                                      ("converting" if conversion else "pending", version["source_id"], self.scope))
+            self._audit_version(version, stage="conversion" if conversion else "label", remote_usage_unknown=False)
+            (self._convert_wake if conversion else self._wake).set()
+            result["queued"].append({**item, "stage": "conversion" if conversion else "label"})
+        self.scratch.write("knowledge_retry_requested", scope=self.scope, path=path, **result,
+                           budgets_reset=False, automatically_replayed=False)
+        return result
+
+    @staticmethod
+    def _selection(source_ids):
+        if source_ids is None:
+            return "", ()
+        if isinstance(source_ids, (str, bytes)):
+            raise ValueError("source_ids must be a collection of source IDs")
+        values = set(source_ids)
+        if any(not isinstance(value, str) or not value for value in values):
+            raise ValueError("source_ids must contain nonempty strings")
+        values = tuple(sorted(values))
+        return " AND v.source_id IN (" + ",".join("?" for _ in values) + ")", values
+
+    async def convert_next(self, *, source_ids=None) -> bool:
         """Convert one frozen PDF without taking the model adaptor's slot."""
         async with self._convert_serial:
+            selection, selected = self._selection(source_ids)
+            if source_ids is not None and not selected:
+                return False
             row = self.store.db.execute("""SELECT v.*,length(p.pdf_bytes) AS pdf_bytes_length,
                 substr(p.pdf_bytes,1,?) AS pdf_bytes FROM knowledge_versions v
                 JOIN knowledge_pdf_versions p ON p.source_id=v.source_id
                 JOIN knowledge_desired h ON h.source_id=v.source_id
-                WHERE h.scope=? AND v.scope=? AND v.status='converting'
-                ORDER BY v.created_at LIMIT 1""", (self.pdf_limits.max_file_bytes + 1, self.scope, self.scope)).fetchone()
+                WHERE h.scope=? AND v.scope=? AND v.status='converting'""" + selection + " ORDER BY v.created_at LIMIT 1",
+                (self.pdf_limits.max_file_bytes + 1, self.scope, self.scope, *selected)).fetchone()
             if row is None:
                 return False
             version = dict(row)
@@ -479,8 +636,11 @@ class KnowledgeService:
             self.store.db.execute("UPDATE knowledge_versions SET status='ready',error=NULL WHERE source_id=? AND scope=?", (version["source_id"], self.scope))
         return records, previous
 
-    async def label_next(self) -> bool:
-        row = self.store.db.execute("SELECT v.* FROM knowledge_versions v JOIN knowledge_desired h ON h.source_id=v.source_id WHERE h.scope=? AND v.scope=? AND v.status='pending' ORDER BY v.created_at LIMIT 1", (self.scope, self.scope)).fetchone()
+    async def label_next(self, *, source_ids=None) -> bool:
+        selection, selected = self._selection(source_ids)
+        if source_ids is not None and not selected:
+            return False
+        row = self.store.db.execute("SELECT v.* FROM knowledge_versions v JOIN knowledge_desired h ON h.source_id=v.source_id WHERE h.scope=? AND v.scope=? AND v.status='pending'" + selection + " ORDER BY v.created_at LIMIT 1", (self.scope, self.scope, *selected)).fetchone()
         if row is None:
             return False
         version = dict(row)
@@ -493,6 +653,7 @@ class KnowledgeService:
         error_code = None
         request_failed = False
         request_usage_unknown = None
+        stage = "label"
         records = []
         chunks = self.store.db.execute("SELECT * FROM knowledge_chunks WHERE source_id=? ORDER BY chunk_index", (source_id,)).fetchall()
         with self.store.db:
@@ -511,12 +672,19 @@ class KnowledgeService:
                         raise GovernedError("knowledge_version_superseded")
                     if chunk["marks_json"] is not None:
                         continue
-                    if version["input_tokens"] + budget.input_tokens > limits.version_input_tokens or version["output_tokens"] + budget.output_tokens > limits.version_output_tokens:
+                    remaining_input = limits.version_input_tokens - version["input_tokens"]
+                    if remaining_input <= 0 or version["output_tokens"] + budget.output_tokens > limits.version_output_tokens:
                         raise GovernedError("knowledge_version_token_limit")
+                    stage = "label"
                     try:
+                        # The adaptor already counts this exact request before
+                        # generation. Constrain that admission to the remaining
+                        # version allowance rather than reserving an unused full
+                        # stage input cap. Output reservation is unchanged.
+                        admission = {"input_limit": remaining_input} if remaining_input < budget.input_tokens else {}
                         result = await self.adapter.call("label", LABEL, [{"role": "user", "content": encode({
                             "source_id": source_id, "path": version["path"], "digest": version["digest"],
-                            "chunk_index": chunk["chunk_index"], "start_character": chunk["start_character"], "text": chunk["text"]})}], trace_id, LABEL_SCHEMA)
+                            "chunk_index": chunk["chunk_index"], "start_character": chunk["start_character"], "text": chunk["text"]})}], trace_id, LABEL_SCHEMA, **admission)
                     except BaseException as error:
                         request_failed = True
                         request_usage_unknown = getattr(error, "remote_usage_unknown", None)
@@ -532,9 +700,12 @@ class KnowledgeService:
                         raise
                     version["input_tokens"] += result.input_tokens
                     version["output_tokens"] += result.output_tokens
+                    stage = "label_persistence"
                     with self.store.db:
                         self.store.db.execute("UPDATE knowledge_versions SET input_tokens=?,output_tokens=? WHERE source_id=?", (version["input_tokens"], version["output_tokens"], source_id))
+                    stage = "label_validation"
                     marks = label_data(result.text)
+                    stage = "label_persistence"
                     with self.store.db:
                         self.store.db.execute("UPDATE knowledge_chunks SET marks_json=? WHERE source_id=? AND chunk_index=?", (json.dumps(marks, ensure_ascii=False), source_id, chunk["chunk_index"]))
                     self.scratch.write("knowledge_chunk_labelled", trace_id=trace_id, source_id=source_id,
@@ -545,6 +716,7 @@ class KnowledgeService:
                 if time.monotonic() >= deadline:
                     raise GovernedError("knowledge_version_time_limit")
                 chunks = self.store.db.execute("SELECT * FROM knowledge_chunks WHERE source_id=? ORDER BY chunk_index", (source_id,)).fetchall()
+                stage = "publication"
                 facts = [{"text": c["text"], "quote": c["text"], "marks": json.loads(c["marks_json"])} for c in chunks]
                 records, previous = self._publish(version, facts, deadline)
                 outcome = "completed"
@@ -578,6 +750,7 @@ class KnowledgeService:
             self._receipt(outcome, version, labelled_chunks=labelled, total_chunks=len(chunks), records=len(records),
                           input_tokens=accounting[1], output_tokens=accounting[2], elapsed_seconds=accounting[3],
                           code=error_code, trace_id=trace_id,
+                          failure_stage=stage if outcome != "completed" else "published",
                           remote_usage_unknown=(request_usage_unknown if type(request_usage_unknown) is bool else
                               request_failed and error_code not in {"input_token_limit", "circuit_open", "missing_openai_key",
                                                                   "invalid_input_token_count", "model_slot_timeout"}))

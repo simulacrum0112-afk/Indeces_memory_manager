@@ -133,7 +133,10 @@ def _npmi_diagnostics(db, scope, self_marks):
     """Whole-scope counts, independent of the bounded graph display.
 
     One active labelled fact is the co-occurrence unit, as in MemoryGraph.
-    Counts describe the saved corpus; they are not confidence estimates.
+    ``active_marks`` counts distinct normalized vocabulary nodes;
+    ``annotation_occurrences`` counts mark/active-record pairs, so a mark
+    used in two blocks contributes twice. Neither is a storage capacity or
+    confidence estimate. Self-name marks and inactive records are excluded.
     """
     required = {"memory_records", "memory_support", "memory_static", "memory_dynamic"}
     if not required <= _tables(db):
@@ -161,6 +164,7 @@ def _npmi_diagnostics(db, scope, self_marks):
           (SELECT COUNT(*) FROM memory_records WHERE scope=:scope AND active=1) AS active_records,
           (SELECT COUNT(DISTINCT source_id) FROM memory_records WHERE scope=:scope AND active=1) AS active_source_versions,
           (SELECT COUNT(*) FROM frequencies) AS active_marks,
+          (SELECT COALESCE(SUM(frequency),0) FROM frequencies) AS annotation_occurrences,
           (SELECT COUNT(*) FROM supported) AS supported_pairs,
           (SELECT COUNT(*) FROM positive) AS positive_edges,
           (SELECT COUNT(*) FROM supported WHERE weight IS NULL OR weight<=0) AS supported_without_positive,

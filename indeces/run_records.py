@@ -281,6 +281,24 @@ def _validate_known_usage(events, end, *, partial=False):
         _require(known is None or started, "known usage without generation request")
 
 
+def _declared_input_limit(start):
+    """Bind a narrower per-call gate while preserving prior stage-only receipts."""
+    stage_limit = start["budget"]["input_tokens"]
+    _require(type(stage_limit) is int and stage_limit > 0, "input stage budget invalid")
+    modern = "effective_input_limit" in start or "requested_input_limit" in start
+    if not modern:
+        return stage_limit, False
+    _require("effective_input_limit" in start and "requested_input_limit" in start,
+             "input allowance declaration incomplete")
+    requested, effective = start["requested_input_limit"], start["effective_input_limit"]
+    _require(requested is None or (type(requested) is int and requested > 0),
+             "requested input allowance invalid")
+    _require(type(effective) is int and 0 < effective <= stage_limit
+             and effective == (min(stage_limit, requested) if requested is not None else stage_limit),
+             "effective input allowance mismatch")
+    return effective, True
+
+
 def _validate_call(events):
     starts = [f for e, f in events if e == "call_start"]
     ends = [f for e, f in events if e in {"call_end", "call_rejected"}]
@@ -289,10 +307,32 @@ def _validate_call(events):
         return "incomplete"
     start, end = starts[0], ends[0]
     _require(start["stage"] == end["stage"] and start["trace_id"] == end["trace_id"], "call stage/trace mismatch")
+    effective_input_limit, modern_input_gate = _declared_input_limit(start)
     if "usage_receipt_version" in start:
         _require(type(start["usage_receipt_version"]) is int and start["usage_receipt_version"] == 1
                  and "known_usage" in end, "generation usage receipt version/schema mismatch")
     _validate_known_usage(events, end)
+    gates = [f for e, f in events if e == "input_gate"]
+    if modern_input_gate:
+        _require(len(gates) <= 1, "duplicate input budget gate")
+        if gates:
+            gate = gates[0]
+            _require(type(gate["input_tokens"]) is int and gate["input_tokens"] >= 0
+                     and type(gate["limit"]) is int and gate["limit"] == effective_input_limit
+                     and type(gate.get("stage_limit")) is int
+                     and gate["stage_limit"] == start["budget"]["input_tokens"]
+                     and type(gate["admitted"]) is bool
+                     and gate["admitted"] == (gate["input_tokens"] <= effective_input_limit),
+                     "effective input budget gate mismatch")
+            count_responses = [f for e, f in events if e == "http_response"
+                               and f.get("path") == "/responses/input_tokens"]
+            _require(len(count_responses) == 1
+                     and type(count_responses[0]["payload"]["input_tokens"]) is int
+                     and gate["input_tokens"] == count_responses[0]["payload"]["input_tokens"],
+                     "effective input count receipt mismatch")
+        generation_requests = [f for e, f in events if e == "http_request" and f.get("path") == "/responses"]
+        _require(not generation_requests or (len(gates) == 1 and gates[0]["admitted"] is True),
+                 "generation bypassed effective input gate")
     if end.get("status") != "completed":
         return "failed"
     requests = [f for e, f in events if e == "http_request"]
@@ -313,16 +353,16 @@ def _validate_call(events):
     if "verbosity" in start or "verbosity" in text_options:
         _require(isinstance(start.get("verbosity"), str) and start["verbosity"] in {"low", "medium", "high"}
                  and text_options.get("verbosity") == start["verbosity"], "request verbosity binding mismatch")
-    gates = [f for e, f in events if e == "input_gate"]
     counted = responses[0]["payload"]["input_tokens"]
-    _require(type(counted) is int and 0 <= counted <= budget["input_tokens"] and len(gates) == 1
-             and gates[0]["input_tokens"] == counted and gates[0]["limit"] == budget["input_tokens"]
+    _require(type(counted) is int and 0 <= counted <= effective_input_limit and len(gates) == 1
+             and gates[0]["input_tokens"] == counted and gates[0]["limit"] == effective_input_limit
              and gates[0]["admitted"] is True, "input budget gate mismatch")
     response, result = responses[1]["payload"], end["result"]
     _require(response["status"] == "completed", "provider completion mismatch")
     usage = response["usage"]
     for key in ("input_tokens", "output_tokens"):
-        _require(type(usage[key]) is int and 0 <= usage[key] <= budget[key] and usage[key] == result[key], "response usage mismatch")
+        limit = effective_input_limit if key == "input_tokens" else budget[key]
+        _require(type(usage[key]) is int and 0 <= usage[key] <= limit and usage[key] == result[key], "response usage mismatch")
     text = "".join(part["text"] for item in response["output"]
                    if item.get("type") == "message" and item.get("role") == "assistant"
                    for part in item["content"] if part.get("type") == "output_text")
@@ -360,6 +400,9 @@ def _validate_partial_call(events):
         _require(type(gate["input_tokens"]) is int and gate["input_tokens"] >= 0
                  and type(gate["limit"]) is int and gate["limit"] > 0 and type(gate["admitted"]) is bool
                  and gate["admitted"] == (gate["input_tokens"] <= gate["limit"]), "retained input gate policy mismatch")
+        if "stage_limit" in gate:
+            _require(type(gate["stage_limit"]) is int and gate["stage_limit"] > 0
+                     and gate["limit"] <= gate["stage_limit"], "retained input stage cap mismatch")
         if "/responses" in requests:
             _require(gate["admitted"] is True, "retained generation bypassed input gate")
     if gates and "/responses/input_tokens" in responses:
@@ -372,6 +415,8 @@ def _validate_partial_call(events):
                  and all(type(result[k]) is int and result[k] >= 0 for k in ("input_tokens", "output_tokens"))
                  and isinstance(result["response_id"], str) and result["elapsed_seconds"] >= 0,
                  "retained call result invalid")
+        if gates:
+            _require(result["input_tokens"] <= gates[0]["limit"], "retained input usage cap mismatch")
         if "/responses" in requests:
             cap = requests["/responses"]["max_output_tokens"]
             _require(type(cap) is int and cap > 0 and result["output_tokens"] <= cap,

@@ -138,27 +138,41 @@ class ObserverServerTests(unittest.TestCase):
 
 class ObserverConsoleTests(unittest.TestCase):
     def setUp(self):
-        self.path = Path(__file__).resolve().parents[1] / "config.example.toml"
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.path = Path(temporary.name).resolve() / "config.example.toml"
+        self.path.write_bytes((Path(__file__).resolve().parents[1] / "config.example.toml").read_bytes())
 
     def test_commands_never_request_credentials_or_start_gateway(self):
-        for command, action in (("observe", "observe"), ("logs", "show_logs")):
-            with self.subTest(command=command), patch("sys.argv", ["indeces", command, "--config", str(self.path)]), \
-                    patch.object(console, action) as call, patch.object(console, "run") as run, \
-                    patch.object(console, "prompt_secret") as prompt:
-                console.main()
-                call.assert_called_once()
-                run.assert_not_called()
-                prompt.assert_not_called()
+        from indeces import console_session
+        with patch("sys.argv", ["indeces", "observe", "--config", str(self.path)]), \
+                patch.object(console_session, "run_console") as session, \
+                patch.object(console, "run") as run, patch.object(console, "prompt_secret") as prompt:
+            console.main()
+        session.assert_called_once_with(self.path, "observe")
+        run.assert_not_called()
+        prompt.assert_not_called()
+        with patch("sys.argv", ["indeces", "logs", "--config", str(self.path)]), \
+                patch.object(console, "show_logs") as logs, patch.object(console, "run") as run, \
+                patch.object(console, "prompt_secret") as prompt:
+            console.main()
+        logs.assert_called_once()
+        run.assert_not_called()
+        prompt.assert_not_called()
 
-    def test_interactive_observe_and_logs_return_to_console(self):
+    def test_interactive_observe_and_logs_return_to_same_console(self):
+        from unittest.mock import Mock
+        server = Mock(url="http://127.0.0.1:12345/synthetic/")
         with patch("sys.argv", ["indeces", "console", "--config", str(self.path)]), \
                 patch("builtins.input", side_effect=["observe", "logs", "quit"]), \
-                patch.object(console, "observe") as observe, patch.object(console, "show_logs") as logs, \
-                patch.object(console, "open_command_window") as window, \
+                patch.object(console, "show_logs") as logs, \
+                patch.object(console, "ObserverServer", return_value=server) as observer, \
+                patch.object(console, "prepare_scratch_directory"), patch.object(console, "npmi"), \
                 redirect_stdout(io.StringIO()):
             console.main()
-        window.assert_called_once_with("observe", self.path)
-        observe.assert_not_called()
+        observer.assert_called_once()
+        server.start.assert_called_once()
+        server.close.assert_called_once()
         logs.assert_called_once()
 
 

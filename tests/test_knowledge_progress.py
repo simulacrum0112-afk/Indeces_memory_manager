@@ -252,6 +252,21 @@ class KnowledgeProgressTests(unittest.TestCase):
         self.assertIn("显示范围状态：待标词=256", output)
         self.assertNotIn("old-only", output)
 
+    def test_pages_cover_all_paths_and_configured_limit_is_respected(self):
+        self.database()
+        for i in range(260):
+            self.source(f"id-{i:03}", path=f"file-{i:03}.pdf", status="pending", labels=())
+        first = progress.progress_snapshot(self.config)
+        second = progress.progress_snapshot(self.config, offset=first["next_offset"])
+        self.assertEqual(second["displayed_files"], 4)
+        self.assertIsNone(second["next_offset"])
+        self.assertEqual(len({item["path"] for item in first["files"] + second["files"]}), 260)
+        self.config.knowledge = SimpleNamespace(max_files=512)
+        result = progress.progress_snapshot(self.config)
+        self.assertEqual(result["file_limit"], 512)
+        self.assertEqual(result["displayed_files"], 260)
+        self.assertFalse(result["truncated"])
+
     def test_conversion_states_do_not_claim_publication_or_running_service(self):
         self.database()
         for i, state in enumerate(("conversion_pending", "converting", "pending", "labelling", "failed")):

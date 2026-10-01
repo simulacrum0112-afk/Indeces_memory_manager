@@ -1,0 +1,66 @@
+{
+  "version": "0.11.0",
+  "recorded_at_utc": "2026-10-01T21:40:45.244646+00:00",
+  "baseline_main": "e5bdecbaa0dfdea8a7e9aafe3268a393b68157ad",
+  "main_reachable_commits": 17,
+  "main_reachable_unique_blobs": 318,
+  "current_public_files_scanned": 126,
+  "rules": [
+    "provider_key_shape",
+    "github_token_shape",
+    "private_key_header",
+    "discord_token_shape",
+    "private_runtime_path"
+  ],
+  "findings": [
+    {
+      "path": "tests/test_api_key_wizard.py",
+      "rule": "provider_key_shape",
+      "scope": "main_history",
+      "blob": "a4f0f260767f83c113d8e4d7007938d3eb14beca",
+      "line": 17,
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "path": "tests/test_api_key_wizard.py",
+      "rule": "provider_key_shape",
+      "scope": "main_history",
+      "blob": "a4f0f260767f83c113d8e4d7007938d3eb14beca",
+      "line": 18,
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "path": "tests/test_api_key_wizard.py",
+      "rule": "provider_key_shape",
+      "scope": "main_history",
+      "blob": "a4f0f260767f83c113d8e4d7007938d3eb14beca",
+      "line": 19,
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "path": "tests/test_api_key_wizard.py",
+      "rule": "provider_key_shape",
+      "scope": "current_public_files",
+      "line": 17,
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "path": "tests/test_api_key_wizard.py",
+      "rule": "provider_key_shape",
+      "scope": "current_public_files",
+      "line": 18,
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "path": "tests/test_api_key_wizard.py",
+      "rule": "provider_key_shape",
+      "scope": "current_public_files",
+      "line": 19,
+      "classification": "confirmed_named_synthetic_fixture"
+    }
+  ],
+  "secret_values_recorded": false,
+  "private_materials_included": false,
+  "scope": "main ancestors and current public tracked/nonignored source; excludes unpublished refs/codex and runtime data",
+  "limitations": "Finite regex shapes; secret assignment, releases and external artifact surfaces are not rescanned here. Earlier audit remains separate."
+}

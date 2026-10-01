@@ -1,4 +1,18 @@
-# 交付状态：0.10.0
+# 交付状态：0.11.0
+
+0.11.0 完成摄入审计/恢复与单 Console 修复。源码和安装包版本一致。文件字节限制、400字符切块和单次模型额度保持原值；经用户明确批准，单知识版本累计额度改为 input196608、output49152、1080秒。旧显式配置不被加载器覆盖；迁移先备份、持锁并等待活动任务结束。
+
+摄入新增元数据审计表，首次增表前备份既有SQLite/WAL一致快照；完整文件清单区分当前校验预测和保存错误。retry保留source ID、分块和累计计量，只恢复失败/未完成项；未知用量、变更文件和耗尽预算仍阻止恢复。schema补齐40字符限制，累计输入用实际计数准入，不再预留整个阶段输入额度；输出预留和阶段预算不变。
+
+Console采用配置绝对路径作用域的内核租约和固定命令通信。服务、无Discord摄入维护及慢只读检查均在后台；连续/并发/不同入口、任务导航、重复调用与异常退出锁恢复有实际进程合成测试。stop/Ctrl+C清理当前拥有的任务，活动任务期间quit拒绝退出。Windows可见窗口聚焦、实际键盘体验与新Console真实Discord往返仍未验收。
+
+最终本机[OFFLINE_0110_20261001T220004127125Z.json](../verification/OFFLINE_0110_20261001T220004127125Z.json)：733项、0失败、0错误、14跳过、61.704秒。包含超过3000标注出现和去重节点、末块及固定查询检索、格式/边界、部分失败/恢复/重复、迁移备份与重复取消。初次[OFFLINE_0110_INITIAL.json](../verification/OFFLINE_0110_INITIAL.json)保留一项失败：旧10ms测试可能在本地准入阶段先超时，却假定请求已发出。测试现在请求真正进入后触发真实asyncio期限，运行逻辑未放宽。
+
+非 editable 安装包 [WHEEL_0110_20261001T215221456512Z.json](../verification/WHEEL_0110_20261001T215221456512Z.json) 的隔离构建、安装后导入、静态检索默认、`check`/`npmi` 入口及三个网页资源通过，未调用真实模型或 Discord。公开范围 [REPOSITORY_AUDIT_0110.json](../verification/REPOSITORY_AUDIT_0110.json) 只复查 `main` 可达历史和当前公开文件的有限秘密形状/路径规则；未发布工具引用、运行数据、release 和外部附件不属于本轮复查范围。
+
+另一次[732项结果](../verification/OFFLINE_0110_20261001T215307875585Z.json)保留1项error：Windows venv的Popen.pid是launcher，原crash fixture等待launcher后过早直接获取仍由真实runtime持有的锁。异常退出改由实际owner执行os._exit，新增原launcher被杀场景的生产有界route恢复检查；两条压力路径各30次通过，生产锁仍由内核决定、没有按PID误抢或扩大等待。
+
+真实论文清单、调用记录和备份只保存在本机，不进入公开附件；离线通过不代替真实模型、材料语义或召回质量验收。远端证据见[CHECKPOINT.md](CHECKPOINT.md)。以下保留历史版本事实。
 
 截至用户时区日期 2026-10-01，本体已在 `D:\Indeces` 实现。GitHub 仓库为公开 MIT [Indeces_memory_manager](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。源码提交/推送及公开状态由交付消息、Git 历史和 GitHub 元数据确认；创建仓库本身不代表服务已启动。
 

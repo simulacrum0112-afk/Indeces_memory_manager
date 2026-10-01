@@ -365,6 +365,7 @@ class ObserverDataTests(unittest.TestCase):
         self.assertEqual(stats["active_records"], 4)
         self.assertEqual(stats["active_source_versions"], 3)
         self.assertEqual(stats["active_marks"], 5)
+        self.assertEqual(stats["annotation_occurrences"], 7)
         self.assertEqual(stats["supported_pairs"], 2)
         self.assertEqual(stats["positive_edges"], 2)
         self.assertEqual(stats["single_support_positive_edges"], 1)
@@ -379,6 +380,44 @@ class ObserverDataTests(unittest.TestCase):
         self.assertEqual("\n".join(db.iterdump()), before)
         self.assertNotIn("foreign", json.dumps(aggregate))
         self.assertNotIn("first alpha beta", json.dumps(aggregate))
+
+    def test_counts_over_3000_are_complete_and_fixed_retrieval_is_preserved(self):
+        self.database()
+        self.source("baseline", "alpha beta original evidence", ["alpha", "beta"])
+        expected = [("baseline", "alpha beta original evidence")]
+        before = self.graph.retrieve("10:knowledge", [], "alpha beta", 1, event_id="before")
+        self.assertEqual([(r["source_id"], r["quote"]) for r in before], expected)
+        facts = [{"text": f"topic{i:04d} evidence", "quote": f"topic{i:04d} evidence",
+                  "marks": [f"topic{i:04d}"]} for i in range(3101)]
+        facts.append({"text": "topic3100 repeated evidence", "quote": "topic3100 repeated evidence",
+                      "marks": ["topic3100"]})
+        self.graph.add("10:knowledge", "bulk", "fixture", facts, 2)
+        report = observer_data.npmi_diagnostics(self.config)
+        self.assertEqual(report["statistics_status"], "available")
+        self.assertEqual(report["statistics"]["active_records"], 3103)
+        self.assertEqual(report["statistics"]["active_marks"], 3103)
+        self.assertEqual(report["statistics"]["annotation_occurrences"], 3104)
+        graph = observer_data.snapshot(self.config)["graph"]
+        self.assertEqual(graph["total_nodes"], 3103)
+        self.assertEqual(len(graph["nodes"]), observer_data.MAX_NODES)
+        self.assertTrue(graph["truncated"])
+        self.assertEqual(graph["diagnostics"], report["statistics"])
+        after = self.graph.retrieve("10:knowledge", [], "alpha beta", 3, event_id="after")
+        self.assertEqual([(r["source_id"], r["quote"]) for r in after], expected)
+        # Re-adding the same source/text/quote must not inflate either count.
+        self.graph.add("10:knowledge", "bulk", "fixture", facts, 4)
+        self.assertEqual(observer_data.npmi_diagnostics(self.config)["statistics"], report["statistics"])
+
+    def test_occurrences_exclude_inactive_and_foreign_scope_records(self):
+        self.database()
+        self.source("one", "alpha beta", ["alpha", "beta", "ALPHA"])
+        self.source("two", "alpha again", ["alpha"], path="two.md")
+        self.source("old", "retired vocabulary", ["retired"], path="old.md")
+        self.graph.deactivate_source("10:knowledge", "old")
+        self.source("foreign", "foreign vocabulary", ["hidden"], scope="20:knowledge", path="foreign.md")
+        stats = observer_data.npmi_diagnostics(self.config)["statistics"]
+        self.assertEqual(stats["active_marks"], 2)
+        self.assertEqual(stats["annotation_occurrences"], 3)
 
     def test_npmi_no_positive_pairs_and_uninitialized_are_distinct(self):
         aggregate = observer_data.npmi_diagnostics(self.config)
@@ -403,6 +442,7 @@ class ObserverDataTests(unittest.TestCase):
             [{"text": "synthetic self marks", "quote": "synthetic self marks", "marks": ["keeper", "alpha"]}], 1)
         stats = observer_data.npmi_diagnostics(self.config)["statistics"]
         self.assertEqual(stats["active_marks"], 1)
+        self.assertEqual(stats["annotation_occurrences"], 1)
         self.assertEqual(stats["supported_pairs"], 0)
         self.assertEqual(stats["isolated_marks"], 1)
 
