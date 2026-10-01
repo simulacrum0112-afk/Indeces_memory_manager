@@ -1,0 +1,46 @@
+{
+  "version": "0.11.0",
+  "recorded_at_utc": "2026-10-01T22:18:38.765682+00:00",
+  "implementation_commit": "661fddf1d034288afe3c3c088e6c99881588aa17",
+  "validated_commit": "a0dc1a4ad32d61e7356d41876ecb1657d16aa7a6",
+  "run_id": 36933668298,
+  "run_url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36933668298",
+  "status": "completed",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "id": 110608758760,
+      "name": "check (windows-latest, ./.venv/Scripts/python.exe)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36933668298/job/110608758760",
+      "unit_tests": {
+        "tests_run": 733,
+        "elapsed_seconds": 109.644,
+        "skips": 3,
+        "failures": 0,
+        "errors": 0
+      },
+      "offline_cli_check_0110_seen": true
+    },
+    {
+      "id": 110608759051,
+      "name": "check (ubuntu-latest, ./.venv/bin/python)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36933668298/job/110608759051",
+      "unit_tests": {
+        "tests_run": 733,
+        "elapsed_seconds": 27.255,
+        "skips": 12,
+        "failures": 0,
+        "errors": 0
+      },
+      "offline_cli_check_0110_seen": true
+    }
+  ],
+  "private_runtime_data_included": false,
+  "live_model_or_discord_validation": false,
+  "source": "GitHub API run/jobs metadata and corresponding unittest summaries in job logs",
+  "limitations": "Offline CI fixtures only; no native foreground focus, real Discord or retrieval semantic evaluation."
+}
