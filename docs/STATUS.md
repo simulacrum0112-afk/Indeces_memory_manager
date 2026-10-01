@@ -1,8 +1,10 @@
-# 交付状态：0.8.0
+# 交付状态：0.9.0
 
 截至用户时区日期 2026-09-30，本体已在 `D:\Indeces` 实现。GitHub 私有仓库为 [Indeces_memory_manager](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。源码提交/推送结果由交付消息及 Git 历史确认；创建仓库本身不代表服务已启动。
 
 已实现：无头/Console 入口、单实例存储锁、一个 Discord Gateway/有界消息队列、显式 @ 门禁、实际送达回执、短期 100%/70% 整轮水位摘要、GPT-6-Luna stateless adaptor、独立阶段预算、计量门禁、usage 核验、超时/阶段熔断、scratch hash 链与持久原文/checkpoint。
+
+0.9.0 增加原始材料目录入口：本机实际位置已核验为 `D:\Indeces\knowledge`，桌面“Indeces 知识库”快捷方式、项目根 `Indeces-Knowledge.cmd` 与 Console `knowledge` 方便到达，入口只打开目录，不启动 Bot/模型。根级 `.indeces` 放固定说明、`_staging` 放未入库材料，递归前剪枝，不计候选/标词；正常主题与年份子目录仍入库，目录链接/junction不遍历。保留原文件及自定义指南；可读但不可写的安全目录以只读方式访问，不因指南写入失败阻断。用户批准支持文件上限128→256，默认/示例/现有本地配置已同步，其他模型/单篇/版本预算不增。第257个候选仍按原策略撤下并归档全部当前范围来源，超限恢复需重新入库；暂存不冒充无限索引。详见 [KNOWLEDGE_DIRECTORY.md](KNOWLEDGE_DIRECTORY.md)。
 
 0.2 系列已实现 Console `discord` 命令与 `python -m indeces discord` 本地桥接向导：服务器 Guild ID、可选频道 ID、隐藏输入的 Bot token、无 token 预览与 `y` 保存确认。频道输入留空保留现有设置，`*` 允许目标服务器中的全部符合显式 @ 条件的频道。运行实例持有同一 state 锁时拒绝修改。向导不联网；完成后用户另行执行 `start`。
 
@@ -30,6 +32,7 @@ Console `scratch` 校验外层结构/hash 与新每轮记录合同，分别报�
 
 ## 验证证据
 
+- 0.9.0 本机完整离线测试：Windows/CPython 3.12.14，**588 tests / 0 failures / 14 skips**，62.073 秒。新增目录入口 27、候选扫描与生命周期 16、Console 路由 2 项；真实 Windows junction 测试通过，本机符号链接权限及平台相关用例保留跳过。配置/依赖导入、`pip check`、Console退出、命令帮助通过，见 [verification/OFFLINE_090.json](../verification/OFFLINE_090.json)。非editable wheel在独立进程验证固定说明、Console目录路由、256上限与300个暂存文件排除，Explorer/服务均mock，见 [verification/WHEEL_090.json](../verification/WHEEL_090.json)。审计修复文件链接误占候选额度、目录枚举失败误当删除，以及指南保存失败清理可能删除竞争写入的用户说明；合成故障回归保留旧发布来源及用户README。本机仅同步已授权`max_files`字段、准备管理/暂存目录与桌面文件夹快捷方式，未读取真实材料、凭据、数据库或scratch，未启动Explorer、Bot或模型；精确提交远端CI由交付消息确认。
 - 0.8.0 本机完整离线测试：Windows/CPython 3.12.14，**543 tests / 0 failures / 11 skips**，51.336 秒。新增凭据、向导、Console 与 verbosity 合同测试；真实当前用户 DPAPI 仅使用临时合成 key，旧 Discord 格式往返仍通过。配置/依赖导入、`pip check`、Console退出、命令帮助及非editable wheel中的向导→DPAPI保存→路径规范化后的启动读取（service transport mock）均通过，见 [verification/OFFLINE_080.json](../verification/OFFLINE_080.json)。复审修复回执持续中断、snapshot句柄与路径身份竞态、锁关闭错误覆盖提交状态、直接CLI异常文本逃逸，以及向导与启动的配置路径别名不一致；保留Windows/Ubuntu适用的平台测试跳过。仅现有本地TOML中的已授权话量/推理字段在停服锁下同步，未读取已有凭据、知识、数据库或scratch，没有真实模型/Discord调用；远端CI以精确提交交付消息为准。
 - 0.6.0 本机完整离线测试：Windows/CPython 3.12.14，**387 tests / 0 failures / 7 skips**，20.850 秒。新增数据读取 28、服务 10、HTTP 路由 14、独立 HTTP 复审 6、scratch 并发 18、前端 Node 合约包装 1 项；7 项跳过为平台/本机符号链接权限相关。配置/导入、`pip check`、Console 退出与非 editable wheel 三个网页资源打包检查通过，记录见 [verification/OFFLINE_060.json](../verification/OFFLINE_060.json)。浏览器用临时合成图/版本/trace 确认搜索、分层、缩放、拖动、来源与逐步权重曲线、引用记录和安全文本渲染，390px 窄屏容器/SVG 边界复查通过，无页面错误。真实 Windows 线程/子进程/大小写路径别名/观察进程中断与超时测试确认读取不会阻碍原清理替换。没有读取或裁剪实际运行记录，没有模型或 Discord 连接；精确提交远端 CI 由交付消息核对。
 - 0.6.1 本机完整离线测试：Windows/CPython 3.12.14，**404 tests / 0 failures / 7 skips**，23.906 秒。新增 12 项名称/旧缓存/凭据/跨版本 mutex 兼容测试和 5 项固定说明模板迁移测试。配置/导入、`pip check`、Console 新名称与正常退出、wheel 新名称和网页/identity 资源打包检查通过，记录见 [verification/OFFLINE_061.json](../verification/OFFLINE_061.json)。仅本机固定 scratch 说明页迁移，没有读取或裁剪真实 JSONL/数据库，没有真实模型或 Discord 调用。

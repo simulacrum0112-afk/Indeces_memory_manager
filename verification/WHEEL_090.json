@@ -1,0 +1,19 @@
+{
+  "wheel": "indeces_memory_manager-0.9.0-py3-none-any.whl",
+  "sha256": "74e5ec9fff61e9930443006262a9186c58b8232bd56421d9a664faaf7bf426d4",
+  "included": [
+    "indeces/knowledge_directory.py",
+    "indeces/knowledge.py",
+    "indeces/api_key_wizard.py",
+    "indeces/credentials.py",
+    "indeces/pdf_import.py",
+    "indeces/web/observer.html",
+    "indeces/web/observer.css",
+    "indeces/web/observer.js"
+  ],
+  "no_runtime_data": true,
+  "isolated_directory_smoke": {
+    "exit_code": 0,
+    "output": "Non-editable wheel: configured directory, fixed guide, Console routing, 256 cap and 300 staged exclusions passed; Explorer and service mocked."
+  }
+}

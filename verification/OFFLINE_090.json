@@ -1,0 +1,88 @@
+{
+  "version": "0.9.0",
+  "recorded_at_utc": "2026-10-01T02:33:22.824084+00:00",
+  "python": "3.12.14",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "checks": [
+    {
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-q"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 62.922,
+      "output": "57> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.156 seconds\n[asyncio] Executing <Task finished name='Task-1032' coro=<RuntimeRecordTests.test_missing_provider_evidence_cannot_be_claimed_complete() done, defined at D:\\Indeces\\tests\\test_run_records.py:483> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.125 seconds\n[asyncio] Executing <Task finished name='Task-1037' coro=<RuntimeRecordTests.test_missing_turn_end_is_incomplete_and_prior_schema_is_legacy() done, defined at D:\\Indeces\\tests\\test_run_records.py:518> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.203 seconds\n[asyncio] Executing <Task finished name='Task-1042' coro=<RuntimeRecordTests.test_one_turn_split_across_daily_files_still_verifies() done, defined at D:\\Indeces\\tests\\test_run_records.py:566> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.172 seconds\n[asyncio] Executing <Task finished name='Task-1052' coro=<RuntimeRecordTests.test_prior_receipts_without_verbosity_remain_compatible() done, defined at D:\\Indeces\\tests\\test_run_records.py:402> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.156 seconds\n[asyncio] Executing <Task finished name='Task-1057' coro=<RuntimeRecordTests.test_publication_switch_during_generation_keeps_old_material_binding() done, defined at D:\\Indeces\\tests\\test_run_records.py:417> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.110 seconds\n----------------------------------------------------------------------\nRan 588 tests in 62.073s\n\nOK (skipped=14)",
+      "tests": 588,
+      "test_seconds": 62.073,
+      "skips": 14
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "check",
+        "--config",
+        "config.example.toml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.515,
+      "output": "Offline configuration/import check OK; Indeces 0.9.0; discord.py 2.7.1; pypdf 6.19.0.\nLive Discord and model calls were not made."
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "pip",
+        "check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.078,
+      "output": "No broken requirements found."
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "console",
+        "--config",
+        "config.example.toml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.407,
+      "output": "Indeces 0.9.0 console: discord | apikey | knowledge | start | status | scratch | observe | logs | quit\nIndeces>"
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "--help"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.453,
+      "output": "usage: __main__.py [-h] [--config CONFIG]\n                   [{console,init,discord,apikey,knowledge,start,status,check,scratch,observe,logs}]\n\nIndeces: minimal Discord runtime console\n\npositional arguments:\n  {console,init,discord,apikey,knowledge,start,status,check,scratch,observe,logs}\n\noptions:\n  -h, --help            show this help message and exit\n  --config CONFIG"
+    }
+  ],
+  "live_model_calls": false,
+  "live_discord_connection": false,
+  "explorer_launched": false,
+  "data": "Temporary synthetic configuration, raw files, links/junctions and injected model transports only for tests. Real raw materials, credentials, databases and scratch were not inspected. Local TOML changed only the authorized max_files field under InstanceLock. Fixed directory guide/staging and a desktop folder shortcut were created; existing guides are preserved.",
+  "scope": "Accessible configured raw-material directory, passive reserved-root pruning and 256 supported candidates; incomplete census preserves existing publication. Original files are not moved, renamed, deleted or uploaded. Independent model, PDF and per-version budgets and request concurrency unchanged.",
+  "local_settings": {
+    "knowledge_dir": "D:\\Indeces\\knowledge",
+    "max_files": 256,
+    "staging": "_staging",
+    "staging_ingested": false,
+    "model_budgets_preserved": true,
+    "output_verbosity": "high",
+    "reasoning": "low"
+  },
+  "setup_note": "Editable install with normal pip build isolation succeeded; installed version is 0.9.0. Native Windows junction exercised; some symlink tests require privileges and are skipped on this host."
+}

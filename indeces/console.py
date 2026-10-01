@@ -21,6 +21,7 @@ from .credentials import (CredentialError, load_discord_token, load_openai_key,
 from .discord_bridge import DiscordBridge
 from .discord_wizard import configure_discord
 from .knowledge import KnowledgeService
+from .knowledge_directory import prepare_knowledge_directory, show_knowledge_directory
 from .lock import InstanceLock
 from .observer import ObserverServer, observe, prepare_scratch_directory, show_logs
 from .runtime import Runtime
@@ -69,6 +70,10 @@ async def serve(config, key, token):
             print(f"Scratch retention/startup failed: {type(error).__name__}; service stopped.", flush=True)
             raise
         _retention_receipt(scratch, getattr(scratch, "startup_retention", None), phase="startup")
+        try:
+            prepare_knowledge_directory(config)
+        except Exception as error:
+            print(f"Knowledge directory guide unavailable: {type(error).__name__}; source ingestion still uses the configured directory.")
         store = Store(config.state_dir)
         interrupted = store.recover()
         if interrupted:
@@ -177,6 +182,7 @@ def status(config, config_path=None):
     print(f"{config.name} {__version__}; model {config.adapter.model}; one model request slot")
     print(f"Discord guild={config.discord.guild_id or '<not configured>'}; channels={config.discord.channel_ids or 'all explicitly mentioned channels'}")
     print(f"Knowledge: {config.knowledge_dir}; scratch: {config.scratch_dir}")
+    print(f"Active supported-file limit: {config.knowledge.max_files}; root _staging is storage only. Use knowledge to open the material directory.")
     print("Read-only graph/trace page: observe; human-readable scratch directory guide: logs.")
     print("Scratch retention: rolling 24 hours; startup cleanup and every 60 seconds while the service runs. Stopped services do not clean logs.")
     if config_path is not None:
@@ -258,7 +264,7 @@ def check_scratch(config):
 
 def main():
     parser = argparse.ArgumentParser(description="Indeces: minimal Discord runtime console")
-    parser.add_argument("command", nargs="?", choices=["console", "init", "discord", "apikey", "start", "status", "check", "scratch", "observe", "logs"], default="console")
+    parser.add_argument("command", nargs="?", choices=["console", "init", "discord", "apikey", "knowledge", "start", "status", "check", "scratch", "observe", "logs"], default="console")
     parser.add_argument("--config", type=Path, default=Path("config.local.toml"))
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
@@ -288,12 +294,12 @@ def main():
             config = load_config(args.config)
             if args.command in {"start", "status"}:
                 {"start": run, "status": status}[args.command](config, args.config)
-            elif args.command in {"observe", "logs"}:
-                {"observe": observe, "logs": show_logs}[args.command](config)
+            elif args.command in {"observe", "logs", "knowledge"}:
+                {"observe": observe, "logs": show_logs, "knowledge": show_knowledge_directory}[args.command](config)
             else:
                 check_scratch(config)
             return
-        print(f"Indeces {__version__} console: discord | apikey | start | status | scratch | observe | logs | quit")
+        print(f"Indeces {__version__} console: discord | apikey | knowledge | start | status | scratch | observe | logs | quit")
         while True:
             try:
                 command = input("Indeces> ").strip().lower()
@@ -309,14 +315,14 @@ def main():
                     continue
                 config = load_config(args.config)
                 action = {"start": run, "status": status, "scratch": check_scratch,
-                          "observe": observe, "logs": show_logs}.get(command)
+                          "observe": observe, "logs": show_logs, "knowledge": show_knowledge_directory}.get(command)
                 if action:
                     if command in {"start", "status"}:
                         action(config, args.config)
                     else:
                         action(config)
                 else:
-                    print("Commands: discord | apikey | start | status | scratch | observe | logs | quit")
+                    print("Commands: discord | apikey | knowledge | start | status | scratch | observe | logs | quit")
             except CredentialError as error:
                 print(f"Credential error: {error.code}. Use discord setup for the Bot token, or apikey for the OpenAI key.")
             except Exception as error:

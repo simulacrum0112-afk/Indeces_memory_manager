@@ -63,7 +63,7 @@ class AdapterConfig:
 class KnowledgeConfig:
     poll_seconds: float = 0.5
     max_file_bytes: int = 8192
-    max_files: int = 128
+    max_files: int = 256
     chunk_characters: int = 400
     version_seconds: float = 360.0
     version_input_tokens: int = 65536

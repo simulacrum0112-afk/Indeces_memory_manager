@@ -56,7 +56,7 @@ class ConsoleTests(unittest.TestCase):
             output = self.main()
         wizard.assert_called_once_with(self.path)
         run.assert_not_called()
-        self.assertIn("discord | apikey | start | status", output)
+        self.assertIn("discord | apikey | knowledge | start | status", output)
 
     def test_cli_apikey_routes_to_local_wizard_without_loading_runtime(self):
         with patch.object(console, "configure_api_key", return_value=True) as wizard, \
@@ -81,7 +81,28 @@ class ConsoleTests(unittest.TestCase):
             output = self.main()
         wizard.assert_called_once_with(self.path)
         run.assert_not_called()
-        self.assertIn("discord | apikey | start | status", output)
+        self.assertIn("discord | apikey | knowledge | start | status", output)
+
+    def test_cli_knowledge_opens_directory_without_starting_or_prompting_credentials(self):
+        with patch.object(console, "show_knowledge_directory") as directory, \
+                patch.object(console, "run") as run, patch.object(console, "serve") as serve, \
+                patch.object(console, "prompt_secret") as prompt, patch.object(console, "load_openai_key") as key:
+            self.main("knowledge")
+        directory.assert_called_once()
+        self.assertEqual(directory.call_args.args[0].knowledge_dir, self.config.knowledge_dir)
+        run.assert_not_called()
+        serve.assert_not_called()
+        prompt.assert_not_called()
+        key.assert_not_called()
+
+    def test_interactive_knowledge_returns_to_console_without_starting(self):
+        with patch("builtins.input", side_effect=["knowledge", "quit"]), \
+                patch.object(console, "show_knowledge_directory") as directory, \
+                patch.object(console, "run") as run:
+            output = self.main()
+        directory.assert_called_once()
+        run.assert_not_called()
+        self.assertIn("apikey | knowledge | start", output)
 
     def test_console_reloads_configuration_after_wizard_before_start(self):
         old_config = self.config

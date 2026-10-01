@@ -59,7 +59,7 @@ Guild/频道设置写入 `config.local.toml`，名称同步为 `Indeces`；Bot t
 .\.venv\Scripts\python.exe -m indeces
 ```
 
-Console 命令：`discord`、`apikey`、`start`、`status`、`scratch`、`observe`、`logs`、`quit`。`start` 在前台运行；Ctrl+C 停机并返回 Console。无头启动也可用 `python -m indeces start`。`status` 只显示凭据文件是否存在，不解密，不保证密钥有效或服务当前在线。
+Console 命令：`discord`、`apikey`、`knowledge`、`start`、`status`、`scratch`、`observe`、`logs`、`quit`。`knowledge` 在 Windows 打开实际配置的原材料目录，并显示导入限额；其他平台显示绝对路径。`start` 在前台运行；Ctrl+C 停机并返回 Console。无头启动也可用 `python -m indeces start`。`status` 只显示凭据文件是否存在，不解密，不保证密钥有效或服务当前在线。
 
 Bot 需提前通过 Discord 的服务器安装流程加入目标服务器；向导不创建或邀请 Bot。Token 来自 Developer Portal 的 Bot 页面，安装步骤见 [Discord 官方入门](https://docs.discord.com/developers/quick-start/getting-started)。Bot 需接收服务器消息事件，并具有 View Channel、Send Messages、Read Message History [频道权限](https://docs.discord.com/developers/topics/permissions#permissions-bitwise-permission-flags)；在线程中回复还需 Send Messages in Threads。显式提及应用的消息正文可使用 Message Content intent 的例外；本实现不申请该特权 intent。[Discord Gateway](https://docs.discord.com/developers/events/gateway#message-content-intent)
 
@@ -77,6 +77,10 @@ Bot 需提前通过 Discord 的服务器安装流程加入目标服务器；向�
 
 ## 知识库与标词
 
+本机原始材料入口是 **`D:\Indeces\knowledge`**。可使用桌面“Indeces 知识库”快捷方式、项目根目录的 `Indeces-Knowledge.cmd`，或 Console 输入 `knowledge` 打开。其他安装位置按 `knowledge_dir` 显示实际绝对路径。推荐按主题/年份建立子目录，保持稳定的文件名；本体保留原文件位置，管理说明在 `.indeces/README.md`。目录打开不会启动 Bot 或调用模型，已存在的自定义说明会保留。
+
+默认自动入库最多 **256 个支持文件**。根级 `_staging/` 可保存超量或暂不入库的原始材料，整棵目录不扫描、不标词、不计入该上限。选定资料准备入库时，再由用户移到暂存区之外。`.indeces/` 同样排除扫描；主题子目录中的同名目录仍视为普通材料路径。打开旧 Console 后需退出并重新打开，使新暂存规则生效。材料管理、改名/移入暂存、超限与备份说明见 [KNOWLEDGE_DIRECTORY.md](docs/KNOWLEDGE_DIRECTORY.md)。
+
 把 `.pdf`、`.md`、`.markdown` 或 `.txt` 文件保存到 `knowledge/`，允许子目录。服务运行期间持续观察目录，默认每 0.5 秒开始下一次检测；大文件读取可能延长整次扫描，不承诺固定检测延迟。不用每次手动触发标词。关闭服务时不观察文件，更新会在下次启动时检测。
 
 1. 保存文件原文、路径、SHA-256 和不可变版本，记录当前服务器范围内待处理的文件版本。
@@ -92,7 +96,7 @@ Bot 需提前通过 Discord 的服务器安装流程加入目标服务器；向�
 
 后台观察或标词任务因日志等异常退出时，Console 明确报告“知识库后台已暂停”，配对的后台任务也会停止，已发布知识保留；不会在标词任务已停止时继续静默排队。修复文件/日志权限后需要停机重启，未知用量的请求不会自动重发。
 
-默认普通文本每个文件最多 8192 字节；PDF 原字节、转换输出与页数使用独立 `[pdf]` 限额。各格式合计最多 128 个文件。转换后的单知识版本仍有 360 秒、65536 输入 token、16384 输出 token 的累计标词熔断上限。某版本失败时保留原文、已知 usage 和失败原因，不自动无限重试；修改文件内容形成新 digest 后重新触发。新版本失败期间，仍有完整旧发布版本时继续使用旧版。
+默认普通文本每个文件最多 8192 字节；PDF 原字节、转换输出与页数使用独立 `[pdf]` 限额。暂存/管理区之外，各支持格式合计最多 256 个候选文件，包括尚未发布和无效候选。转换后的单知识版本仍有 360 秒、65536 输入 token、16384 输出 token 的累计标词熔断上限。某版本失败时保留原文、已知 usage 和失败原因，不自动无限重试；修改文件内容形成新 digest 后重新触发。新版本失败期间，仍有完整旧发布版本时继续使用旧版。
 
 0.3.0 启动时迁移已有状态：仍属于旧当前 head、归属明确、`ready` 且已有完整 active 来源的版本可直接登记为已发布版本，不重复标词；已经归档或已脱离旧 head 的证据不会重新激活。范围归属或用量无法确认的旧待处理记录会隔离并打印回执，需要用户编辑文件内容形成新 digest 后再触发。未知用量的中断版本也不自动重试，避免重启掩盖预算或重付费风险。
 

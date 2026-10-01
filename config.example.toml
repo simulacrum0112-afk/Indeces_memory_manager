@@ -3,7 +3,7 @@
 name = "Indeces"
 state_dir = "state"
 scratch_dir = "scratch"
-knowledge_dir = "knowledge"
+knowledge_dir = "knowledge" # Raw materials; Console knowledge opens this directory.
 
 [discord]
 guild_id = "" # Required: one Discord server, one bot connection.
@@ -21,7 +21,7 @@ low_watermark = 0.70
 [knowledge]
 poll_seconds = 0.5
 max_file_bytes = 8192
-max_files = 128
+max_files = 256 # Active supported files; root _staging is excluded.
 chunk_characters = 400
 version_seconds = 360.0
 version_input_tokens = 65536

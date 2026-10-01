@@ -5,12 +5,15 @@ import asyncio
 from dataclasses import asdict
 import hashlib
 import json
+import os
 from pathlib import Path
+import stat
 import time
 import uuid
 
 from .contracts import GovernedError
 from .config import PdfConfig
+from .knowledge_directory import RESERVED_ROOT_DIRECTORIES, SUPPORTED_SUFFIXES
 from .context import encode
 from . import pdf_import
 from .prompts import LABEL, LABEL_SCHEMA
@@ -232,13 +235,37 @@ class KnowledgeService:
 
     def _scan_files(self):
         files = []
-        for path in self.root.rglob("*"):
-            if path.suffix.lower() in {".md", ".markdown", ".txt", ".pdf"} and path.is_file():
-                files.append(path)
-                # One extra path is enough to prove overflow; do not collect
-                # an unbounded directory listing before applying the limit.
-                if len(files) > self.config.knowledge.max_files:
-                    break
+        def scan_failed(error):
+            # An incomplete census must not look like source deletion. Keep
+            # the previous published snapshots until a complete scan succeeds.
+            raise GovernedError("knowledge_directory_scan_failed") from None
+
+        for directory, subdirectories, names in os.walk(self.root, topdown=True, followlinks=False,
+                                                       onerror=scan_failed):
+            parent = Path(directory)
+            # Prune storage/management roots before descent, so a large staging
+            # collection is not enumerated on every passive scan. Nested names
+            # remain ordinary source folders. Never traverse directory aliases.
+            subdirectories[:] = [name for name in subdirectories
+                                 if not (parent == self.root and name.casefold() in RESERVED_ROOT_DIRECTORIES)
+                                 and not (parent / name).is_symlink()
+                                 and not (parent / name).is_junction()]
+            for name in names:
+                path = parent / name
+                if path.suffix.lower() not in SUPPORTED_SUFFIXES:
+                    continue
+                try:
+                    info = path.lstat()
+                except FileNotFoundError:
+                    continue
+                if (stat.S_ISREG(info.st_mode) and not path.is_symlink()
+                        and not (getattr(info, "st_file_attributes", 0)
+                                 & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))):
+                    files.append(path)
+                    # One extra candidate proves overflow; do not read contents
+                    # or silently truncate the eligible knowledge scope.
+                    if len(files) > self.config.knowledge.max_files:
+                        return sorted(files)
         return sorted(files)
 
     def _check_file_count(self, files):
@@ -572,6 +599,7 @@ class KnowledgeService:
                         # next file; only the database retains prior versions.
                         del snapshot
                 self.scan_once(prepared=("end", seen))
+                self._errors.pop("<scan>", None)
             except Exception as error:
                 code = error.code if isinstance(error, GovernedError) else type(error).__name__
                 if self._errors.get("<scan>") != code:
