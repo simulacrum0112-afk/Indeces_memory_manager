@@ -1,4 +1,4 @@
-# 交付状态：0.6.1
+# 交付状态：0.7.0
 
 截至用户时区日期 2026-09-30，本体已在 `D:\Indeces` 实现。GitHub 私有仓库为 [Indeces_memory_manager](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。源码提交/推送结果由交付消息及 Git 历史确认；创建仓库本身不代表服务已启动。
 
@@ -11,6 +11,8 @@ Bot token 在 Windows 使用当前用户 DPAPI 加密，带应用 entropy、版�
 默认智能体称呼为 **Indeces**，项目/包名保留原名。新增人设用于长期记忆测试：自然简短对话，区分短期上下文、摘要与有来源的长期召回，引用实际提供的来源，不编造记忆、图指标或有效性结论。没有引入模型并发、额外工具或自动评测能力；图公式、阶段预算、聊天标词关闭和本地知识更新的被动标词策略保持既有基线。
 
 0.6.1 将当前 Console、向导、人设、观察页面与文档名称统一为 Indeces。旧产品名配置在加载时映射到新名称，不重写私有配置；自身词过滤接受新旧名字，构造图时仅重建含自身词的静态/支持缓存，保留来源记录、动态权重、事件和不可变审计。保留旧进程互斥协议标识与 DPAPI 固定标识，历史验证文件不追改。scratch 说明页仅在逐字节匹配完整旧固定模板时迁移，用户内容保留。没有启动 Bot 或扩展之前暂停的功能工作。
+
+0.7.0 增加用户要求的 `knowledge/` 原生 PDF 自动入库：冻结原 PDF 字节/digest，独立本机进程转换带物理页号的 Markdown，再按原400字符块策略被动标词；整篇完成后原子切换，等待/失败期间保留旧发布快照。转换有独立输入字节/页数/输出/30秒限额，模型预算/请求槽与图规则未扩大。原 PDF 与转换历史持久保存在SQLite，审阅稿在state/pdf_markdown，不回写knowledge或自动上传。scratch冻结转换版本和所有相等块的物理页位置，不存PDF二进制；观察页可有界核验归档字节hash。OCR关闭，复杂版式和科学内容提取未经真实论文验收。详见 [PDF_IMPORT.md](PDF_IMPORT.md)。
 
 0.3.0 已有知识路径：持续观察本地 Markdown/UTF-8 文本，保持默认 0.5 秒轮询与被动后台标词。Console 增加排队、开始、逐块进度、完成/失败回执，显示版本/来源 ID、digest、当前可检索的发布版本；进度显示已标注/总块数，结束回执显示已知 usage/耗时。未知远端计量在 scratch 明确标记，完整证据仍需查 scratch。聊天标词和聊天自动入库继续关闭，标签只附于原文，不由模型改写知识内容。
 
@@ -28,6 +30,7 @@ Console `scratch` 校验外层结构/hash 与新每轮记录合同，分别报�
 
 - 0.6.0 本机完整离线测试：Windows/CPython 3.12.14，**387 tests / 0 failures / 7 skips**，20.850 秒。新增数据读取 28、服务 10、HTTP 路由 14、独立 HTTP 复审 6、scratch 并发 18、前端 Node 合约包装 1 项；7 项跳过为平台/本机符号链接权限相关。配置/导入、`pip check`、Console 退出与非 editable wheel 三个网页资源打包检查通过，记录见 [verification/OFFLINE_060.json](../verification/OFFLINE_060.json)。浏览器用临时合成图/版本/trace 确认搜索、分层、缩放、拖动、来源与逐步权重曲线、引用记录和安全文本渲染，390px 窄屏容器/SVG 边界复查通过，无页面错误。真实 Windows 线程/子进程/大小写路径别名/观察进程中断与超时测试确认读取不会阻碍原清理替换。没有读取或裁剪实际运行记录，没有模型或 Discord 连接；精确提交远端 CI 由交付消息核对。
 - 0.6.1 本机完整离线测试：Windows/CPython 3.12.14，**404 tests / 0 failures / 7 skips**，23.906 秒。新增 12 项名称/旧缓存/凭据/跨版本 mutex 兼容测试和 5 项固定说明模板迁移测试。配置/导入、`pip check`、Console 新名称与正常退出、wheel 新名称和网页/identity 资源打包检查通过，记录见 [verification/OFFLINE_061.json](../verification/OFFLINE_061.json)。仅本机固定 scratch 说明页迁移，没有读取或裁剪真实 JSONL/数据库，没有真实模型或 Discord 调用。
+- 0.7.0 本机完整离线测试：Windows/CPython 3.12.14，**463 tests / 0 failures / 7 skips**，27.733 秒。新增 PDF 解析/限额/进程回收 15、知识生命周期 26、来源与观察核验 18 项。配置/依赖导入、`pip check`、Console退出和非editable wheel独立进程转换均通过，见 [verification/OFFLINE_070.json](../verification/OFFLINE_070.json)。原创合成双栏/表格两页PDF经Poppler渲染逐页查看，提取保留字面值、页边界及hash；没有重建表格结构。复审修复了重复取消打断子进程回收、错误worker字段类型/过深JSON逃逸固定错误分类两处问题。没有读取真实论文、运行状态或scratch，没有真实模型/Discord调用；精确提交CI以交付消息链接为准。
 - 0.5.0 本机完整离线测试：Windows/CPython 3.12.14，**310 tests / 0 failures / 4 skips**，12.959 秒；scratch 45（原 19 + 新增 26）、跨窗口运行记录 15、服务维护 13 项。4 项跳过为当前 Windows 平台/符号链接权限相关用例。配置/导入、`pip check`、Console 退出烟雾与最终 Console checkpoint 显示回归通过，记录见 [verification/OFFLINE_050.json](../verification/OFFLINE_050.json)。只用临时合成数据，没有读取或清理实际 scratch，也未连接模型/Discord；远端 CI 以本版精确提交为准。
 - 0.4.0 历史本机完整离线测试：Windows/CPython 3.12.14，**256 tests / 0 failures / 2 skips**，8.255 秒；运行记录 33、Hebbian memory 27、scratch 19、审计故障边界 5 项。配置/导入、`pip check` 与 Console 退出烟雾检查通过，记录见 [verification/OFFLINE_040.json](../verification/OFFLINE_040.json)。精确提交 `e1cc53573ca631f5087ea7aad2de8ff165fcfdcd` 的 [main CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36782658061) 和 [v0.4.0 tag CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36782658922) 四个 job 均通过：Windows 256 项/0 失败/1 跳过，Ubuntu 256 项/0 失败/2 跳过，四个 CLI 检查通过。没有真实模型/Discord 验收。
 - 0.3.0 历史本机完整离线测试：Windows/CPython 3.12.14，**193 tests / 0 failures / 2 skips**，5.419 秒；知识生命周期 52 项（原 23 + 新增 29），人设 7 项。配置/导入、`pip check` 和 Console 退出烟雾检查通过；记录见 [verification/OFFLINE_030.json](../verification/OFFLINE_030.json)。精确提交 `96e3a56d0096c0a9d97a0afc7e5f635d5eb69af8` 的 [main CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36779788040) 与 [v0.3.0 tag CI](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36779788302) 四个 job 均通过：Windows 193 项/0 失败/1 跳过，Ubuntu 193 项/0 失败/2 跳过，CLI 配置/导入检查均通过。

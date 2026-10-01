@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 from pathlib import Path
 import tomllib
@@ -66,6 +66,25 @@ class KnowledgeConfig:
 
 
 @dataclass(frozen=True)
+class PdfConfig:
+    """Local conversion limits; they do not borrow a model stage's budget."""
+    max_file_bytes: int = 16 * 1024 * 1024
+    max_pages: int = 200
+    max_markdown_bytes: int = 512 * 1024
+    seconds: float = 30.0
+
+    def __post_init__(self):
+        for value, lower, upper in ((self.max_file_bytes, 1024, 128 * 1024 * 1024),
+                                    (self.max_pages, 1, 2000),
+                                    (self.max_markdown_bytes, 1024, 4 * 1024 * 1024)):
+            if type(value) is not int or not lower <= value <= upper:
+                raise ValueError("invalid PDF conversion bound")
+        if (type(self.seconds) not in (int, float) or not math.isfinite(self.seconds)
+                or not 0 < self.seconds <= 300):
+            raise ValueError("invalid PDF conversion deadline")
+
+
+@dataclass(frozen=True)
 class Config:
     name: str
     state_dir: Path
@@ -75,6 +94,7 @@ class Config:
     runtime: RuntimeConfig
     adapter: AdapterConfig
     knowledge: KnowledgeConfig
+    pdf: PdfConfig = field(default_factory=PdfConfig)
 
 
 def _keys(data, allowed):
@@ -94,15 +114,17 @@ def load_config(path: Path) -> Config:
     path = path.resolve()
     with path.open("rb") as stream:
         raw = tomllib.load(stream)
-    _keys(raw, {"name", "state_dir", "scratch_dir", "knowledge_dir", "discord", "runtime", "adapter", "knowledge"})
+    _keys(raw, {"name", "state_dir", "scratch_dir", "knowledge_dir", "discord", "runtime", "adapter", "knowledge", "pdf"})
     d = raw["discord"]
     r = raw.get("runtime", {})
     a = raw["adapter"]
     k = raw.get("knowledge", {})
+    p = raw.get("pdf", {})
     _keys(d, {"guild_id", "channel_ids", "queue_capacity", "delivery_seconds"})
     _keys(r, RuntimeConfig.__dataclass_fields__)
     _keys(a, AdapterConfig.__dataclass_fields__)
     _keys(k, KnowledgeConfig.__dataclass_fields__)
+    _keys(p, PdfConfig.__dataclass_fields__)
     if not isinstance(d.get("guild_id"), str):
         raise ValueError("guild_id must be a numeric string")
     guild_id = snowflake(d["guild_id"]) if d["guild_id"] else ""
@@ -112,6 +134,7 @@ def load_config(path: Path) -> Config:
     dc = DiscordConfig(**{**d, "guild_id": guild_id, "channel_ids": tuple(snowflake(x) for x in channels)})
     rc = RuntimeConfig(**r)
     kc = KnowledgeConfig(**k)
+    pc = PdfConfig(**p)
     if type(dc.queue_capacity) is not int or not 1 <= dc.queue_capacity <= 256:
         raise ValueError("invalid queue capacity")
     for seconds in (dc.delivery_seconds, rc.turn_seconds, rc.queue_wait_seconds, rc.local_seconds, a.get("cooldown_seconds", 30)):
@@ -144,4 +167,4 @@ def load_config(path: Path) -> Config:
     def directory(key):
         value = Path(raw.get(key, key.removesuffix("_dir")))
         return (path.parent / value).resolve()
-    return Config(name, directory("state_dir"), directory("scratch_dir"), directory("knowledge_dir"), dc, rc, ac, kc)
+    return Config(name, directory("state_dir"), directory("scratch_dir"), directory("knowledge_dir"), dc, rc, ac, kc, pc)

@@ -13,7 +13,7 @@ import sys
 
 from . import __version__
 from .adapter import OpenAIAdapter
-from .config import load_config
+from .config import PdfConfig, load_config
 from .credentials import CredentialError, load_discord_token, prompt_secret, secret_path, validate_token
 from .discord_bridge import DiscordBridge
 from .discord_wizard import configure_discord
@@ -77,10 +77,12 @@ async def serve(config, key, token):
         scratch.write("service_start", version=__version__, guild_id=config.discord.guild_id,
                       stage_budgets={k: asdict(v) for k, v in config.adapter.budgets.items()},
                       knowledge_limits=asdict(config.knowledge), model_concurrency=1, chat_labelling=False,
+                      pdf_limits=asdict(getattr(config, "pdf", PdfConfig())), pdf_model_calls=0,
                       scratch_retention_seconds=RETENTION_SECONDS,
                       scratch_maintenance_seconds=RETENTION_MAINTENANCE_SECONDS)
         print(f"{config.name} {__version__}: one Discord connection; model={config.adapter.model}; scratch={scratch.path}")
-        print("Knowledge file updates trigger background labels. Chat labelling is closed. Ctrl+C stops the service.")
+        print("Knowledge PDF updates trigger local Markdown conversion, then background labels. Chat labelling is closed. Ctrl+C stops the service.")
+        print("PDF text extraction has physical page provenance; OCR is closed and academic layout is not verified.")
         print("Scratch retains a rolling 24-hour window; cleanup runs at startup and every 60 seconds while the service runs.")
         try:
             prepare_scratch_directory(config.scratch_dir)
@@ -175,6 +177,10 @@ def status(config, config_path=None):
     if config_path is not None:
         print(f"Saved Discord credential file: {'present (checked at start)' if secret_path(config_path).exists() else 'absent'}")
     print("Chat labelling: CLOSED; passive knowledge-update labelling: ENABLED while service runs")
+    pdf = getattr(config, "pdf", PdfConfig())
+    print(f"PDF -> Markdown: local worker; bytes={pdf.max_file_bytes}; pages={pdf.max_pages}; "
+          f"Markdown bytes={pdf.max_markdown_bytes}; seconds={pdf.seconds}; model calls=0; OCR=CLOSED")
+    print(f"Converted Markdown review files: {config.state_dir / 'pdf_markdown'}")
     for stage, budget in config.adapter.budgets.items():
         print(f"  {stage}: in={budget.input_tokens}, out={budget.output_tokens}, seconds={budget.seconds}, effort={budget.reasoning}")
     database = config.state_dir / "memory.sqlite3"
@@ -252,7 +258,12 @@ def main():
             path = args.config if args.config.exists() else Path(__file__).resolve().parent.parent / "config.example.toml"
             config = load_config(path)
             import discord
-            print(f"Offline configuration/import check OK; {config.name} {__version__}; discord.py {discord.__version__}.")
+            import pypdf
+            from .pdf_import import EXTRACTOR_VERSION
+            if pypdf.__version__ != EXTRACTOR_VERSION:
+                raise ValueError("PDF extractor version mismatch; reinstall requirements.lock")
+            print(f"Offline configuration/import check OK; {config.name} {__version__}; "
+                  f"discord.py {discord.__version__}; pypdf {pypdf.__version__}.")
             print("Live Discord and model calls were not made.")
             return
         if not args.config.exists():

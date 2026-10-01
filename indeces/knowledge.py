@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import asdict
 import hashlib
 import json
 from pathlib import Path
@@ -9,7 +10,9 @@ import time
 import uuid
 
 from .contracts import GovernedError
+from .config import PdfConfig
 from .context import encode
+from . import pdf_import
 from .prompts import LABEL, LABEL_SCHEMA
 from .runtime import label_data
 
@@ -21,6 +24,9 @@ class KnowledgeService:
         self.root = config.knowledge_dir
         self.root.mkdir(parents=True, exist_ok=True)
         self._wake = asyncio.Event()
+        self._convert_wake = asyncio.Event()
+        self._convert_serial = asyncio.Lock()
+        self.pdf_limits = getattr(config, "pdf", None) or PdfConfig()
         self._tasks = []
         self._errors = {}
         self._closing = False
@@ -49,6 +55,9 @@ class KnowledgeService:
                 source_id TEXT NOT NULL, PRIMARY KEY(scope,path));
             CREATE TABLE IF NOT EXISTS knowledge_schema_meta (
                 key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS knowledge_pdf_versions (
+                source_id TEXT PRIMARY KEY, pdf_bytes BLOB NOT NULL,
+                metadata_json TEXT, markdown_path TEXT);
         """)
         if "scope" not in {r[1] for r in store.db.execute("PRAGMA table_info(knowledge_versions)")}:
             store.db.execute("ALTER TABLE knowledge_versions ADD COLUMN scope TEXT NOT NULL DEFAULT ''")
@@ -107,19 +116,28 @@ class KnowledgeService:
             print(f"[{self.config.name}] 知识迁移需更新文件内容：{path} | version={source_id} | {reason}；旧请求不会自动重发。", flush=True)
 
     def _snapshot_file(self, path):
-        if path.is_symlink() or not path.resolve().is_relative_to(self.root.resolve()):
+        if (path.is_symlink() or path.is_junction()
+                or not path.resolve().is_relative_to(self.root.resolve())):
             raise GovernedError("knowledge_path_outside_root")
+        for parent in path.parents:
+            if parent == self.root:
+                break
+            if parent.is_symlink() or parent.is_junction():
+                raise GovernedError("knowledge_path_outside_root")
+        limit = self.pdf_limits.max_file_bytes if path.suffix.lower() == ".pdf" else self.config.knowledge.max_file_bytes
         before = path.stat()
-        if before.st_size > self.config.knowledge.max_file_bytes:
+        if before.st_size > limit:
             raise GovernedError("knowledge_file_size_limit")
         with path.open("rb") as stream:
-            raw = stream.read(self.config.knowledge.max_file_bytes + 1)
+            raw = stream.read(limit + 1)
         after = path.stat()
-        if (before.st_mtime_ns, before.st_size) != (after.st_mtime_ns, after.st_size):
+        if (before.st_dev, before.st_ino, before.st_mtime_ns, before.st_size) != (after.st_dev, after.st_ino, after.st_mtime_ns, after.st_size):
             return None
-        if len(raw) > self.config.knowledge.max_file_bytes:
+        if len(raw) > limit:
             raise GovernedError("knowledge_file_size_limit")
-        return raw.decode("utf-8-sig"), hashlib.sha256(raw).hexdigest()
+        if path.suffix.lower() == ".pdf" and not raw:
+            raise GovernedError("knowledge_pdf_empty")
+        return (raw if path.suffix.lower() == ".pdf" else raw.decode("utf-8-sig")), hashlib.sha256(raw).hexdigest()
 
     def _complete_empty(self, version):
         started = time.monotonic()
@@ -180,6 +198,17 @@ class KnowledgeService:
         detail = " | ".join(f"{k}={v}" for k, v in fields.items())
         print(f"[{self.config.name}] {titles[event]}：{version['path']} | version={version['source_id']} | digest={version['digest']} | 回复版本={current or '无已完成版本'} | {detail}", flush=True)
 
+    def _conversion_receipt(self, event, version, **fields):
+        current = self._published(version["path"])
+        self.scratch.write("knowledge_pdf_receipt", receipt=event, scope=self.scope,
+                           path=version["path"], source_id=version["source_id"], digest=version["digest"],
+                           reply_source_id=current, **fields)
+        titles = {"queued": "PDF 更新已接收，等待后台转换", "started": "PDF 后台转换开始",
+                  "converted": "PDF 转换完成，等待被动标词", "failed": "PDF 转换未完成，已发布版本保留",
+                  "cancelled": "PDF 转换已中断，已发布版本保留"}
+        detail = " | ".join(f"{k}={v}" for k, v in fields.items())
+        print(f"[{self.config.name}] {titles[event]}：{version['path']} | version={version['source_id']} | digest={version['digest']} | 回复版本={current or '无已完成版本'} | {detail}", flush=True)
+
     def _supersede_desired(self, path):
         row = self.store.db.execute("SELECT source_id FROM knowledge_desired WHERE scope=? AND path=?", (self.scope, path)).fetchone()
         if row and row[0] != self._published(path):
@@ -201,13 +230,18 @@ class KnowledgeService:
         self.scratch.write("knowledge_retired", scope=self.scope, path=path, source_ids=[r[0] for r in rows], archived_records=archived, reason=reason)
         print(f"[{self.config.name}] 知识来源已撤下：{path} | reason={reason} | archived={archived}；不再用于回复。", flush=True)
 
-    def scan_once(self):
-        """Detect stable UTF-8 snapshots, then durably queue the changed version.
+    def _scan_files(self):
+        files = []
+        for path in self.root.rglob("*"):
+            if path.suffix.lower() in {".md", ".markdown", ".txt", ".pdf"} and path.is_file():
+                files.append(path)
+                # One extra path is enough to prove overflow; do not collect
+                # an unbounded directory listing before applying the limit.
+                if len(files) > self.config.knowledge.max_files:
+                    break
+        return sorted(files)
 
-        Poll latency is bounded by poll_seconds while the event loop is available.
-        File changes during a read are deferred to the next poll.
-        """
-        files = sorted(p for p in self.root.rglob("*") if p.suffix.lower() in {".md", ".markdown", ".txt"} and p.is_file())
+    def _check_file_count(self, files):
         if len(files) > self.config.knowledge.max_files:
             # A failed global scan cannot keep old, possibly changed/deleted
             # sources silently eligible. Preserve them as archived versions.
@@ -218,52 +252,97 @@ class KnowledgeService:
                 self.scratch.write("knowledge_scope_suspended", scope=self.scope,
                                    reason="knowledge_file_count_limit", retired_heads=len(heads))
             raise GovernedError("knowledge_file_count_limit")
-        seen = set()
-        for path in files:
-            relative = path.relative_to(self.root).as_posix()
-            seen.add(relative)
-            try:
-                snapshot = self._snapshot_file(path)
-            except (OSError, UnicodeError, GovernedError) as error:
-                code = error.code if isinstance(error, GovernedError) else type(error).__name__
-                self._retire(relative, code)
-                if self._errors.get(relative) != code:
-                    self.scratch.write("knowledge_update_rejected", path=relative, code=code)
-                    print(f"[{self.config.name}] knowledge rejected: {relative}; {code}", flush=True)
-                    self._errors[relative] = code
-                continue
-            if snapshot is None:
-                continue
-            text, digest = snapshot
-            head = self.store.db.execute("SELECT v.digest FROM knowledge_desired h JOIN knowledge_versions v ON v.source_id=h.source_id WHERE h.scope=? AND h.path=?", (self.scope, relative)).fetchone()
-            if head and head[0] == digest:
-                continue
-            hold = self.store.db.execute("SELECT digest FROM knowledge_migration_hold WHERE scope=? AND path=?", (self.scope, relative)).fetchone()
-            if hold and hold[0] == digest:
-                continue
-            source_id = "kb:" + uuid.uuid4().hex
-            width = self.config.knowledge.chunk_characters
-            chunks = [(i // width, text[i:i + width], i) for i in range(0, len(text), width) if text[i:i + width].strip()]
-            with self.store.db:
-                self._supersede_desired(relative)
-                self.store.db.execute("INSERT INTO knowledge_versions(source_id,path,digest,raw_text,status,created_at,scope) VALUES(?,?,?,?,?,?,?)",
-                    (source_id, relative, digest, text, "pending", time.time(), self.scope))
-                self.store.db.execute("INSERT INTO knowledge_desired VALUES(?,?,?) ON CONFLICT(scope,path) DO UPDATE SET source_id=excluded.source_id", (self.scope, relative, source_id))
-                self.store.db.execute("DELETE FROM knowledge_migration_hold WHERE scope=? AND path=?", (self.scope, relative))
-                self.store.db.executemany("INSERT INTO knowledge_chunks(source_id,chunk_index,text,start_character) VALUES(?,?,?,?)",
-                    [(source_id, i, chunk, start) for i, chunk, start in chunks])
+    def _apply_snapshot(self, path, snapshot, error=None):
+        relative = path.relative_to(self.root).as_posix()
+        if error is not None:
+            code = error.code if isinstance(error, GovernedError) else type(error).__name__
+            self._retire(relative, code)
+            if self._errors.get(relative) != code:
+                self.scratch.write("knowledge_update_rejected", path=relative, code=code)
+                print(f"[{self.config.name}] knowledge rejected: {relative}; {code}", flush=True)
+                self._errors[relative] = code
+            return
+        if snapshot is None:
+            return
+        content, digest = snapshot
+        head = self.store.db.execute("SELECT v.digest FROM knowledge_desired h JOIN knowledge_versions v ON v.source_id=h.source_id WHERE h.scope=? AND h.path=?", (self.scope, relative)).fetchone()
+        if head and head[0] == digest:
+            return
+        hold = self.store.db.execute("SELECT digest FROM knowledge_migration_hold WHERE scope=? AND path=?", (self.scope, relative)).fetchone()
+        if hold and hold[0] == digest:
+            return
+        is_pdf = path.suffix.lower() == ".pdf"
+        text = "" if is_pdf else content
+        source_id = "kb:" + uuid.uuid4().hex
+        chunks = [] if is_pdf else self._chunks(text)
+        with self.store.db:
+            self._supersede_desired(relative)
+            self.store.db.execute("INSERT INTO knowledge_versions(source_id,path,digest,raw_text,status,created_at,scope) VALUES(?,?,?,?,?,?,?)",
+                (source_id, relative, digest, text, "converting" if is_pdf else "pending", time.time(), self.scope))
+            self.store.db.execute("INSERT INTO knowledge_desired VALUES(?,?,?) ON CONFLICT(scope,path) DO UPDATE SET source_id=excluded.source_id", (self.scope, relative, source_id))
+            self.store.db.execute("DELETE FROM knowledge_migration_hold WHERE scope=? AND path=?", (self.scope, relative))
+            if is_pdf:
+                self.store.db.execute("INSERT INTO knowledge_pdf_versions(source_id,pdf_bytes) VALUES(?,?)", (source_id, content))
+            else:
+                self._insert_chunks(source_id, chunks)
+        self._errors.pop(relative, None)
+        self.scratch.write("knowledge_update", source_id=source_id, path=relative, digest=digest,
+                           raw_text=text, chunk_count=len(chunks), scope=self.scope,
+                           source_format="pdf" if is_pdf else "text")
+        version = {"path": relative, "source_id": source_id, "digest": digest}
+        if is_pdf:
+            self._convert_wake.set()
+            self._conversion_receipt("queued", version, original_bytes=len(content))
+        else:
             self._wake.set()
-            self._errors.pop(relative, None)
-            self.scratch.write("knowledge_update", source_id=source_id, path=relative, digest=digest,
-                               raw_text=text, chunk_count=len(chunks), scope=self.scope)
-            version = {"path": relative, "source_id": source_id, "digest": digest}
             self._receipt("queued", version, chunks=len(chunks))
             if not chunks:
                 self._complete_empty(version)
+
+    def _chunks(self, text):
+        width = self.config.knowledge.chunk_characters
+        return [(i // width, text[i:i + width], i) for i in range(0, len(text), width) if text[i:i + width].strip()]
+
+    def _insert_chunks(self, source_id, chunks):
+        self.store.db.executemany("INSERT INTO knowledge_chunks(source_id,chunk_index,text,start_character) VALUES(?,?,?,?)",
+                                 [(source_id, i, chunk, start) for i, chunk, start in chunks])
+
+    def _retire_missing(self, seen):
         heads = self.store.db.execute("SELECT path FROM knowledge_desired WHERE scope=? UNION SELECT path FROM knowledge_published WHERE scope=? UNION SELECT path FROM knowledge_migration_hold WHERE scope=?", (self.scope, self.scope, self.scope)).fetchall()
         for head in heads:
             if head[0] not in seen:
                 self._retire(head[0], "source_file_removed")
+
+    def scan_once(self, *, prepared=None):
+        """Queue stable source snapshots; direct callers run synchronously.
+
+        The watcher supplies one prepared file at a time so filesystem reads
+        happen in a thread while all SQLite mutations remain on its owner loop.
+        No prepared batch retains more than one original PDF in memory.
+        """
+        if prepared is not None:
+            action, value = prepared
+            if action == "begin":
+                self._check_file_count(value)
+            elif action == "file":
+                self._apply_snapshot(*value)
+            elif action == "end":
+                self._retire_missing(value)
+            else:
+                raise ValueError("invalid prepared knowledge scan")
+            return
+        files = self._scan_files()
+        self._check_file_count(files)
+        seen = set()
+        for path in files:
+            seen.add(path.relative_to(self.root).as_posix())
+            try:
+                snapshot = self._snapshot_file(path)
+            except (OSError, UnicodeError, GovernedError) as error:
+                self._apply_snapshot(path, None, error)
+            else:
+                self._apply_snapshot(path, snapshot)
+        self._retire_missing(seen)
 
     def _is_current(self, source_id):
         row = self.store.db.execute("SELECT v.path,v.digest FROM knowledge_desired h JOIN knowledge_versions v ON v.source_id=h.source_id WHERE h.scope=? AND h.source_id=? AND v.scope=?", (self.scope, source_id, self.scope)).fetchone()
@@ -271,15 +350,102 @@ class KnowledgeService:
             return False
         path = self.root / row[0]
         try:
-            if path.is_symlink() or not path.resolve().is_relative_to(self.root.resolve()):
-                return False
-            before = path.stat()
-            with path.open("rb") as stream:
-                raw = stream.read(self.config.knowledge.max_file_bytes + 1)
-            after = path.stat()
-            return (before.st_mtime_ns, before.st_size) == (after.st_mtime_ns, after.st_size) and hashlib.sha256(raw).hexdigest() == row[1]
-        except OSError:
+            snapshot = self._snapshot_file(path)
+            return snapshot is not None and snapshot[1] == row[1]
+        except (OSError, UnicodeError, GovernedError):
             return False
+
+    def _state_directory(self):
+        configured = getattr(self.config, "state_dir", None)
+        if configured is not None:
+            return Path(configured)
+        filename = next(row[2] for row in self.store.db.execute("PRAGMA database_list") if row[1] == "main")
+        if not filename:
+            raise GovernedError("pdf_export_state_unavailable")
+        return Path(filename).parent
+
+    async def convert_next(self) -> bool:
+        """Convert one frozen PDF without taking the model adaptor's slot."""
+        async with self._convert_serial:
+            row = self.store.db.execute("""SELECT v.*,length(p.pdf_bytes) AS pdf_bytes_length,
+                substr(p.pdf_bytes,1,?) AS pdf_bytes FROM knowledge_versions v
+                JOIN knowledge_pdf_versions p ON p.source_id=v.source_id
+                JOIN knowledge_desired h ON h.source_id=v.source_id
+                WHERE h.scope=? AND v.scope=? AND v.status='converting'
+                ORDER BY v.created_at LIMIT 1""", (self.pdf_limits.max_file_bytes + 1, self.scope, self.scope)).fetchone()
+            if row is None:
+                return False
+            version = dict(row)
+            source_id = version["source_id"]
+            started = time.monotonic()
+            self._conversion_receipt("started", version, original_bytes=version["pdf_bytes_length"],
+                                     budget=asdict(self.pdf_limits), model_requests=0, input_tokens=0, output_tokens=0)
+            try:
+                if not self._is_current(source_id):
+                    raise GovernedError("knowledge_version_superseded")
+                raw = version.pop("pdf_bytes")
+                if (version["pdf_bytes_length"] > self.pdf_limits.max_file_bytes
+                        or hashlib.sha256(raw).hexdigest() != version["digest"]):
+                    raise GovernedError("pdf_frozen_snapshot_invalid")
+                async with asyncio.timeout(self.pdf_limits.seconds):
+                    result = await pdf_import.convert_pdf(raw, self.pdf_limits)
+                markdown, metadata = result["markdown"], result["metadata"]
+                if len(markdown.encode("utf-8")) > self.pdf_limits.max_markdown_bytes:
+                    raise GovernedError("pdf_output_limit")
+                pdf_import.validate_conversion(markdown, metadata, pdf_digest=version["digest"])
+                if metadata["page_count"] > self.pdf_limits.max_pages:
+                    raise GovernedError("pdf_page_limit")
+                if time.monotonic() - started >= self.pdf_limits.seconds:
+                    raise GovernedError("pdf_time_limit")
+                if not self._is_current(source_id):
+                    raise GovernedError("knowledge_version_superseded")
+                state_directory = self._state_directory()
+                if (state_directory / "pdf_markdown").resolve().is_relative_to(self.root.resolve()):
+                    raise GovernedError("pdf_export_inside_knowledge")
+                output = pdf_import.publish_markdown(state_directory, source_id, markdown)
+                chunks = self._chunks(markdown)
+                if not chunks:
+                    raise GovernedError("pdf_needs_ocr_or_review")
+                with self.store.db:
+                    self.store.db.execute("BEGIN IMMEDIATE")
+                    if not self._is_current(source_id):
+                        raise GovernedError("knowledge_version_superseded")
+                    if time.monotonic() - started >= self.pdf_limits.seconds:
+                        raise GovernedError("pdf_time_limit")
+                    self.store.db.execute("UPDATE knowledge_pdf_versions SET metadata_json=?,markdown_path=? WHERE source_id=?",
+                                          (json.dumps(metadata, ensure_ascii=False, sort_keys=True), str(output), source_id))
+                    self.store.db.execute("UPDATE knowledge_versions SET raw_text=?,status='pending',error=NULL WHERE source_id=? AND status='converting'",
+                                          (markdown, source_id))
+                    self._insert_chunks(source_id, chunks)
+            except asyncio.CancelledError:
+                # Local conversion is safe to recover from frozen bytes after a
+                # restart. No model request has begun, so usage is still known.
+                with self.store.db:
+                    self.store.db.execute("UPDATE knowledge_versions SET error='pdf_conversion_interrupted' WHERE source_id=? AND status='converting'", (source_id,))
+                self._conversion_receipt("cancelled", version, code="pdf_conversion_interrupted",
+                                         elapsed_seconds=time.monotonic() - started, model_requests=0,
+                                         input_tokens=0, output_tokens=0)
+                raise
+            except Exception as error:
+                code = error.code if isinstance(error, GovernedError) else "pdf_time_limit" if isinstance(error, TimeoutError) else type(error).__name__
+                with self.store.db:
+                    self.store.db.execute("UPDATE knowledge_versions SET status=?,error=? WHERE source_id=? AND status='converting'",
+                                          ("superseded" if code == "knowledge_version_superseded" else "failed", code, source_id))
+                self._conversion_receipt("failed", version, code=code, elapsed_seconds=time.monotonic() - started,
+                                         model_requests=0, input_tokens=0, output_tokens=0)
+            else:
+                # Audit failures after a durable conversion are supervised as
+                # background failures, never mislabeled as parser failures.
+                self.scratch.write("knowledge_pdf_converted", scope=self.scope, source_id=source_id, path=version["path"],
+                                   digest=version["digest"], raw_text=markdown, metadata=metadata, markdown_path=str(output),
+                                   chunk_count=len(chunks), elapsed_seconds=time.monotonic() - started,
+                                   original_bytes=version["pdf_bytes_length"], markdown_bytes=len(markdown.encode("utf-8")),
+                                   budget=asdict(self.pdf_limits), model_requests=0, input_tokens=0, output_tokens=0)
+                self._conversion_receipt("converted", version, pages=metadata["page_count"], chunks=len(chunks),
+                                         markdown_path=str(output), elapsed_seconds=time.monotonic() - started,
+                                         model_requests=0, input_tokens=0, output_tokens=0)
+                self._wake.set()
+            return True
 
     def _publish(self, version, facts, deadline):
         previous = self._published(version["path"])
@@ -391,7 +557,21 @@ class KnowledgeService:
     async def _watch(self):
         while True:
             try:
-                self.scan_once()
+                files = await asyncio.to_thread(self._scan_files)
+                self.scan_once(prepared=("begin", files))
+                seen = set()
+                for path in files:
+                    seen.add(path.relative_to(self.root).as_posix())
+                    try:
+                        snapshot = await asyncio.to_thread(self._snapshot_file, path)
+                    except (OSError, UnicodeError, GovernedError) as error:
+                        self.scan_once(prepared=("file", (path, None, error)))
+                    else:
+                        self.scan_once(prepared=("file", (path, snapshot)))
+                        # Release this file's frozen bytes before reading the
+                        # next file; only the database retains prior versions.
+                        del snapshot
+                self.scan_once(prepared=("end", seen))
             except Exception as error:
                 code = error.code if isinstance(error, GovernedError) else type(error).__name__
                 if self._errors.get("<scan>") != code:
@@ -406,6 +586,13 @@ class KnowledgeService:
             if await self.label_next():
                 continue
             await self._wake.wait()
+
+    async def _convert_worker(self):
+        while True:
+            self._convert_wake.clear()
+            if await self.convert_next():
+                continue
+            await self._convert_wake.wait()
 
     def _background_done(self, task):
         if self._closing or self.background_error is not None:
@@ -431,7 +618,8 @@ class KnowledgeService:
         self._closing = False
         self.background_error = None
         self._tasks = [asyncio.create_task(self._watch(), name="indeces-knowledge-watch"),
-                       asyncio.create_task(self._label_worker(), name="indeces-passive-label")]
+                       asyncio.create_task(self._label_worker(), name="indeces-passive-label"),
+                       asyncio.create_task(self._convert_worker(), name="indeces-pdf-convert")]
         for task in self._tasks:
             task.add_done_callback(self._background_done)
 

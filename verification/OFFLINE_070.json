@@ -1,0 +1,99 @@
+{
+  "version": "0.7.0",
+  "recorded_at_utc": "2026-10-01T01:15:30.191237+00:00",
+  "python": "3.12.14",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "checks": [
+    {
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-q"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 28.406,
+      "output": "[indeces.discord_bridge] Discord connected as namespace(id=99)\n[indeces.discord_bridge] Discord connected as namespace(id=99)\n[asyncio] Executing <Task finished name='Task-557' coro=<PdfKnowledgeTests.test_ocr_encryption_timeout_and_invalid_input_fail_once_without_replacing_old() done, defined at D:\\Indeces\\tests\\test_knowledge_pdf.py:258> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.250 seconds\n[asyncio] Executing <Task finished name='Task-573' coro=<PdfKnowledgeTests.test_pdf_and_derived_markdown_do_not_use_legacy_eight_kib_text_bound() done, defined at D:\\Indeces\\tests\\test_knowledge_pdf.py:151> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.172 seconds\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=56396 running>\n[asyncio] <_WindowsSubprocessTransport pid=56396 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=22656 running>\n[asyncio] <_WindowsSubprocessTransport pid=22656 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=58316 running>\n[asyncio] <_WindowsSubprocessTransport pid=58316 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=58768 running>\n[asyncio] <_WindowsSubprocessTransport pid=58768 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=55816 running>\n[asyncio] <_WindowsSubprocessTransport pid=55816 running> exited with return code 1\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=62408 running>\n[asyncio] <_WindowsSubprocessTransport pid=62408 running> exited with return code 1\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=61936 running>\n[asyncio] <_WindowsSubprocessTransport pid=61936 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=15236 running>\n[asyncio] <_WindowsSubprocessTransport pid=15236 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=49016 running>\n[asyncio] <_WindowsSubprocessTransport pid=49016 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=59092 running>\n[asyncio] <_WindowsSubprocessTransport pid=59092 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=55840 running>\n[asyncio] <_WindowsSubprocessTransport pid=55840 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=4692 running>\n[asyncio] <_WindowsSubprocessTransport pid=4692 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=48064 running>\n[asyncio] <_WindowsSubprocessTransport pid=48064 running> exited with return code 1\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=14816 running>\n[asyncio] <_WindowsSubprocessTransport pid=14816 running> exited with return code 0\n[asyncio] Executing <Task finished name='Task-851' coro=<RetentionRecordTests.asyncSetUp() done, defined at D:\\Indeces\\tests\\test_retention_records.py:49> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.141 seconds\n----------------------------------------------------------------------\nRan 463 tests in 27.733s\n\nOK (skipped=7)"
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "check",
+        "--config",
+        "config.example.toml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.953,
+      "output": "Offline configuration/import check OK; Indeces 0.7.0; discord.py 2.7.1; pypdf 6.19.0.\nLive Discord and model calls were not made."
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "pip",
+        "check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.704,
+      "output": "No broken requirements found."
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "console",
+        "--config",
+        "config.example.toml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.281,
+      "output": "Indeces 0.7.0 console: discord | start | status | scratch | observe | logs | quit\nIndeces>"
+    }
+  ],
+  "live_model_calls": false,
+  "live_discord_connection": false,
+  "data": "Temporary original synthetic PDFs and injected model transports only; no user papers, credentials, runtime state or scratch read/pruned.",
+  "scope": "Passive native PDF to Markdown conversion, immutable source bytes and page provenance, atomic whole-paper publication. Model budgets/concurrency, chat labelling and Hebbian formulas unchanged.",
+  "pdf_pilot": {
+    "synthetic": true,
+    "physical_pages": 2,
+    "rendered_with": "Poppler 26.07.0",
+    "visually_reviewed_pages": [
+      1,
+      2
+    ],
+    "checks": [
+      "two-column literal text",
+      "table literal values without structural reconstruction",
+      "physical page boundaries",
+      "PDF and Markdown hashes"
+    ],
+    "limitations": "No real-paper quality acceptance; OCR and equation/table/figure reconstruction are not enabled."
+  },
+  "pdf_new_tests": {
+    "import_and_limits": 15,
+    "knowledge_lifecycle": 26,
+    "provenance_and_observer": 18
+  },
+  "wheel_assets": {
+    "wheel": "indeces_memory_manager-0.7.0-py3-none-any.whl",
+    "included": [
+      "indeces/pdf_import.py",
+      "indeces/web/observer.html",
+      "indeces/web/observer.css",
+      "indeces/web/observer.js"
+    ],
+    "pypdf_pinned": "6.19.0",
+    "no_runtime_data": true,
+    "isolated_wheel_pdf_worker": {
+      "exit_code": 0,
+      "output": "Non-editable wheel import and PDF worker conversion passed."
+    }
+  }
+}

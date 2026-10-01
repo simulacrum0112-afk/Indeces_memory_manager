@@ -24,6 +24,8 @@ UTC 时间须非递减；相等时间允许。时钟回拨、未来原记录、�
 
 ## 一轮回答的证据链
 
+0.7.0 的 PDF 来源额外冻结转换元数据（原 PDF/Markdown hash、提取器/策略版本、物理页区间和提取警告）。材料保留所有相等分块的位置和物理页序，并与模型输入及字面引用回执核对；重复内容不能据此声明唯一页号。PDF 原字节在版本化 SQLite 中保存，不进入 scratch，故 scratch 的 original_file_bytes_verifiable / original_pdf_bytes_verifiable 仍为 false。观察页可独立有界核对归档字节；转换一致性不证明版式、公式、表格或语义支持。
+
 | 事件 | 记录与关联 |
 |---|---|
 | `turn_start` | `trace_id`、Discord message ID、聊天 scope、knowledge scope、原始/规范化输入与本轮预算 |

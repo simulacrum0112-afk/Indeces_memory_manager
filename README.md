@@ -2,9 +2,9 @@
 
 一个名为 **Indeces** 的小型 Python 无头智能体：一个 Discord Bot 连接、一个串行消息 worker、GPT-6-Luna adaptor、本地知识库、动态 Hebbian 标注词网络，以及可检查的输入输出 scratch log。项目仓库名保留 `Indeces_memory_manager`。
 
-只处理指定服务器中人类显式 `@Bot` 的文字消息，并回复一条 Discord 消息。短期上下文按频道隔离。没有工具执行、MCP、HTTP 服务、网页搜索、日程、主动发言或多 Bot 路由。
+只处理指定服务器中人类显式 `@Bot` 的文字消息，并回复一条 Discord 消息。短期上下文按频道隔离。没有工具执行、MCP、外部聊天 API、网页搜索、日程、主动发言或多 Bot 路由；本机只读网页用于观察已有知识图和运行记录。
 
-**聊天标词和聊天自动入库关闭。** 本地 `knowledge/` 中的 Markdown/UTF-8 文本文件更新才触发后台被动标词。后台维护与回答是独立任务；当前模型传输共享一个串行请求槽，预算互不借用。
+**聊天标词和聊天自动入库关闭。** 本地 `knowledge/` 中的 PDF、Markdown/UTF-8 文本文件更新触发后台被动入库。PDF 先在本机独立进程转换为带物理页码的 Markdown，再标词；无需额外模型调用。后台维护与回答是独立任务；当前模型传输共享一个串行请求槽，预算互不借用。
 
 ```mermaid
 flowchart LR
@@ -13,7 +13,10 @@ flowchart LR
     R --> C[原文水位 / 必要时摘要]
     C --> A[回复模型调用]
     A --> O[Discord 引用回复]
-    K[knowledge 文件更新] --> V[不可变版本 / 待标词]
+    K[knowledge 文件更新] --> F{PDF?}
+    F -->|是| X[本机有界转换 / Markdown及页码]
+    X --> V[不可变版本 / 待标词]
+    F -->|否| V
     V --> L[后台被动标词 / 逐块回执]
     L --> P[全部块完成 / 原子切换已发布快照]
     P --> G[静态 NPMI + 独立动态权重]
@@ -54,13 +57,15 @@ Guild/频道设置写入 `config.local.toml`，名称同步为 `Indeces`；Bot t
 .\.venv\Scripts\python.exe -m indeces
 ```
 
-Console 命令：`discord`、`start`、`status`、`scratch`、`quit`。`start` 在前台运行；Ctrl+C 停机并返回 Console。无头启动也可用 `python -m indeces start`。`status` 是配置和持久状态快照，不保证服务当前在线。
+Console 命令：`discord`、`start`、`status`、`scratch`、`observe`、`logs`、`quit`。`start` 在前台运行；Ctrl+C 停机并返回 Console。无头启动也可用 `python -m indeces start`。`status` 是配置和持久状态快照，不保证服务当前在线。
 
 Bot 需提前通过 Discord 的服务器安装流程加入目标服务器；向导不创建或邀请 Bot。Token 来自 Developer Portal 的 Bot 页面，安装步骤见 [Discord 官方入门](https://docs.discord.com/developers/quick-start/getting-started)。Bot 需接收服务器消息事件，并具有 View Channel、Send Messages、Read Message History [频道权限](https://docs.discord.com/developers/topics/permissions#permissions-bitwise-permission-flags)；在线程中回复还需 Send Messages in Threads。显式提及应用的消息正文可使用 Message Content intent 的例外；本实现不申请该特权 intent。[Discord Gateway](https://docs.discord.com/developers/events/gateway#message-content-intent)
 
 ## Indeces 人设与记忆测试
 
 默认提示词把 Indeces 设为平静、好奇、温和且简洁的对话伙伴，使用当前用户的语言回复。目标是帮助观察 Hebbian 治理下的长期召回表现；日常交流不会自动改成测试报告。
+
+论文 PDF 可以直接放入 `knowledge/`。服务运行时会显示转换开始、转换完成、标词进度及最终发布回执。转换后的 Markdown 在 `state/pdf_markdown/<版本ID>.md`，可用编辑器审阅；自动输出不回写 `knowledge/`，避免重复索引。PDF 全篇转换及标词完成前继续使用旧发布版本，不会逐页混用。首版支持原生文字 PDF，OCR 关闭；公式、表格、图片和双栏阅读顺序未自动核验。转换预算与模型预算分别配置，详见 [PDF 入库说明](docs/PDF_IMPORT.md)。
 
 0.6.1 统一名称为 **Indeces**。已有配置中的旧产品名称在加载时自动映射为新名称，自定义名称保留；向导保存使用新名称。自身标注词过滤兼容新旧名称，只重建受影响的静态/来源支持缓存，保留原知识记录、动态权重和历史审计。旧运行记录与版本验证文件保留当时的原文；跨版本进程锁和 DPAPI 凭据继续兼容。scratch 中完整匹配旧固定模板的说明页自动更新，用户编辑过的说明保留。
 
@@ -70,11 +75,11 @@ Bot 需提前通过 Discord 的服务器安装流程加入目标服务器；向�
 
 ## 知识库与标词
 
-把 `.md`、`.markdown` 或 `.txt` 文件保存到 `knowledge/`，允许子目录。服务运行期间持续观察目录，默认每 0.5 秒检测稳定文件快照；不用每次手动触发标词。关闭服务时不观察文件，更新会在下次启动时检测。
+把 `.pdf`、`.md`、`.markdown` 或 `.txt` 文件保存到 `knowledge/`，允许子目录。服务运行期间持续观察目录，默认每 0.5 秒开始下一次检测；大文件读取可能延长整次扫描，不承诺固定检测延迟。不用每次手动触发标词。关闭服务时不观察文件，更新会在下次启动时检测。
 
 1. 保存文件原文、路径、SHA-256 和不可变版本，记录当前服务器范围内待处理的文件版本。
 2. 按最多 400 个字符分块，后台只让模型返回标注词，保持原文不变。Console 显示排队、开始、逐块进度、完成或失败回执，包含路径、版本/来源 ID、digest 和当前供新检索使用的已发布版本；进度回执显示已标注/总块数，结束回执显示已知输入/输出 token 与耗时。未知远端 usage 在 scratch 中明确标记，不能把累计已知计量当成完整账单。
-3. 文件编辑后，新版处于 `pending`、`labelling` 或 `failed` 时，已有的完整版本继续参与回答：**旧原文、旧标注词、旧来源 ID 整体保留**。新文件在首次完成前没有可供回退的已发布版本。不会把正在编辑的原文配上旧标签。
+3. 文件编辑后，新版处于 `converting`、`pending`、`labelling` 或 `failed` 时，已有的完整版本继续参与回答：**旧原文、旧标注词、旧来源 ID 整体保留**。新文件在首次完成前没有可供回退的已发布版本。不会把正在编辑的原文配上旧标签。
 4. 所有块通过标签校验、文件 digest 再次核对及预算检查后，在同一 SQLite 事务中撤回旧版记录、添加新版记录，并更新已发布指针和 `ready` 状态。失败不提前切换，也不发布部分块。
 
 每次检索使用当时已发布的完整来源快照。已取证并等待模型的回复保持自己的来源快照与 trace；文件删除或发布切换影响下一次检索，不取消已经开始的回复，也不能保证即时撤销其引用。知识库对指定服务器的允许频道共享；聊天历史仍按频道隔离。待处理版本与已发布版本均按服务器范围记录；切换 Guild 后，不把另一服务器中相同文件 digest 当作本范围已完成索引。
@@ -85,7 +90,7 @@ Bot 需提前通过 Discord 的服务器安装流程加入目标服务器；向�
 
 后台观察或标词任务因日志等异常退出时，Console 明确报告“知识库后台已暂停”，配对的后台任务也会停止，已发布知识保留；不会在标词任务已停止时继续静默排队。修复文件/日志权限后需要停机重启，未知用量的请求不会自动重发。
 
-默认每个文件最多 8192 字节、最多 128 个文件。单知识版本另有 360 秒、65536 输入 token、16384 输出 token 的累计熔断上限。某版本失败时保留原文、已知 usage 和失败原因，不自动无限重试；修改文件内容形成新 digest 后重新触发。新版本失败期间，仍有完整旧发布版本时继续使用旧版。
+默认普通文本每个文件最多 8192 字节；PDF 原字节、转换输出与页数使用独立 `[pdf]` 限额。各格式合计最多 128 个文件。转换后的单知识版本仍有 360 秒、65536 输入 token、16384 输出 token 的累计标词熔断上限。某版本失败时保留原文、已知 usage 和失败原因，不自动无限重试；修改文件内容形成新 digest 后重新触发。新版本失败期间，仍有完整旧发布版本时继续使用旧版。
 
 0.3.0 启动时迁移已有状态：仍属于旧当前 head、归属明确、`ready` 且已有完整 active 来源的版本可直接登记为已发布版本，不重复标词；已经归档或已脱离旧 head 的证据不会重新激活。范围归属或用量无法确认的旧待处理记录会隔离并打印回执，需要用户编辑文件内容形成新 digest 后再触发。未知用量的中断版本也不自动重试，避免重启掩盖预算或重付费风险。
 

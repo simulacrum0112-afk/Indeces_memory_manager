@@ -27,6 +27,14 @@ version_seconds = 360.0
 version_input_tokens = 65536
 version_output_tokens = 16384
 
+# PDF conversion is local and has its own limits. No OCR or model call.
+# These bounds do not increase the per-version labelling budgets above.
+[pdf]
+max_file_bytes = 16777216
+max_pages = 200
+max_markdown_bytes = 524288
+seconds = 30.0
+
 [adapter]
 model = "gpt-6-luna"
 base_url = "https://api.openai.com/v1"

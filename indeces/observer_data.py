@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -14,7 +15,8 @@ import sqlite3
 import time
 
 from . import scratch
-from .run_records import digest, validate_answer, validate_graph_audit, validate_retrieval
+from .run_records import (MAX_PDF_METADATA_BYTES, digest, pdf_conversion_metadata,
+                          validate_answer, validate_graph_audit, validate_retrieval)
 
 
 MAX_NODES = 500
@@ -33,6 +35,7 @@ MAX_SOURCE_CHARACTERS = 256 * 1024
 MAX_SOURCE_TEXT_BYTES = 512 * 1024
 MAX_SOURCE_CHUNKS = 512
 MAX_SOURCE_BYTES = 1024 * 1024
+MAX_PDF_ARCHIVE_BYTES = 16 * 1024 * 1024
 MAX_VERSIONS = 256
 MAX_EDGE_CONTEXT = 100
 MAX_EDGE_SOURCES = 128
@@ -357,6 +360,70 @@ def edge_details(config, a, b):
     return result
 
 
+def _source_pdf_details(db, source_id, markdown, markdown_truncated, source_digest, source_status):
+    """Check bounded archived bytes locally; the HTTP result never contains them."""
+    row = db.execute("""SELECT length(pdf_bytes) AS byte_count,typeof(pdf_bytes) AS archive_type,
+        CASE WHEN typeof(pdf_bytes)='blob' AND length(pdf_bytes)<=? THEN pdf_bytes ELSE NULL END AS archive,
+        CASE WHEN length(CAST(metadata_json AS BLOB))<=? THEN metadata_json ELSE NULL END AS metadata,
+        length(CAST(metadata_json AS BLOB)) AS metadata_bytes
+        FROM knowledge_pdf_versions WHERE source_id=?""",
+        (MAX_PDF_ARCHIVE_BYTES, MAX_PDF_METADATA_BYTES, source_id)).fetchone()
+    if row is None:
+        return None
+    result = {"pdf_conversion": None, "pdf_conversion_validation": "not_verified",
+              "pdf_archive": {"available": True, "byte_count": row["byte_count"], "sha256": None,
+                              "digest_matches_metadata": None, "digest_matches_source_version": None,
+                              "verification_status": "not_verified"},
+              "warnings": []}
+    try:
+        if row["metadata_bytes"] is None:
+            if source_status == "ready":
+                result["pdf_conversion_validation"] = "invalid_or_unavailable"
+                result["warnings"].append("published_pdf_conversion_metadata_missing")
+            else:
+                result["pdf_conversion_validation"] = "not_available_yet"
+        elif row["metadata_bytes"] > MAX_PDF_METADATA_BYTES:
+            result["pdf_conversion_validation"] = "not_verified_metadata_limit"
+            result["warnings"].append("pdf_conversion_metadata_size_limit")
+        else:
+            metadata = pdf_conversion_metadata(row["metadata"])
+            result["pdf_conversion"] = metadata
+            if metadata.get("original_pdf_sha256") != source_digest:
+                result["warnings"].append("pdf_source_version_digest_mismatch")
+            if markdown_truncated:
+                result["pdf_conversion_validation"] = "not_verified_markdown_truncated"
+                result["warnings"].append("pdf_conversion_validation_skipped_truncated_markdown")
+            else:
+                from .pdf_import import validate_conversion
+                validate_conversion(markdown, metadata, source_digest)
+                result["pdf_conversion_validation"] = "validated"
+    except (ValueError, TypeError, KeyError, OverflowError):
+        result["pdf_conversion_validation"] = "invalid_or_unavailable"
+        result["warnings"].append("pdf_conversion_metadata_invalid_or_unavailable")
+    archive = result["pdf_archive"]
+    if row["archive_type"] != "blob":
+        archive["verification_status"] = "invalid_archive_type"
+        result["warnings"].append("pdf_archive_invalid_type")
+    elif row["byte_count"] > MAX_PDF_ARCHIVE_BYTES:
+        archive["verification_status"] = "not_verified_size_limit"
+        result["warnings"].append("pdf_archive_digest_skipped_size_limit")
+    else:
+        archive["sha256"] = hashlib.sha256(row["archive"]).hexdigest()
+        archive["digest_matches_source_version"] = archive["sha256"] == source_digest
+        metadata = result["pdf_conversion"]
+        if metadata is None or not isinstance(metadata.get("original_pdf_sha256"), str):
+            archive["verification_status"] = "metadata_unavailable"
+        else:
+            archive["digest_matches_metadata"] = archive["sha256"] == metadata["original_pdf_sha256"]
+            archive["verification_status"] = "digest_matches_metadata" if archive["digest_matches_metadata"] else "digest_mismatch"
+            if not archive["digest_matches_metadata"]:
+                result["warnings"].append("pdf_archive_digest_mismatch")
+        if not archive["digest_matches_source_version"]:
+            archive["verification_status"] = "digest_mismatch"
+            result["warnings"].append("pdf_archive_source_version_digest_mismatch")
+    return result
+
+
 def source_details(config, source_id):
     result = {"source_id": source_id, "found": False, "version": None, "chunks": [],
               "active": False, "published": False, "desired": False, "truncated": False, "warnings": []}
@@ -377,12 +444,26 @@ def source_details(config, source_id):
                 result["version"]["raw_text_truncated"] = True
             result["truncated"] = result["version"]["raw_text_truncated"]
             tables = _tables(db)
+            pdf = None
+            if "knowledge_pdf_versions" in tables:
+                pdf = _source_pdf_details(db, source_id, result["version"]["raw_text"],
+                                          result["version"]["raw_text_truncated"], result["version"]["digest"], result["version"]["status"])
+                if pdf is not None:
+                    result.update({key: value for key, value in pdf.items() if key != "warnings"})
+                    result["warnings"].extend(pdf["warnings"])
+            if pdf is None and result["version"]["path"].casefold().endswith(".pdf"):
+                result.update(pdf_conversion=None, pdf_conversion_validation="invalid_or_unavailable",
+                              pdf_archive={"available": False, "byte_count": None, "sha256": None,
+                                           "digest_matches_metadata": None, "digest_matches_source_version": None,
+                                           "verification_status": "missing_archive"})
+                result["warnings"].append("pdf_archive_or_conversion_provenance_missing")
             if "knowledge_chunks" in tables:
                 chunk_count = db.execute("SELECT COUNT(*) FROM knowledge_chunks WHERE source_id=?", (source_id,)).fetchone()[0]
                 chunks = db.execute("SELECT chunk_index,substr(text,1,?) AS text,length(text) AS text_characters,start_character,marks_json FROM knowledge_chunks WHERE source_id=? ORDER BY chunk_index LIMIT ?", (MAX_SOURCE_CHARACTERS, source_id, MAX_SOURCE_CHUNKS))
                 result["truncated"] |= chunk_count > MAX_SOURCE_CHUNKS
                 result["chunk_count"] = chunk_count
-                source_bytes = len(scratch.canonical(result["version"]))
+                source_bytes = len(scratch.canonical({"version": result["version"],
+                    "pdf_conversion": result.get("pdf_conversion"), "pdf_archive": result.get("pdf_archive")}))
                 for chunk in chunks:
                     item = dict(chunk)
                     item["marks"] = _json(item.pop("marks_json"), None)

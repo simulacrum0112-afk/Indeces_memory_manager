@@ -355,6 +355,22 @@
       ["标词输入 / 输出",text(version.input_tokens??0)+" / "+text(version.output_tokens??0)+" tokens"],["标词耗时",finite(version.elapsed_seconds)?version.elapsed_seconds.toFixed(3)+" 秒":"—"]]));
     if(version.error)append(panel,warning("版本处理失败："+text(version.error),true));
     if(data.truncated)append(panel,warning("来源详情已截断，不能把当前页面视为完整原文。"));
+    if(data.pdf_archive) {
+      const pdf=object(data.pdf_conversion),archive=object(data.pdf_archive),extractor=object(pdf.extractor),provenance=section("PDF 转换来源");
+      const archiveStates={digest_matches_metadata:"归档字节 hash 与转换声明一致",digest_mismatch:"归档字节 hash 不一致",
+        not_verified_size_limit:"超过单次 16 MiB 核验上限，未读取归档字节",invalid_archive_type:"归档类型异常",missing_archive:"PDF 归档及转换来源记录缺失",metadata_unavailable:"转换声明不可用，未建立 hash 关联",not_verified:"尚未核验"};
+      const conversionStates={validated:"Markdown hash 与页范围声明一致",not_verified_markdown_truncated:"Markdown 被截断，未核验转换声明",invalid_or_unavailable:"转换声明异常或不可用",
+        not_available_yet:"转换尚未产生声明",not_verified_metadata_limit:"声明超过读取上限，未核验",not_verified:"尚未核验"};
+      append(provenance,facts([["PDF 物理页数",pdf.page_count],["提取器",text(extractor.name)+" "+text(extractor.version)],
+        ["提取模式 / 策略",text(extractor.mode)+" / "+text(extractor.policy_version)],["原 PDF SHA-256",pdf.original_pdf_sha256],
+        ["Markdown SHA-256",pdf.markdown_sha256],["转换声明核验",conversionStates[data.pdf_conversion_validation]||data.pdf_conversion_validation],
+        ["归档 PDF 大小",finite(archive.byte_count)?archive.byte_count.toLocaleString()+" bytes":"—"],
+        ["归档 PDF 字节核验",archiveStates[archive.verification_status]||archive.verification_status],
+        ["归档字节 SHA-256",archive.sha256||"未计算"]]));
+      list(pdf.warnings).forEach(value=>append(provenance,warning("提取声明："+text(value))));
+      append(provenance,el("p","","物理页序与论文印刷页码可能不同。hash 与页范围的一致性不证明双栏阅读顺序、公式、表格或纸面语义已正确还原。"));
+      append(provenance,jsonDetails(pdf,"查看冻结转换声明与页范围"));append(panel,provenance);
+    }
     const source=section("版本原文");append(source,el("pre","source-text",version.raw_text||"（空文本）"));append(panel,source);
     const chunks=section("分块与标注词");
     list(data.chunks).forEach(chunk=>{const card=el("article","material-card");append(card,el("strong","","分块 "+text(chunk.chunk_index)+" · 字符起点 "+text(chunk.start_character)),el("p","",chunk.text),tags(chunk.marks));append(chunks,card);});
@@ -417,6 +433,11 @@
         sourceButton(material.source_id),el("p","",material.stored_text),tags(material.marks));
       const source=object(object(retrieval.sources)[material.source_id]);
       append(item,facts([["冻结版本",source.path||material.source_id],["文件版本 hash",source.original_file_bytes_sha256||"无版本元数据"]]));
+      if(material.pdf_page_numbers) {
+        append(item,facts([["PDF 物理页序",list(material.pdf_page_numbers).join("、")||"没有对应页范围"],
+          ["相等分块出现次数",list(material.pdf_page_occurrences).length],["原 PDF hash 声明",object(source.pdf_conversion).original_pdf_sha256]]));
+        append(item,el("p","muted","页序来自转换时的物理页范围；相等内容可能出现多处，记录保留全部匹配。Scratch 没有 PDF 二进制，不能独立核验原 PDF 字节。"));
+      }
       append(item,jsonDetails({material,frozen_source:source},"查看本轮冻结原文与版本"));append(card,item);
     });
     append(card,el("p","muted","下方完整事件保留召回时的版本；来源按钮展示数据库中的同一版本，不代替本轮冻结证据。"));
@@ -432,6 +453,7 @@
     append(card,el("p","event-text",answer.text));
     list(answer.citations).forEach(citation=>{
       const row=el("div","citation-row",citation.marker+" · "+(citation.status==="resolved"?"字面关联已解析":"字面关联未解析")+" · 字符 "+citation.start_character+"–"+citation.end_character);
+      if(citation.pdf_page_numbers)append(row,el("p","muted","材料候选物理页序："+list(citation.pdf_page_numbers).join("、")));
       if(citation.source_id)append(row,sourceButton(citation.source_id));append(card,row);
     });
     if(!list(answer.citations).length)append(card,el("p","muted","没有字面引用标记。"));

@@ -16,6 +16,51 @@ import re
 from .scratch import canonical, read_records, retention_checkpoint
 
 
+MAX_PDF_METADATA_BYTES = 512 * 1024
+
+
+def pdf_conversion_metadata(encoded):
+    """Decode bounded provenance strictly, without reading archived PDF bytes."""
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError("duplicate PDF conversion metadata key")
+            result[key] = value
+        return result
+    try:
+        if not isinstance(encoded, str) or len(encoded.encode("utf-8")) > MAX_PDF_METADATA_BYTES:
+            raise ValueError("PDF conversion metadata is unavailable or exceeds the limit")
+        result = json.loads(encoded, object_pairs_hook=pairs,
+                            parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite PDF metadata")))
+        if not isinstance(result, dict):
+            raise ValueError("PDF conversion metadata must be an object")
+        pending = [(result, 0)]
+        while pending:
+            value, depth = pending.pop()
+            if depth > 8:
+                raise ValueError("PDF conversion metadata nesting exceeds the limit")
+            if isinstance(value, dict):
+                pending.extend((item, depth + 1) for item in value.values())
+            elif isinstance(value, list):
+                pending.extend((item, depth + 1) for item in value)
+        # Escaped lone surrogates and extreme nesting must not escape as a
+        # response serialization error, even for corrupt local metadata.
+        canonical(result)
+    except (UnicodeError, RecursionError):
+        raise ValueError("invalid PDF conversion metadata encoding or nesting") from None
+    return result
+
+
+def _pdf_occurrences(source, text):
+    from .pdf_import import page_occurrences
+    return page_occurrences(source["chunks"], text, source["pdf_conversion"])
+
+
+def _occurrence_pages(occurrences):
+    return sorted({page for occurrence in occurrences for page in occurrence["page_numbers"]})
+
+
 def digest(value):
     return hashlib.sha256(canonical(value)).hexdigest()
 
@@ -59,6 +104,15 @@ def freeze_retrieval(db, scope, event_id, query, records, graph_audit):
                                   status=version[3], created_at=version[4], scope=version[5], chunks=chunks,
                                   desired_source_id=pointer("knowledge_desired"), published_source_id=pointer("knowledge_published"),
                                   original_file_bytes_verifiable=False)
+                    if "knowledge_pdf_versions" in tables:
+                        pdf = db.execute("""SELECT CASE WHEN length(CAST(metadata_json AS BLOB))<=?
+                            THEN metadata_json ELSE NULL END FROM knowledge_pdf_versions WHERE source_id=?""",
+                            (MAX_PDF_METADATA_BYTES, source_id)).fetchone()
+                        if pdf is not None:
+                            from .pdf_import import validate_conversion
+                            metadata = pdf_conversion_metadata(pdf[0])
+                            validate_conversion(source["raw_text"], metadata, source["original_file_bytes_sha256"])
+                            source.update(pdf_conversion=metadata, original_pdf_bytes_verifiable=False)
             sources[source_id] = source
         source = sources[source_id]
         chunk_index = None
@@ -66,10 +120,15 @@ def freeze_retrieval(db, scope, event_id, query, records, graph_audit):
             matches = [c for c in source["chunks"] if c["text"] == row[0] == row[1]]
             if matches:
                 chunk_index = matches[0]["chunk_index"]
-        materials.append({"citation_id": citation_id, "record_id": record["id"], "source_id": source_id,
+        material = {"citation_id": citation_id, "record_id": record["id"], "source_id": source_id,
                           "scope": scope, "stored_text": row[0], "quote": row[1], "marks": json.loads(row[2]),
                           "fingerprint": row[3], "active_at_retrieval": bool(row[4]), "chunk_index": chunk_index,
-                          "model_payload": payload})
+                          "model_payload": payload}
+        if "pdf_conversion" in source:
+            occurrences = _pdf_occurrences(source, row[0])
+            material.update(pdf_page_occurrences=occurrences, pdf_page_numbers=_occurrence_pages(occurrences))
+            payload["pdf_page_numbers"] = deepcopy(material["pdf_page_numbers"])
+        materials.append(material)
     result = {"version": 1, "scope": scope, "event_id": event_id, "query": query,
               "model_materials": model_materials, "materials": materials, "sources": sources,
               "graph_audit": deepcopy(graph_audit), "graph_audit_sha256": digest(graph_audit)}
@@ -102,6 +161,8 @@ def answer_record(text, retrieval):
                     "paragraph": text[start:end], "status": "resolved" if material else "unresolved"}
         if material:
             citation.update(source_id=material["source_id"], record_id=material["record_id"])
+            if "pdf_page_numbers" in material:
+                citation["pdf_page_numbers"] = deepcopy(material["pdf_page_numbers"])
             cited.add(identity)
         citations.append(citation)
     return {"version": 1, "text": text, "text_sha256": text_digest(text), "citations": citations,
@@ -137,6 +198,8 @@ def validate_retrieval(record):
         _require(digest([material["stored_text"], material["quote"]]) == material["fingerprint"], "material fingerprint mismatch")
         if not source["metadata_available"]:
             _require(not material["source_id"].startswith("kb:"), "knowledge version metadata missing")
+            _require(not any(key in material for key in ("pdf_page_occurrences", "pdf_page_numbers"))
+                     and "pdf_page_numbers" not in payload, "PDF pages have no frozen conversion metadata")
             continue
         _require(source["scope"] == record["scope"] and source["status"] == "ready"
                  and source["published_source_id"] == material["source_id"], "unpublished knowledge version")
@@ -144,6 +207,25 @@ def validate_retrieval(record):
         _require(text_digest(raw) == source["normalized_text_sha256"], "normalized source digest mismatch")
         _require(bool(re.fullmatch(r"[0-9a-f]{64}", source["original_file_bytes_sha256"])), "invalid original-file digest")
         _require(source["original_file_bytes_verifiable"] is False, "original bytes not frozen")
+        _require(not source["path"].casefold().endswith(".pdf") or "pdf_conversion" in source,
+                 "PDF source lacks frozen conversion metadata")
+        if "pdf_conversion" in source:
+            from .pdf_import import validate_conversion
+            validate_conversion(raw, source["pdf_conversion"], source["original_file_bytes_sha256"])
+            _require(source.get("original_pdf_bytes_verifiable") is False, "PDF original bytes not frozen")
+            occurrences = _pdf_occurrences(source, material["stored_text"])
+            _require(bool(occurrences) and isinstance(material.get("pdf_page_occurrences"), list)
+                     and digest(material["pdf_page_occurrences"]) == digest(occurrences),
+                     "PDF material page occurrences mismatch")
+            pages = _occurrence_pages(occurrences)
+            _require(isinstance(material.get("pdf_page_numbers"), list) and isinstance(payload.get("pdf_page_numbers"), list)
+                     and digest(material["pdf_page_numbers"]) == digest(pages)
+                     and digest(payload["pdf_page_numbers"]) == digest(pages),
+                     "PDF material/model page binding mismatch")
+        else:
+            _require(not any(key in material for key in ("pdf_page_occurrences", "pdf_page_numbers"))
+                     and "pdf_page_numbers" not in payload and "original_pdf_bytes_verifiable" not in source,
+                     "PDF pages have no frozen conversion metadata")
         previous_end, previous_index = 0, -1
         for chunk in source["chunks"]:
             start, text = chunk["start_character"], chunk["text"]
