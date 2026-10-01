@@ -60,10 +60,12 @@ async def _maintain_scratch(scratch):
             raise
 
 
-async def serve(config, key, token):
+async def serve(config, key, token, *, lease=None):
     if not config.discord.guild_id:
         raise ValueError("set discord.guild_id before starting")
-    lease = InstanceLock(config.state_dir)
+    owns_lease = lease is None
+    if owns_lease:
+        lease = InstanceLock(config.state_dir)
     scratch = store = adapter = bridge = knowledge = observer = None
     maintenance_task = gateway_task = None
     try:
@@ -158,10 +160,11 @@ async def serve(config, key, token):
                 store.close()
             except BaseException as error:
                 cleanup_errors.append(error)
-        try:
-            lease.close()
-        except BaseException as error:
-            cleanup_errors.append(error)
+        if owns_lease:
+            try:
+                lease.close()
+            except BaseException as error:
+                cleanup_errors.append(error)
         if cleanup_errors:
             print("Service cleanup encountered: " + ", ".join(type(e).__name__ for e in cleanup_errors), flush=True)
             if not active_error:
@@ -217,6 +220,27 @@ def run(config, config_path=None):
         # Match the canonical location used by both setup wizards, including
         # when --config names a symlink or a parent path alias.
         config_path = Path(config_path).resolve()
+    # The lease covers hidden credential input as well as the async service,
+    # preventing setup in another Console from changing its configuration.
+    try:
+        lease = InstanceLock(config.state_dir)
+    except RuntimeError:
+        print("Startup unavailable: another instance or setup owns this state directory; no connection was made.")
+        raise
+    try:
+        _run_with_lease(config, config_path, lease)
+    finally:
+        lease.close()
+
+
+def _check_start_config(config, config_path):
+    if config_path is not None and load_config(config_path) != config:
+        print("Startup cancelled: configuration changed; start again. No connection was made.")
+        raise RuntimeError("configuration changed during startup; start again")
+
+
+def _run_with_lease(config, config_path, lease):
+    _check_start_config(config, config_path)
     try:
         token = os.environ.get("DISCORD_BOT_TOKEN")
         if not token and config_path is not None:
@@ -229,8 +253,9 @@ def run(config, config_path=None):
     except (EOFError, KeyboardInterrupt):
         print("Startup cancelled; no connection was made.")
         return
+    _check_start_config(config, config_path)
     try:
-        asyncio.run(serve(config, key, token))
+        asyncio.run(serve(config, key, token, lease=lease))
     except KeyboardInterrupt:
         print(f"{config.name} stopped.")
 
@@ -270,25 +295,44 @@ def knowledge(config, *, once=False):
     show_knowledge_progress(config, watch=not once)
 
 
-def open_knowledge_window(config_path):
-    """User-requested, independent reader; never launch or stop the service."""
+def open_command_window(command, config_path):
+    """Open a user-requested long-lived command without blocking Console input."""
+    labels = {"start": "服务入口", "observe": "只读观察", "knowledge": "知识库进度"}
+    if command not in labels:
+        raise ValueError("unsupported independent command")
+    label = labels[command]
     path = Path(config_path).resolve()
     code_root = Path(__file__).resolve().parent.parent
-    arguments = [sys.executable, "-m", "indeces", "knowledge", "--config", str(path)]
+    arguments = [sys.executable, "-m", "indeces", command, "--config", str(path)]
     if os.name != "nt":
-        print("请在另一个终端查看知识库进度：")
+        print(f"请在另一个终端运行{label}：")
         print("cd -- " + shlex.quote(str(code_root)))
         print(shlex.join(arguments))
         return
-    # A separate visible window keeps progress out of the main Console and
-    # remains available while start occupies that Console's input loop.
+    # Keep exit/error receipts visible, including duplicate-instance failures.
+    # Credentials remain hidden stdin in the child; never put them in argv.
+    arguments.append("--keep-window")
     try:
         subprocess.Popen(arguments, cwd=code_root,
                          creationflags=subprocess.CREATE_NEW_CONSOLE)
     except OSError as error:
-        print(f"知识库进度窗口未打开：{type(error).__name__}；请另开终端运行 knowledge。")
+        print(f"{label}窗口未打开：{type(error).__name__}；请另开终端运行 {command}。")
         return
-    print("知识库进度已在独立窗口打开；关闭该窗口不会停止服务。")
+    if command == "start":
+        print("服务入口已在独立窗口打开；请在该窗口查看启动结果。Ctrl+C 在服务窗口停止服务；主 Console 的 quit 不停止服务。")
+    else:
+        print(f"{label}已在独立窗口打开；关闭该窗口不会停止服务。")
+
+
+def open_knowledge_window(config_path):
+    open_command_window("knowledge", config_path)
+
+
+def _wait_for_window_close():
+    try:
+        input("此入口已结束；按 Enter 关闭窗口。")
+    except (EOFError, KeyboardInterrupt):
+        pass
 
 
 def main():
@@ -296,9 +340,12 @@ def main():
     parser.add_argument("command", nargs="?", choices=["console", "init", "discord", "apikey", "knowledge", "start", "status", "check", "scratch", "observe", "logs"], default="console")
     parser.add_argument("--config", type=Path, default=Path("config.local.toml"))
     parser.add_argument("--once", action="store_true", help="knowledge: show one read-only progress snapshot and exit")
+    parser.add_argument("--keep-window", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.once and args.command != "knowledge":
         parser.error("--once is only supported by knowledge")
+    if args.keep_window and args.command not in {"start", "observe", "knowledge"}:
+        parser.error("--keep-window requires start, observe or knowledge")
     logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
     try:
         if args.command == "init":
@@ -334,6 +381,7 @@ def main():
                 check_scratch(config)
             return
         print(f"Indeces {__version__} console: discord | apikey | knowledge | start | status | scratch | observe | logs | quit")
+        print("start、observe、knowledge 使用独立窗口/终端。主 Console 的 quit 只退出命令窗口；服务窗口内 Ctrl+C 停止服务。")
         while True:
             try:
                 command = input("Indeces> ").strip().lower()
@@ -350,11 +398,14 @@ def main():
                 if command == "knowledge":
                     open_knowledge_window(args.config)
                     continue
+                if command in {"start", "observe"}:
+                    open_command_window(command, args.config)
+                    continue
                 config = load_config(args.config)
-                action = {"start": run, "status": status, "scratch": check_scratch,
-                          "observe": observe, "logs": show_logs}.get(command)
+                action = {"status": status, "scratch": check_scratch,
+                          "logs": show_logs}.get(command)
                 if action:
-                    if command in {"start", "status"}:
+                    if command == "status":
                         action(config, args.config)
                     else:
                         action(config)
@@ -371,3 +422,6 @@ def main():
     except Exception as error:
         print(f"Startup failed: {type(error).__name__}. Check configuration and local file permissions.")
         raise SystemExit(2) from None
+    finally:
+        if args.keep_window:
+            _wait_for_window_close()

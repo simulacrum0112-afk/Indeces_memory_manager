@@ -9,7 +9,7 @@ import shlex
 import tempfile
 from types import SimpleNamespace
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, call, patch
 
 from indeces import console, discord_wizard
 from indeces.config import load_config
@@ -127,7 +127,8 @@ class ConsoleTests(unittest.TestCase):
                 patch.object(console, "run") as run, redirect_stdout(io.StringIO()) as output:
             console.open_knowledge_window(self.path)
         arguments = launch.call_args.args[0]
-        self.assertEqual(arguments[1:], ["-m", "indeces", "knowledge", "--config", str(self.path)])
+        self.assertEqual(arguments, [console.sys.executable, "-m", "indeces", "knowledge",
+                                     "--config", str(self.path), "--keep-window"])
         self.assertEqual(launch.call_args.kwargs["creationflags"], 16)
         self.assertEqual(launch.call_args.kwargs["cwd"], Path(console.__file__).resolve().parent.parent)
         self.assertIn("独立窗口", output.getvalue())
@@ -168,22 +169,93 @@ class ConsoleTests(unittest.TestCase):
         load.assert_not_called()
         run.assert_not_called()
 
-    def test_console_reloads_configuration_after_wizard_before_start(self):
+    def test_console_start_child_loads_saved_configuration_after_wizard(self):
         old_config = self.config
+        child_config = []
 
         def save_fixture(path):
             updated = discord_wizard.patch_config(path.read_bytes(), "223456789012345678", ())
             path.write_bytes(updated)
             return True
 
+        def fake_child(command, path):
+            self.assertEqual(command, "start")
+            child_config.append(load_config(path))
+
         with patch("builtins.input", side_effect=["discord", "start", "quit"]), \
                 patch.object(console, "configure_discord", side_effect=save_fixture), \
-                patch.object(console, "run") as run:
+                patch.object(console, "open_command_window", side_effect=fake_child) as window, \
+                patch.object(console, "load_config") as main_loader, patch.object(console, "run") as run:
             self.main()
-        saved_config, path = run.call_args.args
+        window.assert_called_once_with("start", self.path)
+        saved_config = child_config[0]
         self.assertEqual(saved_config.discord.guild_id, "223456789012345678")
         self.assertNotEqual(saved_config.discord.guild_id, old_config.discord.guild_id)
-        self.assertEqual(path, self.path)
+        main_loader.assert_not_called()
+        run.assert_not_called()
+
+    def test_interactive_start_observe_knowledge_keep_reading_commands_without_waiting(self):
+        with patch("builtins.input", side_effect=["start", "knowledge", "observe", "status", "quit"]) as prompt, \
+                patch.object(console, "os", SimpleNamespace(name="nt")), \
+                patch.object(console.subprocess, "CREATE_NEW_CONSOLE", 16, create=True), \
+                patch.object(console.subprocess, "Popen") as launch, \
+                patch.object(console, "run") as run, patch.object(console, "observe") as observe, \
+                patch.object(console, "status") as status, patch.object(console, "prompt_secret") as secret:
+            output = self.main()
+        self.assertEqual(prompt.call_args_list, [call("Indeces> ")] * 5)
+        self.assertEqual([item.args[0][3] for item in launch.call_args_list], ["start", "knowledge", "observe"])
+        self.assertTrue(all(item.args[0][-3:] == ["--config", str(self.path), "--keep-window"]
+                            for item in launch.call_args_list))
+        launch.return_value.wait.assert_not_called()
+        launch.return_value.terminate.assert_not_called()
+        launch.return_value.kill.assert_not_called()
+        run.assert_not_called()
+        observe.assert_not_called()
+        secret.assert_not_called()
+        status.assert_called_once()
+        self.assertIn("服务入口已在独立窗口打开", output)
+        self.assertNotIn("服务已启动", output)
+
+    def test_window_launcher_rejects_unexpected_commands_without_creating_process(self):
+        with patch.object(console.subprocess, "Popen") as launch, self.assertRaises(ValueError):
+            console.open_command_window("apikey", self.path)
+        launch.assert_not_called()
+
+    def test_cli_start_remains_foreground_without_launching_a_window(self):
+        with patch.object(console, "run") as run, patch.object(console.subprocess, "Popen") as launch:
+            self.main("start")
+        run.assert_called_once_with(self.config, self.path)
+        launch.assert_not_called()
+
+    def test_child_failure_keeps_fixed_receipt_visible_without_exposing_exception(self):
+        with patch("sys.argv", ["indeces", "start", "--config", str(self.path), "--keep-window"]), \
+                patch.object(console, "run", side_effect=RuntimeError(KEY)), \
+                patch("builtins.input", return_value="") as pause, redirect_stdout(io.StringIO()) as output, \
+                self.assertRaises(SystemExit) as error:
+            console.main()
+        self.assertEqual(error.exception.code, 2)
+        self.assertIn("Startup failed: RuntimeError", output.getvalue())
+        self.assertNotIn(KEY, output.getvalue())
+        pause.assert_called_once_with("此入口已结束；按 Enter 关闭窗口。")
+
+    def test_ended_child_waits_to_close_without_restarting_service(self):
+        for interruption in ("", EOFError(), KeyboardInterrupt()):
+            with self.subTest(interruption=type(interruption).__name__), \
+                    patch("sys.argv", ["indeces", "start", "--config", str(self.path), "--keep-window"]), \
+                    patch.object(console, "run") as run, \
+                    patch("builtins.input", side_effect=[interruption]) as pause, redirect_stdout(io.StringIO()):
+                console.main()
+            run.assert_called_once()
+            pause.assert_called_once()
+
+    def test_keep_window_on_console_is_rejected_before_loading_or_launching(self):
+        with patch("sys.argv", ["indeces", "console", "--keep-window"]), \
+                patch.object(console, "load_config") as loader, patch.object(console.subprocess, "Popen") as launch, \
+                self.assertRaises(SystemExit) as error:
+            console.main()
+        self.assertEqual(error.exception.code, 2)
+        loader.assert_not_called()
+        launch.assert_not_called()
 
     def test_start_uses_environment_before_saved_credentials(self):
         with patch.dict(console.os.environ, {"DISCORD_BOT_TOKEN": TOKEN, "OPENAI_API_KEY": KEY}, clear=True), \
@@ -195,7 +267,7 @@ class ConsoleTests(unittest.TestCase):
         loader.assert_not_called()
         key_loader.assert_not_called()
         prompt.assert_not_called()
-        serve.assert_awaited_once_with(self.config, KEY, TOKEN)
+        serve.assert_awaited_once_with(self.config, KEY, TOKEN, lease=ANY)
 
     def test_start_uses_saved_guild_bound_token_without_prompting_again(self):
         with patch.dict(console.os.environ, {"OPENAI_API_KEY": KEY}, clear=True), \
@@ -205,7 +277,7 @@ class ConsoleTests(unittest.TestCase):
             console.run(self.config, self.path)
         loader.assert_called_once_with(self.path, GUILD)
         prompt.assert_not_called()
-        serve.assert_awaited_once_with(self.config, KEY, TOKEN)
+        serve.assert_awaited_once_with(self.config, KEY, TOKEN, lease=ANY)
 
     def test_start_uses_private_session_prompts_when_no_credentials_are_stored(self):
         with patch.dict(console.os.environ, {}, clear=True), \
@@ -217,7 +289,7 @@ class ConsoleTests(unittest.TestCase):
         self.assertEqual(prompt.call_count, 2)
         self.assertIn("Discord bot token", prompt.call_args_list[0].args[0])
         self.assertIn("OpenAI API key", prompt.call_args_list[1].args[0])
-        serve.assert_awaited_once_with(self.config, KEY, TOKEN)
+        serve.assert_awaited_once_with(self.config, KEY, TOKEN, lease=ANY)
         self.assertNotIn(TOKEN, output.getvalue())
         self.assertNotIn(KEY, output.getvalue())
         self.assertFalse(secret_path(self.path).exists())
@@ -231,7 +303,7 @@ class ConsoleTests(unittest.TestCase):
             console.run(self.config, self.path)
         loader.assert_called_once_with(self.path)
         prompt.assert_not_called()
-        serve.assert_awaited_once_with(self.config, KEY, TOKEN)
+        serve.assert_awaited_once_with(self.config, KEY, TOKEN, lease=ANY)
 
     def test_start_resolves_config_alias_to_same_credential_location_as_wizard(self):
         child = self.path.parent / "synthetic-parent-alias"
@@ -246,7 +318,7 @@ class ConsoleTests(unittest.TestCase):
         token_loader.assert_called_once_with(self.path, GUILD)
         key_loader.assert_called_once_with(self.path)
         prompt.assert_not_called()
-        serve.assert_awaited_once_with(self.config, KEY, TOKEN)
+        serve.assert_awaited_once_with(self.config, KEY, TOKEN, lease=ANY)
 
     def test_invalid_saved_api_key_requires_repair_without_fallback_or_connection(self):
         with patch.dict(console.os.environ, {"DISCORD_BOT_TOKEN": TOKEN}, clear=True), \
@@ -278,7 +350,7 @@ class ConsoleTests(unittest.TestCase):
             console.run(self.config)
         loader.assert_not_called()
         prompt.assert_called_once()
-        serve.assert_awaited_once_with(self.config, KEY, TOKEN)
+        serve.assert_awaited_once_with(self.config, KEY, TOKEN, lease=ANY)
 
     def test_start_missing_guild_rejects_before_requesting_credentials(self):
         config = replace(self.config, discord=replace(self.config.discord, guild_id=""))
@@ -340,15 +412,15 @@ class ConsoleTests(unittest.TestCase):
         prompt.assert_not_called()
 
     def test_interactive_credential_error_reports_only_fixed_code(self):
-        with patch("builtins.input", side_effect=["start", "quit"]), \
-                patch.object(console, "run", side_effect=CredentialError("credential_corrupt")):
+        with patch("builtins.input", side_effect=["apikey", "quit"]), \
+                patch.object(console, "configure_api_key", side_effect=CredentialError("credential_corrupt")):
             output = self.main()
         self.assertIn("Credential error: credential_corrupt", output)
         self.assertIn("Use discord setup", output)
 
     def test_interactive_transport_error_never_displays_arbitrary_provider_text(self):
         with patch("builtins.input", side_effect=["start", "quit"]), \
-                patch.object(console, "run", side_effect=RuntimeError(TOKEN)):
+                patch.object(console, "open_command_window", side_effect=RuntimeError(TOKEN)):
             output = self.main()
         self.assertIn("Command failed: RuntimeError", output)
         self.assertNotIn(TOKEN, output)
@@ -379,7 +451,7 @@ class ConsoleTests(unittest.TestCase):
                 patch.object(console, "serve", new_callable=AsyncMock) as serve:
             console.run(self.config, self.path)
         prompt.assert_not_called()
-        serve.assert_awaited_once_with(self.config, KEY, TOKEN)
+        serve.assert_awaited_once_with(self.config, KEY, TOKEN, lease=ANY)
 
 
 if __name__ == "__main__":

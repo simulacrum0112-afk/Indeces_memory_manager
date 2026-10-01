@@ -1,0 +1,26 @@
+{
+  "version": "0.9.3",
+  "recorded_at_utc": "2026-10-01T03:52:27.871355+00:00",
+  "wheel_name": "indeces_memory_manager-0.9.3-py3-none-any.whl",
+  "wheel_sha256": "619315f1289991d94b118734f4aecf0f3f720bf29b406bd7105b6cbdf1bb3bf8",
+  "build_backend": "bundled setuptools 84; production runtime dependencies unchanged",
+  "live_model_calls": false,
+  "live_discord_connection": false,
+  "private_config_or_runtime_read": false,
+  "gui_launched": false,
+  "noneditable_wheel_loaded": true,
+  "isolated_cli": {
+    "interactive_commands_returned": [
+      "start",
+      "knowledge",
+      "observe",
+      "quit"
+    ],
+    "service_and_observer_in_main_forbidden": true,
+    "current_interpreter_and_absolute_config_forwarded": true,
+    "no_child_wait_or_terminate": true,
+    "fixed_failure_receipt_kept_visible": true,
+    "subprocess_launch_mocked": true
+  },
+  "passed": true
+}

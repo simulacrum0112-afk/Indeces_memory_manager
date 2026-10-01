@@ -1,8 +1,10 @@
-# 交付状态：0.9.2
+# 交付状态：0.9.3
 
 截至用户时区日期 2026-09-30，本体已在 `D:\Indeces` 实现。GitHub 仓库为 [Indeces_memory_manager](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。源码提交/推送及公开状态由交付消息、Git 历史和 GitHub 元数据确认；创建仓库本身不代表服务已启动。
 
 已实现：无头/Console 入口、单实例存储锁、一个 Discord Gateway/有界消息队列、显式 @ 门禁、实际送达回执、短期 100%/70% 整轮水位摘要、GPT-6-Luna stateless adaptor、独立阶段预算、计量门禁、usage 核验、超时/阶段熔断、scratch hash 链与持久原文/checkpoint。
+
+0.9.3 修复交互 `start` 直接进入 `asyncio.run(serve)`、`observe` 直接等待观察线程导致主 Console 不再读取命令的问题。Windows 三个持续入口 `start`/`observe`/`knowledge` 在独立可见窗口运行，同一解释器、配置绝对路径及源码目录传给子进程；主 Console 继续输入，启动/结束/错误信息留在入口窗口。直接 CLI 保持前台，其他平台提示另开终端。主 `quit` 不停止服务，服务窗口 Ctrl+C 停机。启动锁提前覆盖隐藏凭据输入及服务清理，取得锁后及输入后校验配置，避免向导竞争和重复 Gateway；`serve` 仍可自行管理独立调用的租约。观察 CLI 以短时 join 周期回到 Python，降低 Windows 长等待延迟 Ctrl+C 的风险。没有修改运行中任务、模型、NPMI、科学参数、阶段预算、并发或存储格式。
 
 0.9.2 按用户要求将普通 PDF 转换/后台标词进度与完成、失败、中断结果移出主 Console。Windows Console `knowledge` 打开独立进度窗口，`Indeces-Knowledge.cmd` 或另一终端的 `python -m indeces knowledge` 持续查看；`--once` 单次查看。保留实际材料目录入口及全部 scratch 回执，主 Console 仍提示迁移、撤下、拒绝、扫描故障和后台停摆。进度每两秒以短事务只读 SQLite 查询当前 Guild 的版本、标词块数、发布指针及失败 code，不读取原文、PDF、标注词内容、graph 或 scratch，不占模型请求槽、不重放任务或迁移状态。失败新版与可检索旧版分列，只有 ready 与发布指针一致才显示发布完成；转换排队/进行中不能区分，停服快照不证明服务在线。查看退出不停止服务，原有模型、NPMI、预算、并发与存储 schema 均未改变。当前实例不停止或热更新，新输出规则在下次加载新版时生效。
 
@@ -33,6 +35,8 @@ Bot token 在 Windows 使用当前用户 DPAPI 加密，带应用 entropy、版�
 Console `scratch` 校验外层结构/hash 与新每轮记录合同，分别报告 complete/failed/incomplete/invalid/legacy，并以 call_counts 核对成功 adaptor 调用的计量/生成输入、响应、门禁、预算、usage/时间和输出；reply_context 对照实际 `/responses` 请求。图权重与首次事件审计在同一个数据库事务内提交，事务后立即写 `memory_observation` 回执；日志 fsync 另有边界，不能描述成跨数据库与日志原子。日志可能写入后的 I/O 失败禁止当前 writer 续写，不自动修复；后续审计失败不覆盖已确认的 Discord 送达状态。具体记录规范与限制见 [RUN_RECORDS.md](RUN_RECORDS.md)。没有增加模型调用、修改公式/预算或开展真实联网验收。
 
 ## 验证证据
+
+- 0.9.3 本机完整离线测试：Windows/CPython 3.12.14，**634 tests / 0 failures / 14 skips**，37.203 秒。覆盖三个交互入口后继续输入、子进程不被主退出终止、固定失败留窗、直接 CLI 保持前台、真实临时实例锁的凭据/向导竞争和退出释放，以及观察短等待/清理路径。配置/依赖导入、`pip check`、Console 退出、帮助与未配置 Guild 的留窗失败检查通过，见 [verification/OFFLINE_093.json](../verification/OFFLINE_093.json)。非 editable wheel 在隔离进程核验同一解释器/配置路径传递、连续命令、主窗口不读凭据或启动服务及错误留窗，GUI/子进程启动为 mock，见 [verification/WHEEL_093.json](../verification/WHEEL_093.json)。没有真实模型/Discord 验收，窗口与 Ctrl+C 的真实用户交互仍需区分于离线合同验证；已有服务不停止或重启。
 
 - 0.9.2 本机完整离线测试：Windows/CPython 3.12.14，**613 tests / 0 failures / 14 skips**，40.063 秒。新增当前版本进度覆盖只读不创建/不修改、服务器与路径隔离、并发 WAL 一致快照、checkpoint 刷新、旧发布保留、未发布 ready、截断、终端控制字符和查看中断；真实合成 PDF 转换、标词成功/失败/取消均保持 stdout 静默与完整 scratch 审计。Console 独立窗口路由及 POSIX 解释器/工作目录/引号指令经离线验证，窗口启动 mock，不冒充真实桌面体验。配置/依赖导入、`pip check`、帮助与 Console 退出通过，见 [verification/OFFLINE_092.json](../verification/OFFLINE_092.json)。非 editable wheel 在独立解释器进程验证 knowledge 单次输出、1/2 块进度、旧发布与数据库字节不变，目录 GUI mock，见 [verification/WHEEL_092.json](../verification/WHEEL_092.json)。未读取真实配置/运行数据、未启停实例或调用真实模型/Discord；本次不是后台标词质量或线上验收。
 

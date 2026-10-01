@@ -61,7 +61,9 @@ Guild/频道设置写入 `config.local.toml`，名称同步为 `Indeces`；Bot t
 .\.venv\Scripts\python.exe -m indeces
 ```
 
-Console 命令：`discord`、`apikey`、`knowledge`、`start`、`status`、`scratch`、`observe`、`logs`、`quit`。Windows Console 的 `knowledge` 打开独立知识进度窗口，同时按实际配置打开原材料目录；其他平台提示在另一终端运行 `python -m indeces knowledge`。`start` 在前台运行，占用该 Console 的输入；运行中可另开 `Indeces-Knowledge.cmd` 查看进度。Ctrl+C 停机并返回 Console。无头启动也可用 `python -m indeces start`。`status` 只显示凭据文件是否存在，不解密，不保证密钥有效或服务当前在线。
+Console 命令：`discord`、`apikey`、`knowledge`、`start`、`status`、`scratch`、`observe`、`logs`、`quit`。Windows Console 的 `start`、`observe`、`knowledge` 分别打开独立窗口，主 Console 立即继续接收命令；其他平台提示在另一终端运行对应命令。`start` 只打开服务入口，实际启动结果和隐藏凭据输入在服务窗口；同一 state 的实例锁从凭据读取前持续持有至服务结束，阻止重复启动和设置向导竞争。启动错误或正常结束的窗口保留回执，按 Enter 关闭。主 Console 的 `quit` 或 Ctrl+C 只退出命令窗口，服务窗口内 Ctrl+C 正常停止服务；点击服务窗口的 X 属于强制关闭，不能保证清理回执完整。直接运行 `python -m indeces start` 或 `observe` 仍在当前终端前台运行。`knowledge` 同时按实际配置打开原材料目录，查看退出不影响服务。`status` 只显示凭据文件是否存在，不解密，不保证密钥有效或服务当前在线。
+
+如果旧版窗口已经在 `start` 中运行，可再打开 `Indeces-Console.cmd` 恢复命令输入，并在新窗口执行 `knowledge`；保留旧服务窗口继续运行。新 Console 不自动启动第二个 Bot；入口修复在新进程生效。
 
 Bot 需提前通过 Discord 的服务器安装流程加入目标服务器；向导不创建或邀请 Bot。Token 来自 Developer Portal 的 Bot 页面，安装步骤见 [Discord 官方入门](https://docs.discord.com/developers/quick-start/getting-started)。Bot 需接收服务器消息事件，并具有 View Channel、Send Messages、Read Message History [频道权限](https://docs.discord.com/developers/topics/permissions#permissions-bitwise-permission-flags)；在线程中回复还需 Send Messages in Threads。显式提及应用的消息正文可使用 Message Content intent 的例外；本实现不申请该特权 intent。[Discord Gateway](https://docs.discord.com/developers/events/gateway#message-content-intent)
 

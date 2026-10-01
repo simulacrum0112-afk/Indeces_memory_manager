@@ -154,9 +154,11 @@ class ObserverConsoleTests(unittest.TestCase):
         with patch("sys.argv", ["indeces", "console", "--config", str(self.path)]), \
                 patch("builtins.input", side_effect=["observe", "logs", "quit"]), \
                 patch.object(console, "observe") as observe, patch.object(console, "show_logs") as logs, \
+                patch.object(console, "open_command_window") as window, \
                 redirect_stdout(io.StringIO()):
             console.main()
-        observe.assert_called_once()
+        window.assert_called_once_with("observe", self.path)
+        observe.assert_not_called()
         logs.assert_called_once()
 
 

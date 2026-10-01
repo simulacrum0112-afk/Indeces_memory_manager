@@ -4,7 +4,7 @@
 
 ## 启动与查阅
 
-Console 的 `start` 启动 Bot 时会显示 `Indeces read-only observer: http://127.0.0.1:.../.../`。将完整 URL 复制到浏览器地址栏；末尾 `/` 和随机路径都是地址的一部分。该观察服务随 Bot 停止，端口/随机路径下次会改变。观察服务无法启动时 Console 报告固定错误类型，回复服务继续运行，可另开终端观察。
+Console 的 `start` 在独立服务窗口显示 `Indeces read-only observer: http://127.0.0.1:.../.../`。将完整 URL 复制到浏览器地址栏；末尾 `/` 和随机路径都是地址的一部分。该观察服务随 Bot 停止，端口/随机路径下次会改变。观察服务无法启动时服务窗口报告固定错误类型，回复服务继续运行，可另开窗口观察。
 
 独立观察命令不需要 Bot token、OpenAI key 或运行实例锁，可以在 Bot 已运行时使用：
 
@@ -13,7 +13,7 @@ cd D:\Indeces
 .\.venv\Scripts\python.exe -m indeces observe --config config.local.toml
 ```
 
-也可在 Console 输入 `observe`。此命令保持前台运行，`Ctrl+C` 关闭观察服务并返回 Console；不会自行启动 Bot。`start` 保持原来的前台服务模式，另开观察终端只读同一配置的数据即可。配置尚未建立时沿用 Console 的配置初始化流程。
+也可在 Windows Console 输入 `observe` 打开独立只读观察窗口，主 Console 继续接收命令；其他平台提示在另一终端运行。观察窗口内 `Ctrl+C` 只关闭该观察服务，结束提示按 Enter 关闭；不会停止 Bot 或启动新 Bot。直接 CLI `observe` 仍在当前终端前台运行。主 Console 的 `quit` 不停止独立服务，服务窗口 Ctrl+C 停机。配置尚未建立时沿用 Console 的配置初始化流程。
 
 页面自动刷新，也可暂停或手动刷新。没有知识/日志时显示真实空状态；读取失败、不完整追加、超限和过期证据有明确提示。观察端不修复、裁剪、迁移或写入运行库。
 

@@ -77,6 +77,16 @@ class ObserverServiceTests(unittest.IsolatedAsyncioTestCase):
             self.assertLess(self.order.index("observer_closed"), self.order.index(event))
         self.cleanup_assertions()
 
+    async def test_service_borrows_startup_lease_without_reacquiring_or_closing_it(self):
+        with self.resources(), patch.object(console, "InstanceLock") as acquire:
+            await console.serve(self.config, "synthetic-key", "synthetic-token", lease=self.lease)
+        acquire.assert_not_called()
+        self.lease.close.assert_not_called()
+        self.assertTrue(self.scratch.closed)
+        self.store.close.assert_called_once()
+        for resource in (self.adapter, self.bridge, self.knowledge):
+            resource.close.assert_awaited_once()
+
     async def test_observer_start_failure_is_optional_and_does_not_reveal_private_error(self):
         self.observer.start.side_effect = OSError("synthetic-private-observer-error")
         with self.resources():

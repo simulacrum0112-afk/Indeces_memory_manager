@@ -238,7 +238,11 @@ def observe(config):
     try:
         print(f"Indeces read-only observer: {observer.start()}", flush=True)
         print(f"Scratch directory: {config.scratch_dir}; Ctrl+C stops this observer.", flush=True)
-        observer._thread.join()
+        # An unbounded thread-lock wait can delay Python's Ctrl+C handler on
+        # Windows before 3.14. Return to Python regularly while keeping this
+        # standalone observer alive until its server thread exits.
+        while observer._thread.is_alive():
+            observer._thread.join(timeout=0.2)
     except KeyboardInterrupt:
         print("Indeces observer stopped.", flush=True)
     finally:

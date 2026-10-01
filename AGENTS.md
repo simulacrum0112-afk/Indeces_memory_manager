@@ -7,6 +7,7 @@
 - 智能体名为 **Indeces**（大写 I）；仓库名仍为 `Indeces_memory_manager`。Console 的 `discord` 向导接收服务器 Guild ID、可选频道与隐藏 Bot token；Windows 本机持久化只用当前用户 DPAPI，服务运行期间禁止向导修改配置。保存后由用户显式 `start`。
 - 一个 Discord Bot/Gateway、一个配置服务器、显式 @Bot 的人类文字消息与一条回复。
 - 无头服务、CLI Console、LLM adaptor、短期水位摘要、Hebbian 标注词知识库、scratch 输入输出审计。
+- Windows 交互 Console 的 `start`/`observe`/`knowledge` 使用独立窗口，主 Console 保持命令输入；直接 CLI 保持前台。窗口创建不证明服务在线。主 `quit` 不停止服务，服务窗口 Ctrl+C 停机；退出/错误回执保留至 Enter。启动实例锁覆盖凭据输入至服务清理，锁内校验配置未改变；不自动停止或重启已有实例。
 - 只使用 GPT-6-Luna。官方 Responses API 是当前实现；用户尚未另外指定认证/代理接口。
 - Console `apikey` 向导隐藏输入 OpenAI key；Windows 当前用户 DPAPI 独立保存在相邻 `.openai.secret`，不修改 TOML/Discord token、不联网、不启动服务。启动按非空 `OPENAI_API_KEY` → 保存 key → 会话隐藏输入选择；有环境变量不尝试解密旧文件。两个向导持有同一 state 实例锁，活动实例期间拒绝修改。保留 Discord 旧 magic/entropy 与 Guild 绑定兼容性。
 - 用户指定默认模型输出话量 `adapter.verbosity="high"`，回复/摘要/标词 `reasoning="low"`。只调整这两项，不扩大阶段 token/时间预算；scratch 记录并核验实际 verbosity/effort。旧配置显式值不能被加载器静默覆盖，本地迁移须仅修改已授权字段并跳过活动实例。
