@@ -1,6 +1,6 @@
-# 交付状态：0.9.0
+# 交付状态：0.9.1
 
-截至用户时区日期 2026-09-30，本体已在 `D:\Indeces` 实现。GitHub 私有仓库为 [Indeces_memory_manager](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。源码提交/推送结果由交付消息及 Git 历史确认；创建仓库本身不代表服务已启动。
+截至用户时区日期 2026-09-30，本体已在 `D:\Indeces` 实现。GitHub 仓库为 [Indeces_memory_manager](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。源码提交/推送及公开状态由交付消息、Git 历史和 GitHub 元数据确认；创建仓库本身不代表服务已启动。
 
 已实现：无头/Console 入口、单实例存储锁、一个 Discord Gateway/有界消息队列、显式 @ 门禁、实际送达回执、短期 100%/70% 整轮水位摘要、GPT-6-Luna stateless adaptor、独立阶段预算、计量门禁、usage 核验、超时/阶段熔断、scratch hash 链与持久原文/checkpoint。
 
@@ -32,6 +32,7 @@ Console `scratch` 校验外层结构/hash 与新每轮记录合同，分别报�
 
 ## 验证证据
 
+- 0.9.1 公开发布准备：只调整忽略规则、文档和版本元数据，运行实现未变。本机42个私密路径样例均排除、15个公开样例允许，92个已跟踪路径不违反忽略规则；配置/导入、`pip check`、Console退出与安装版本核验通过，见 [verification/OFFLINE_091.json](../verification/OFFLINE_091.json)。对0.9.0基线公开引用可达的11个提交、221个blob及本地工具引用做秘密审计，校验官方checksum的Gitleaks8.30.1只有一项合成Guild ID误报，补充扫描的密钥形状匹配也均为具名离线假值；未发现真实秘密或公开历史中的运行数据路径，详见 [verification/REPOSITORY_AUDIT_091.json](../verification/REPOSITORY_AUDIT_091.json)。本地工具引用中的附件不发布；GitHub release/assets、Actions artifacts、issues/PR均为空。规则扫描不证明任意秘密不存在，完整Actions历史日志未下载审计。最终提交复扫、Windows/Ubuntu CI与GitHub公开元数据以交付消息确认，不以准备记录代替公开验收。
 - 0.9.0 本机完整离线测试：Windows/CPython 3.12.14，**588 tests / 0 failures / 14 skips**，62.073 秒。新增目录入口 27、候选扫描与生命周期 16、Console 路由 2 项；真实 Windows junction 测试通过，本机符号链接权限及平台相关用例保留跳过。配置/依赖导入、`pip check`、Console退出、命令帮助通过，见 [verification/OFFLINE_090.json](../verification/OFFLINE_090.json)。非editable wheel在独立进程验证固定说明、Console目录路由、256上限与300个暂存文件排除，Explorer/服务均mock，见 [verification/WHEEL_090.json](../verification/WHEEL_090.json)。审计修复文件链接误占候选额度、目录枚举失败误当删除，以及指南保存失败清理可能删除竞争写入的用户说明；合成故障回归保留旧发布来源及用户README。本机仅同步已授权`max_files`字段、准备管理/暂存目录与桌面文件夹快捷方式，未读取真实材料、凭据、数据库或scratch，未启动Explorer、Bot或模型；精确提交远端CI由交付消息确认。
 - 0.8.0 本机完整离线测试：Windows/CPython 3.12.14，**543 tests / 0 failures / 11 skips**，51.336 秒。新增凭据、向导、Console 与 verbosity 合同测试；真实当前用户 DPAPI 仅使用临时合成 key，旧 Discord 格式往返仍通过。配置/依赖导入、`pip check`、Console退出、命令帮助及非editable wheel中的向导→DPAPI保存→路径规范化后的启动读取（service transport mock）均通过，见 [verification/OFFLINE_080.json](../verification/OFFLINE_080.json)。复审修复回执持续中断、snapshot句柄与路径身份竞态、锁关闭错误覆盖提交状态、直接CLI异常文本逃逸，以及向导与启动的配置路径别名不一致；保留Windows/Ubuntu适用的平台测试跳过。仅现有本地TOML中的已授权话量/推理字段在停服锁下同步，未读取已有凭据、知识、数据库或scratch，没有真实模型/Discord调用；远端CI以精确提交交付消息为准。
 - 0.6.0 本机完整离线测试：Windows/CPython 3.12.14，**387 tests / 0 failures / 7 skips**，20.850 秒。新增数据读取 28、服务 10、HTTP 路由 14、独立 HTTP 复审 6、scratch 并发 18、前端 Node 合约包装 1 项；7 项跳过为平台/本机符号链接权限相关。配置/导入、`pip check`、Console 退出与非 editable wheel 三个网页资源打包检查通过，记录见 [verification/OFFLINE_060.json](../verification/OFFLINE_060.json)。浏览器用临时合成图/版本/trace 确认搜索、分层、缩放、拖动、来源与逐步权重曲线、引用记录和安全文本渲染，390px 窄屏容器/SVG 边界复查通过，无页面错误。真实 Windows 线程/子进程/大小写路径别名/观察进程中断与超时测试确认读取不会阻碍原清理替换。没有读取或裁剪实际运行记录，没有模型或 Discord 连接；精确提交远端 CI 由交付消息核对。

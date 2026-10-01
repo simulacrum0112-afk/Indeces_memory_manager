@@ -2,6 +2,8 @@
 
 一个名为 **Indeces** 的小型 Python 无头智能体：一个 Discord Bot 连接、一个串行消息 worker、GPT-6-Luna adaptor、本地知识库、动态 Hebbian 标注词网络，以及可检查的输入输出 scratch log。项目仓库名保留 `Indeces_memory_manager`。
 
+项目使用 [MIT 许可证](LICENSE)，上游策略归属见 [第三方说明](THIRD_PARTY_NOTICES.md)。仓库只发布源码、空配置示例和合成离线验证记录；本地 API key、Bot token、加密凭据、原始材料、数据库和 scratch 不上传。提交前请按 [公开仓库与本地数据说明](docs/REPOSITORY_PRIVACY.md) 核验，`.gitignore` 不会移除已提交的历史。
+
 只处理指定服务器中人类显式 `@Bot` 的文字消息，并回复一条 Discord 消息。短期上下文按频道隔离。没有工具执行、MCP、外部聊天 API、网页搜索、日程、主动发言或多 Bot 路由；本机只读网页用于观察已有知识图和运行记录。
 
 **聊天标词和聊天自动入库关闭。** 本地 `knowledge/` 中的 PDF、Markdown/UTF-8 文本文件更新触发后台被动入库。PDF 先在本机独立进程转换为带物理页码的 Markdown，再标词；无需额外模型调用。后台维护与回答是独立任务；当前模型传输共享一个串行请求槽，预算互不借用。

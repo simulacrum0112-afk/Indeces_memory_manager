@@ -1,0 +1,96 @@
+{
+  "version": "0.9.1",
+  "recorded_at_utc": "2026-10-01T02:41:16.526072+00:00",
+  "history_base_commit": "ba769d2af9379878597836eb5acd57da14e92844",
+  "published_history_scope": {
+    "refs": "main, public version tags and origin remote refs",
+    "commits": 11,
+    "trees": 61,
+    "blobs": 221,
+    "tags": 10,
+    "text_blob_bytes": 2524604,
+    "private_runtime_paths_found": 0,
+    "binary_blobs_found": 0
+  },
+  "local_tool_refs": {
+    "published": false,
+    "local_tree_refs": 3,
+    "additional_png_blobs": 7,
+    "retained_locally": true,
+    "policy": "Never push --mirror/--all or refs/codex/*."
+  },
+  "gitleaks": {
+    "version": "8.30.1",
+    "source": "https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1",
+    "archive": "gitleaks_8.30.1_windows_x64.zip",
+    "archive_sha256": "d29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e",
+    "official_checksum_verified": true,
+    "scope": "git --all, including local tool tree refs; output redacted",
+    "exit_code": 1,
+    "findings": 1,
+    "reviewed_nonsecret_findings": [
+      {
+        "rule": "discord-client-id",
+        "path": "tests/test_console.py",
+        "line": 73,
+        "commit": "43e2ab9eb4b48af502f9bbae0289aef48ee3f9e0",
+        "classification": "Synthetic numeric Guild ID in temporary mocked fixture; not an authentication credential."
+      }
+    ],
+    "unreviewed_findings": 0,
+    "real_secrets_found": 0
+  },
+  "supplemental_blob_scan": {
+    "all_refs_blobs": 240,
+    "provider_token_and_private_key_rules": true,
+    "high_entropy_assignment_rules": true,
+    "reviewed_matches": "Named fake OpenAI keys in test_api_key_wizard.py and mock adapter key/transport fixtures only; no values recorded.",
+    "real_secrets_found": 0
+  },
+  "github_release_surface": {
+    "visibility_before_publication": "private",
+    "license": "MIT",
+    "actions_artifacts": 0,
+    "releases": 0,
+    "release_assets": 0,
+    "issues_including_prs": 0,
+    "pulls": 0,
+    "wiki": false,
+    "discussions": false,
+    "pages": false,
+    "full_actions_logs_scanned": false
+  },
+  "limitations": [
+    "Finite scanner rules cannot prove absence of arbitrary-format or unknown credentials.",
+    "This file records the pre-release history audit. The final release commit and public visibility are independently checked after commit/push and reported in delivery.",
+    "No existing credential files, raw materials, runtime databases or scratch contents were read. No private matching values are retained here.",
+    "Local tool refs are audited separately and are not part of the GitHub publication.",
+    "Remote hidden refs and complete historical Actions logs were not audited; published issue/PR and artifact metadata are separately empty.",
+    "Local-only PNG snapshots received no visual/OCR secret audit and are not pushed."
+  ],
+  "live_model_calls": false,
+  "live_discord_connection": false,
+  "working_tree_scan": {
+    "scope": "Git tracked public files plus explicit new privacy documentation and offline checks; no recursive private-directory scan.",
+    "files": 94,
+    "bytes": 1099116,
+    "gitleaks_exit_code": 1,
+    "findings": 1,
+    "reviewed_nonsecret_findings": [
+      {
+        "rule": "discord-client-id",
+        "path": "tests/test_console.py",
+        "line": 120,
+        "classification": "Same synthetic numeric Guild ID as the reviewed historical fixture; run is mocked."
+      }
+    ],
+    "real_secrets_found": 0,
+    "missing_or_linked_files": 0,
+    "notes": "Snapshot before this metadata report and final STATUS edits; exact committed release is independently rescanned before public visibility changes."
+  },
+  "commit_tag_metadata_scan": {
+    "commits": 11,
+    "annotated_tags": 10,
+    "provider_token_and_private_key_shape_matches": 0
+  }
+}

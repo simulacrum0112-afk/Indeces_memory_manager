@@ -1,3 +1,4 @@
+# Python environments and build output
 .venv/
 .references/
 __pycache__/
@@ -5,13 +6,56 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+
+# Local settings and environment files; publish only the empty examples
 .env
-config.local.toml
+.env.*
+!.env.example
+.envrc
+config.local*.toml*
+*.local.toml*
+
+# Provider vaults, interrupted saves, private keys and local credential exports
 *.secret
-.*.secret.*.tmp
+*.secret.*
+*.token
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+id_rsa
+id_ed25519
+secrets/
+credentials/
+secrets.json
+credentials.json
+token.txt
+tokens.json
+api_key.txt
+api-key.txt
+openai_key.txt
+openai-key.txt
+discord_token.txt
+discord-token.txt
+bot_token.txt
+bot-token.txt
+
+# Private runtime data, including custom-location logs and database sidecars
 state/
 scratch/
+*.sqlite
+*.sqlite-*
 *.sqlite3*
+*.db
+*.db-*
+*.jsonl
 *.log
+runtime.lock
+*.bak
+*.old
+
+# Raw materials and local attachments; runtime web assets stay in indeces/web
 knowledge/**
 !knowledge/.gitkeep
+/assets/

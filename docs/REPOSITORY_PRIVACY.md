@@ -1,0 +1,20 @@
+# 公开仓库与本地数据
+
+仓库采用现有 MIT 许可证，保留动态 Hebbian 策略的上游许可证与归属说明。发布范围为源码、文档、空配置示例，以及使用合成数据的测试和离线验证摘要。
+
+本地数据不属于发布内容：
+
+- `.env` 及其本地变体、`config.local*.toml` 和本地配置备份。
+- OpenAI API key、Discord Bot token、`*.secret` 加密凭据及保存中断的临时文件、私钥与凭据导出。
+- `scratch/`、JSONL 运行记录、日志、`state/`、SQLite/DB 文件及其 sidecar。
+- `knowledge/` 原始材料、PDF 转换稿及本地 `assets/` 附件；只保留空目录入口 `knowledge/.gitkeep`。
+
+`.env.example` 和 `config.example.toml` 可提交，只包含空值、占位符和公开默认设置。运行网页资源在 `indeces/web/`，属于源码，不受本地附件目录的排除规则影响。真实密钥只在环境变量、会话或本地加密向导中提供。
+
+`.gitignore` 防止通常的新增文件被选入提交；它无法清除已经提交的文件，也无法阻止 `git add -f`。自定义凭据文件名或运行目录时，应补充忽略规则，并检查 `git status --short` 与 `git diff --cached --name-only`；不要把真实运行记录改名放进源码、测试或验证目录。
+
+公开发布前检查所有可达分支和标签的 Git 历史、已跟踪路径与内容，并核验 GitHub release 附件、Actions artifacts 等发布面。秘密扫描是有限规则检查，不证明任意格式或未知凭据都能检出。本次审计范围及工具版本由 `verification/REPOSITORY_AUDIT_091.json` 记录，不保存密钥值或真实运行记录。
+
+仅推送主分支和明确的版本标签，不用 `push --mirror` 或 `push --all`。本地工具引用（如 `refs/codex/*`）可能包含私有附件的历史快照，应保留在本机，不发布到 GitHub。公开仓库可另外启用 GitHub 的密钥扫描与推送保护，作为新增提交的补充检查，不替代忽略规则或人工核验。
+
+本地原材料、凭据和运行数据保留在原处；公开仓库不会代替它们的备份。服务、模型请求和 Discord 连接仍由用户在 Console 明确启动。
