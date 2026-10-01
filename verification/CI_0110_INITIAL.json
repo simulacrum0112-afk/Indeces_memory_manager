@@ -1,0 +1,28 @@
+{
+  "version": "0.11.0",
+  "code_commit": "661fddf1d034288afe3c3c088e6c99881588aa17",
+  "run_id": 36932764701,
+  "run_url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36932764701",
+  "status": "completed",
+  "conclusion": "failure",
+  "jobs": [
+    {
+      "id": 110605851264,
+      "name": "check (windows-latest)",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36932764701/job/110605851264"
+    },
+    {
+      "id": 110605852013,
+      "name": "check (ubuntu-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36932764701/job/110605852013"
+    }
+  ],
+  "private_runtime_data_included": false,
+  "live_model_or_discord_validation": false,
+  "failed_case": "test_windows_cmd_launchers_route_same_owner_and_forward_config_argument (test_console_process.ConsoleProcessTests.test_windows_cmd_launchers_route_same_owner_and_forward_config_argument)",
+  "failure_evidence": "Windows job unittest log: 733 tests, failures=1, skips=3, elapsed146.812s; .cmd requires repo/.venv but workflow installed global Python only."
+}

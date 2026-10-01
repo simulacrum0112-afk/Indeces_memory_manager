@@ -12,6 +12,8 @@ Console采用配置绝对路径作用域的内核租约和固定命令通信。�
 
 另一次[732项结果](../verification/OFFLINE_0110_20261001T215307875585Z.json)保留1项error：Windows venv的Popen.pid是launcher，原crash fixture等待launcher后过早直接获取仍由真实runtime持有的锁。异常退出改由实际owner执行os._exit，新增原launcher被杀场景的生产有界route恢复检查；两条压力路径各30次通过，生产锁仍由内核决定、没有按PID误抢或扩大等待。
 
+首轮[远端CI](../verification/CI_0110_INITIAL.json)的Ubuntu成功、Windows失败733项中的cmd入口测试：工作流只安装全局Python而未创建真实cmd要求的项目.venv，入口在路由前退出。独立无venv目录复现rc1和同一提示；CI改为两平台创建venv，并用对应解释器安装、执行完整测试与check，保留真实cmd验证。新版远端结果须按CHECKPOINT绑定提交核验。
+
 真实论文清单、调用记录和备份只保存在本机，不进入公开附件；离线通过不代替真实模型、材料语义或召回质量验收。远端证据见[CHECKPOINT.md](CHECKPOINT.md)。以下保留历史版本事实。
 
 截至用户时区日期 2026-10-01，本体已在 `D:\Indeces` 实现。GitHub 仓库为公开 MIT [Indeces_memory_manager](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。源码提交/推送及公开状态由交付消息、Git 历史和 GitHub 元数据确认；创建仓库本身不代表服务已启动。

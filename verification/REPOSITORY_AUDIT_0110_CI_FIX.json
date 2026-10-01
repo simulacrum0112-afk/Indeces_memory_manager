@@ -1,0 +1,551 @@
+{
+  "version": "0.11.0",
+  "recorded_at_utc": "2026-10-01T22:12:45.555226+00:00",
+  "baseline_main": "661fddf1d034288afe3c3c088e6c99881588aa17",
+  "history_audits": [
+    "REPOSITORY_AUDIT_0110.json",
+    "REPOSITORY_AUDIT_0110_FINAL.json"
+  ],
+  "original_audited_main_is_ancestor": true,
+  "new_code_commit_tree_previously_scanned": true,
+  "current_public_files_scanned": 133,
+  "rules": [
+    "provider_key_shape",
+    "github_token_shape",
+    "private_key_header",
+    "discord_token_shape",
+    "private_runtime_path"
+  ],
+  "findings": [
+    {
+      "path": "tests/test_api_key_wizard.py",
+      "rule": "provider_key_shape",
+      "line": 17,
+      "blob": "a4f0f260767f83c113d8e4d7007938d3eb14beca",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "path": "tests/test_api_key_wizard.py",
+      "rule": "provider_key_shape",
+      "line": 18,
+      "blob": "a4f0f260767f83c113d8e4d7007938d3eb14beca",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "path": "tests/test_api_key_wizard.py",
+      "rule": "provider_key_shape",
+      "line": 19,
+      "blob": "a4f0f260767f83c113d8e4d7007938d3eb14beca",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "path": "verification/DOCUMENTATION_CHECKPOINT_0100.json",
+      "rule": "discord_token_shape",
+      "line": 57,
+      "blob": "6debb96e0042ca6ec042cdf23c0b3f6dd39d8ba3",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/DOCUMENTATION_CHECKPOINT_0100.json",
+      "rule": "discord_token_shape",
+      "line": 61,
+      "blob": "6debb96e0042ca6ec042cdf23c0b3f6dd39d8ba3",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/DOCUMENTATION_CHECKPOINT_0100.json",
+      "rule": "discord_token_shape",
+      "line": 65,
+      "blob": "6debb96e0042ca6ec042cdf23c0b3f6dd39d8ba3",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/DOCUMENTATION_CHECKPOINT_0100.json",
+      "rule": "discord_token_shape",
+      "line": 77,
+      "blob": "6debb96e0042ca6ec042cdf23c0b3f6dd39d8ba3",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/DOCUMENTATION_CHECKPOINT_0100.json",
+      "rule": "discord_token_shape",
+      "line": 81,
+      "blob": "6debb96e0042ca6ec042cdf23c0b3f6dd39d8ba3",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/DOCUMENTATION_CHECKPOINT_0100.json",
+      "rule": "discord_token_shape",
+      "line": 85,
+      "blob": "6debb96e0042ca6ec042cdf23c0b3f6dd39d8ba3",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/DOCUMENTATION_CHECKPOINT_0100.json",
+      "rule": "discord_token_shape",
+      "line": 89,
+      "blob": "6debb96e0042ca6ec042cdf23c0b3f6dd39d8ba3",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0100.json",
+      "rule": "discord_token_shape",
+      "line": 31,
+      "blob": "aa5a19bcf1325e57a0d7f632d7c11f297101eec6",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0100.json",
+      "rule": "discord_token_shape",
+      "line": 35,
+      "blob": "aa5a19bcf1325e57a0d7f632d7c11f297101eec6",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0100.json",
+      "rule": "discord_token_shape",
+      "line": 39,
+      "blob": "aa5a19bcf1325e57a0d7f632d7c11f297101eec6",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0100.json",
+      "rule": "discord_token_shape",
+      "line": 51,
+      "blob": "aa5a19bcf1325e57a0d7f632d7c11f297101eec6",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0100.json",
+      "rule": "discord_token_shape",
+      "line": 55,
+      "blob": "aa5a19bcf1325e57a0d7f632d7c11f297101eec6",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0100.json",
+      "rule": "discord_token_shape",
+      "line": 59,
+      "blob": "aa5a19bcf1325e57a0d7f632d7c11f297101eec6",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0100.json",
+      "rule": "discord_token_shape",
+      "line": 63,
+      "blob": "aa5a19bcf1325e57a0d7f632d7c11f297101eec6",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0100_INITIAL.json",
+      "rule": "discord_token_shape",
+      "line": 32,
+      "blob": "2f89e779020210990a7c7c5e517d3db21386ebce",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0100_INITIAL.json",
+      "rule": "discord_token_shape",
+      "line": 36,
+      "blob": "2f89e779020210990a7c7c5e517d3db21386ebce",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0100_INITIAL.json",
+      "rule": "discord_token_shape",
+      "line": 40,
+      "blob": "2f89e779020210990a7c7c5e517d3db21386ebce",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0100_INITIAL.json",
+      "rule": "discord_token_shape",
+      "line": 52,
+      "blob": "2f89e779020210990a7c7c5e517d3db21386ebce",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0100_INITIAL.json",
+      "rule": "discord_token_shape",
+      "line": 56,
+      "blob": "2f89e779020210990a7c7c5e517d3db21386ebce",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0100_INITIAL.json",
+      "rule": "discord_token_shape",
+      "line": 60,
+      "blob": "2f89e779020210990a7c7c5e517d3db21386ebce",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0100_INITIAL.json",
+      "rule": "discord_token_shape",
+      "line": 64,
+      "blob": "2f89e779020210990a7c7c5e517d3db21386ebce",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110.json",
+      "rule": "discord_token_shape",
+      "line": 33,
+      "blob": "cfe06205f5adc17f8ebc8a6d237bdb2fa8b05805",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110.json",
+      "rule": "discord_token_shape",
+      "line": 37,
+      "blob": "cfe06205f5adc17f8ebc8a6d237bdb2fa8b05805",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110.json",
+      "rule": "discord_token_shape",
+      "line": 41,
+      "blob": "cfe06205f5adc17f8ebc8a6d237bdb2fa8b05805",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110.json",
+      "rule": "discord_token_shape",
+      "line": 53,
+      "blob": "cfe06205f5adc17f8ebc8a6d237bdb2fa8b05805",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110.json",
+      "rule": "discord_token_shape",
+      "line": 57,
+      "blob": "cfe06205f5adc17f8ebc8a6d237bdb2fa8b05805",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110.json",
+      "rule": "discord_token_shape",
+      "line": 61,
+      "blob": "cfe06205f5adc17f8ebc8a6d237bdb2fa8b05805",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110.json",
+      "rule": "discord_token_shape",
+      "line": 65,
+      "blob": "cfe06205f5adc17f8ebc8a6d237bdb2fa8b05805",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json",
+      "rule": "discord_token_shape",
+      "line": 35,
+      "blob": "eab935194372972b0eeeb3b4cc4d881eda757333",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json",
+      "rule": "discord_token_shape",
+      "line": 39,
+      "blob": "eab935194372972b0eeeb3b4cc4d881eda757333",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json",
+      "rule": "discord_token_shape",
+      "line": 43,
+      "blob": "eab935194372972b0eeeb3b4cc4d881eda757333",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json",
+      "rule": "discord_token_shape",
+      "line": 55,
+      "blob": "eab935194372972b0eeeb3b4cc4d881eda757333",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json",
+      "rule": "discord_token_shape",
+      "line": 59,
+      "blob": "eab935194372972b0eeeb3b4cc4d881eda757333",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json",
+      "rule": "discord_token_shape",
+      "line": 63,
+      "blob": "eab935194372972b0eeeb3b4cc4d881eda757333",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json",
+      "rule": "discord_token_shape",
+      "line": 67,
+      "blob": "eab935194372972b0eeeb3b4cc4d881eda757333",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_20261001T220004127125Z.json",
+      "rule": "discord_token_shape",
+      "line": 33,
+      "blob": "c9f9251f765a5f093a2b980e8d0d3ed9c2a47330",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_20261001T220004127125Z.json",
+      "rule": "discord_token_shape",
+      "line": 37,
+      "blob": "c9f9251f765a5f093a2b980e8d0d3ed9c2a47330",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_20261001T220004127125Z.json",
+      "rule": "discord_token_shape",
+      "line": 41,
+      "blob": "c9f9251f765a5f093a2b980e8d0d3ed9c2a47330",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_20261001T220004127125Z.json",
+      "rule": "discord_token_shape",
+      "line": 53,
+      "blob": "c9f9251f765a5f093a2b980e8d0d3ed9c2a47330",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_20261001T220004127125Z.json",
+      "rule": "discord_token_shape",
+      "line": 57,
+      "blob": "c9f9251f765a5f093a2b980e8d0d3ed9c2a47330",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_20261001T220004127125Z.json",
+      "rule": "discord_token_shape",
+      "line": 61,
+      "blob": "c9f9251f765a5f093a2b980e8d0d3ed9c2a47330",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_20261001T220004127125Z.json",
+      "rule": "discord_token_shape",
+      "line": 65,
+      "blob": "c9f9251f765a5f093a2b980e8d0d3ed9c2a47330",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_INITIAL.json",
+      "rule": "discord_token_shape",
+      "line": 31,
+      "blob": "a83339345e07cdd7fb6fa3379b0fee610b41242d",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_INITIAL.json",
+      "rule": "discord_token_shape",
+      "line": 35,
+      "blob": "a83339345e07cdd7fb6fa3379b0fee610b41242d",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_INITIAL.json",
+      "rule": "discord_token_shape",
+      "line": 39,
+      "blob": "a83339345e07cdd7fb6fa3379b0fee610b41242d",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_INITIAL.json",
+      "rule": "discord_token_shape",
+      "line": 51,
+      "blob": "a83339345e07cdd7fb6fa3379b0fee610b41242d",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_INITIAL.json",
+      "rule": "discord_token_shape",
+      "line": 55,
+      "blob": "a83339345e07cdd7fb6fa3379b0fee610b41242d",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_INITIAL.json",
+      "rule": "discord_token_shape",
+      "line": 59,
+      "blob": "a83339345e07cdd7fb6fa3379b0fee610b41242d",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_0110_INITIAL.json",
+      "rule": "discord_token_shape",
+      "line": 63,
+      "blob": "a83339345e07cdd7fb6fa3379b0fee610b41242d",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_092.json",
+      "rule": "discord_token_shape",
+      "line": 84,
+      "blob": "64db504dc45340114b7e62ee6087174458c5f89f",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_092.json",
+      "rule": "discord_token_shape",
+      "line": 88,
+      "blob": "64db504dc45340114b7e62ee6087174458c5f89f",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_092.json",
+      "rule": "discord_token_shape",
+      "line": 92,
+      "blob": "64db504dc45340114b7e62ee6087174458c5f89f",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_092.json",
+      "rule": "discord_token_shape",
+      "line": 104,
+      "blob": "64db504dc45340114b7e62ee6087174458c5f89f",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_092.json",
+      "rule": "discord_token_shape",
+      "line": 108,
+      "blob": "64db504dc45340114b7e62ee6087174458c5f89f",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_092.json",
+      "rule": "discord_token_shape",
+      "line": 112,
+      "blob": "64db504dc45340114b7e62ee6087174458c5f89f",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_092.json",
+      "rule": "discord_token_shape",
+      "line": 116,
+      "blob": "64db504dc45340114b7e62ee6087174458c5f89f",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_093.json",
+      "rule": "discord_token_shape",
+      "line": 104,
+      "blob": "df1a7c5ddf8475263a7db3c2df65e5251d360f92",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_093.json",
+      "rule": "discord_token_shape",
+      "line": 108,
+      "blob": "df1a7c5ddf8475263a7db3c2df65e5251d360f92",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_093.json",
+      "rule": "discord_token_shape",
+      "line": 112,
+      "blob": "df1a7c5ddf8475263a7db3c2df65e5251d360f92",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_093.json",
+      "rule": "discord_token_shape",
+      "line": 124,
+      "blob": "df1a7c5ddf8475263a7db3c2df65e5251d360f92",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_093.json",
+      "rule": "discord_token_shape",
+      "line": 128,
+      "blob": "df1a7c5ddf8475263a7db3c2df65e5251d360f92",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_093.json",
+      "rule": "discord_token_shape",
+      "line": 132,
+      "blob": "df1a7c5ddf8475263a7db3c2df65e5251d360f92",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    },
+    {
+      "path": "verification/OFFLINE_093.json",
+      "rule": "discord_token_shape",
+      "line": 136,
+      "blob": "df1a7c5ddf8475263a7db3c2df65e5251d360f92",
+      "classification": "confirmed_unittest_case_identifier",
+      "classification_evidence": "Exact JSON unittest qualified case name; matching class/method exists in public synthetic test source."
+    }
+  ],
+  "unclassified_findings": 0,
+  "secret_values_recorded": false,
+  "private_materials_included": false,
+  "scope": "CI installation fix and final current public files; original main ancestors and new code tree covered by linked audits",
+  "limitations": "Finite credential shapes and private-path rules; no release/artifact rescan or guarantee about arbitrary secrets. The generated JSON itself is metadata only."
+}
