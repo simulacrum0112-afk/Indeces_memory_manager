@@ -193,24 +193,12 @@ class KnowledgeService:
         self.scratch.write("knowledge_receipt", receipt=event, scope=self.scope,
                            path=version["path"], source_id=version["source_id"], digest=version["digest"],
                            reply_source_id=current, **fields)
-        titles = {"queued": "知识更新已接收", "started": "后台标词开始", "progress": "后台标词进度",
-                  "completed": "知识库更新完成，检索已切换", "failed": "标词未完成，继续使用已发布版本",
-                  "cancelled": "标词已中断，继续使用已发布版本"}
-        if current is None and event in {"failed", "cancelled"}:
-            titles[event] = "标词未完成，无已完成版本可用于回复"
-        detail = " | ".join(f"{k}={v}" for k, v in fields.items())
-        print(f"[{self.config.name}] {titles[event]}：{version['path']} | version={version['source_id']} | digest={version['digest']} | 回复版本={current or '无已完成版本'} | {detail}", flush=True)
 
     def _conversion_receipt(self, event, version, **fields):
         current = self._published(version["path"])
         self.scratch.write("knowledge_pdf_receipt", receipt=event, scope=self.scope,
                            path=version["path"], source_id=version["source_id"], digest=version["digest"],
                            reply_source_id=current, **fields)
-        titles = {"queued": "PDF 更新已接收，等待后台转换", "started": "PDF 后台转换开始",
-                  "converted": "PDF 转换完成，等待被动标词", "failed": "PDF 转换未完成，已发布版本保留",
-                  "cancelled": "PDF 转换已中断，已发布版本保留"}
-        detail = " | ".join(f"{k}={v}" for k, v in fields.items())
-        print(f"[{self.config.name}] {titles[event]}：{version['path']} | version={version['source_id']} | digest={version['digest']} | 回复版本={current or '无已完成版本'} | {detail}", flush=True)
 
     def _supersede_desired(self, path):
         row = self.store.db.execute("SELECT source_id FROM knowledge_desired WHERE scope=? AND path=?", (self.scope, path)).fetchone()

@@ -7,8 +7,10 @@ import json
 import logging
 import os
 from pathlib import Path
+import shlex
 import shutil
 import sqlite3
+import subprocess
 import sys
 
 from . import __version__
@@ -22,6 +24,7 @@ from .discord_bridge import DiscordBridge
 from .discord_wizard import configure_discord
 from .knowledge import KnowledgeService
 from .knowledge_directory import prepare_knowledge_directory, show_knowledge_directory
+from .knowledge_progress import show_knowledge_progress
 from .lock import InstanceLock
 from .observer import ObserverServer, observe, prepare_scratch_directory, show_logs
 from .runtime import Runtime
@@ -89,7 +92,7 @@ async def serve(config, key, token):
                       scratch_retention_seconds=RETENTION_SECONDS,
                       scratch_maintenance_seconds=RETENTION_MAINTENANCE_SECONDS)
         print(f"{config.name} {__version__}: one Discord connection; model={config.adapter.model}; scratch={scratch.path}")
-        print("Knowledge PDF updates trigger local Markdown conversion, then background labels. Chat labelling is closed. Ctrl+C stops the service.")
+        print("Knowledge PDF updates trigger local Markdown conversion, then background labels. Use Indeces-Knowledge.cmd or knowledge in a separate terminal for progress. Chat labelling is closed. Ctrl+C stops the service.")
         print("PDF text extraction has physical page provenance; OCR is closed and academic layout is not verified.")
         print("Scratch retains a rolling 24-hour window; cleanup runs at startup and every 60 seconds while the service runs.")
         try:
@@ -262,11 +265,40 @@ def check_scratch(config):
         raise ValueError("run record contract verification failed")
 
 
+def knowledge(config, *, once=False):
+    show_knowledge_directory(config)
+    show_knowledge_progress(config, watch=not once)
+
+
+def open_knowledge_window(config_path):
+    """User-requested, independent reader; never launch or stop the service."""
+    path = Path(config_path).resolve()
+    code_root = Path(__file__).resolve().parent.parent
+    arguments = [sys.executable, "-m", "indeces", "knowledge", "--config", str(path)]
+    if os.name != "nt":
+        print("请在另一个终端查看知识库进度：")
+        print("cd -- " + shlex.quote(str(code_root)))
+        print(shlex.join(arguments))
+        return
+    # A separate visible window keeps progress out of the main Console and
+    # remains available while start occupies that Console's input loop.
+    try:
+        subprocess.Popen(arguments, cwd=code_root,
+                         creationflags=subprocess.CREATE_NEW_CONSOLE)
+    except OSError as error:
+        print(f"知识库进度窗口未打开：{type(error).__name__}；请另开终端运行 knowledge。")
+        return
+    print("知识库进度已在独立窗口打开；关闭该窗口不会停止服务。")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Indeces: minimal Discord runtime console")
     parser.add_argument("command", nargs="?", choices=["console", "init", "discord", "apikey", "knowledge", "start", "status", "check", "scratch", "observe", "logs"], default="console")
     parser.add_argument("--config", type=Path, default=Path("config.local.toml"))
+    parser.add_argument("--once", action="store_true", help="knowledge: show one read-only progress snapshot and exit")
     args = parser.parse_args()
+    if args.once and args.command != "knowledge":
+        parser.error("--once is only supported by knowledge")
     logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
     try:
         if args.command == "init":
@@ -294,8 +326,10 @@ def main():
             config = load_config(args.config)
             if args.command in {"start", "status"}:
                 {"start": run, "status": status}[args.command](config, args.config)
-            elif args.command in {"observe", "logs", "knowledge"}:
-                {"observe": observe, "logs": show_logs, "knowledge": show_knowledge_directory}[args.command](config)
+            elif args.command == "knowledge":
+                knowledge(config, once=args.once)
+            elif args.command in {"observe", "logs"}:
+                {"observe": observe, "logs": show_logs}[args.command](config)
             else:
                 check_scratch(config)
             return
@@ -313,9 +347,12 @@ def main():
                 if command in {"discord", "apikey"}:
                     {"discord": configure_discord, "apikey": configure_api_key}[command](args.config)
                     continue
+                if command == "knowledge":
+                    open_knowledge_window(args.config)
+                    continue
                 config = load_config(args.config)
                 action = {"start": run, "status": status, "scratch": check_scratch,
-                          "observe": observe, "logs": show_logs, "knowledge": show_knowledge_directory}.get(command)
+                          "observe": observe, "logs": show_logs}.get(command)
                 if action:
                     if command in {"start", "status"}:
                         action(config, args.config)

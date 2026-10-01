@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import redirect_stdout
 from dataclasses import replace
 import hashlib
+from io import StringIO
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -147,6 +149,71 @@ class PdfKnowledgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM knowledge_versions").fetchone()[0], 1)
         self.assertFalse(await self.service.convert_next())
         self.assertFalse(any(isinstance(value, bytes) for _, fields in self.scratch.events for value in fields.values()))
+
+    async def test_real_pdf_conversion_and_publication_are_console_silent_with_complete_audit(self):
+        raw = text_pdf(["alpha first page material " * 25, "beta second page material " * 25])
+        self.file(raw)
+        self.service.pdf_limits = replace(self.config.pdf, seconds=10)
+        output = StringIO()
+        self.quiet.stop()
+        try:
+            with redirect_stdout(output):
+                self.service.scan_once()
+                source_id = self.head()["source_id"]
+                self.assertTrue(await self.service.convert_next())
+                self.assertTrue(await self.service.label_next())
+        finally:
+            self.printed = self.quiet.start()
+        self.assertEqual(output.getvalue(), "")
+        self.assertEqual(self.published()["source_id"], source_id)
+        self.assertEqual(self.version(source_id)["status"], "ready")
+        pdf_receipts = self.receipts(source_id)
+        self.assertEqual([receipt["receipt"] for receipt in pdf_receipts],
+                         ["queued", "started", "converted"])
+        self.assertEqual(pdf_receipts[-1]["pages"], 2)
+        self.assertTrue(all(receipt.get("model_requests", 0) == 0 for receipt in pdf_receipts))
+        chunks = self.chunks(source_id)
+        self.assertGreater(len(chunks), 1)
+        label_receipts = [fields for event, fields in self.scratch.events
+                          if event == "knowledge_receipt" and fields["source_id"] == source_id]
+        self.assertEqual([receipt["receipt"] for receipt in label_receipts],
+                         ["started"] + ["progress"] * len(chunks) + ["completed"])
+        completed = label_receipts[-1]
+        self.assertEqual((completed["reply_source_id"], completed["labelled_chunks"], completed["total_chunks"]),
+                         (source_id, len(chunks), len(chunks)))
+        self.assertEqual((completed["input_tokens"], completed["output_tokens"]),
+                         (25 * len(chunks), 8 * len(chunks)))
+        labelled = [fields for event, fields in self.scratch.events
+                    if event == "knowledge_chunk_labelled" and fields["source_id"] == source_id]
+        self.assertEqual([record["quote"] for record in labelled], [chunk["text"] for chunk in chunks])
+        self.assertEqual([call["stage"] for call in self.adapter.calls], ["label"] * len(chunks))
+
+    async def test_real_pdf_conversion_failure_is_console_silent_and_preserves_audit_and_old_version(self):
+        old = await self.ready()
+        self.file(text_pdf(["alpha inaccessible encrypted paper"], encrypted=True))
+        self.service.pdf_limits = replace(self.config.pdf, seconds=10)
+        calls_before = len(self.adapter.calls)
+        output = StringIO()
+        self.quiet.stop()
+        try:
+            with redirect_stdout(output):
+                self.service.scan_once()
+                new = self.head()["source_id"]
+                self.assertTrue(await self.service.convert_next())
+                self.assertFalse(await self.service.label_next())
+        finally:
+            self.printed = self.quiet.start()
+        self.assertEqual(output.getvalue(), "")
+        self.assertEqual((self.version(new)["status"], self.version(new)["error"]), ("failed", "pdf_encrypted"))
+        self.assertEqual(self.published()["source_id"], old)
+        self.assertEqual(len(self.adapter.calls), calls_before)
+        receipts = self.receipts(new)
+        self.assertEqual([receipt["receipt"] for receipt in receipts], ["queued", "started", "failed"])
+        failed = receipts[-1]
+        self.assertEqual((failed["reply_source_id"], failed["code"], failed["model_requests"]),
+                         (old, "pdf_encrypted", 0))
+        self.assertEqual((failed["input_tokens"], failed["output_tokens"]), (0, 0))
+        self.assertEqual(self.chunks(new), [])
 
     async def test_pdf_and_derived_markdown_do_not_use_legacy_eight_kib_text_bound(self):
         raw = RAW_A + b" " * 9000

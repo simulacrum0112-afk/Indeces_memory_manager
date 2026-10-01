@@ -61,7 +61,7 @@ Guild/频道设置写入 `config.local.toml`，名称同步为 `Indeces`；Bot t
 .\.venv\Scripts\python.exe -m indeces
 ```
 
-Console 命令：`discord`、`apikey`、`knowledge`、`start`、`status`、`scratch`、`observe`、`logs`、`quit`。`knowledge` 在 Windows 打开实际配置的原材料目录，并显示导入限额；其他平台显示绝对路径。`start` 在前台运行；Ctrl+C 停机并返回 Console。无头启动也可用 `python -m indeces start`。`status` 只显示凭据文件是否存在，不解密，不保证密钥有效或服务当前在线。
+Console 命令：`discord`、`apikey`、`knowledge`、`start`、`status`、`scratch`、`observe`、`logs`、`quit`。Windows Console 的 `knowledge` 打开独立知识进度窗口，同时按实际配置打开原材料目录；其他平台提示在另一终端运行 `python -m indeces knowledge`。`start` 在前台运行，占用该 Console 的输入；运行中可另开 `Indeces-Knowledge.cmd` 查看进度。Ctrl+C 停机并返回 Console。无头启动也可用 `python -m indeces start`。`status` 只显示凭据文件是否存在，不解密，不保证密钥有效或服务当前在线。
 
 Bot 需提前通过 Discord 的服务器安装流程加入目标服务器；向导不创建或邀请 Bot。Token 来自 Developer Portal 的 Bot 页面，安装步骤见 [Discord 官方入门](https://docs.discord.com/developers/quick-start/getting-started)。Bot 需接收服务器消息事件，并具有 View Channel、Send Messages、Read Message History [频道权限](https://docs.discord.com/developers/topics/permissions#permissions-bitwise-permission-flags)；在线程中回复还需 Send Messages in Threads。显式提及应用的消息正文可使用 Message Content intent 的例外；本实现不申请该特权 intent。[Discord Gateway](https://docs.discord.com/developers/events/gateway#message-content-intent)
 
@@ -69,7 +69,7 @@ Bot 需提前通过 Discord 的服务器安装流程加入目标服务器；向�
 
 默认提示词把 Indeces 设为平静、好奇、温和且简洁的对话伙伴，使用当前用户的语言回复。目标是帮助观察 Hebbian 治理下的长期召回表现；日常交流不会自动改成测试报告。
 
-论文 PDF 可以直接放入 `knowledge/`。服务运行时会显示转换开始、转换完成、标词进度及最终发布回执。转换后的 Markdown 在 `state/pdf_markdown/<版本ID>.md`，可用编辑器审阅；自动输出不回写 `knowledge/`，避免重复索引。PDF 全篇转换及标词完成前继续使用旧发布版本，不会逐页混用。首版支持原生文字 PDF，OCR 关闭；公式、表格、图片和双栏阅读顺序未自动核验。转换预算与模型预算分别配置，详见 [PDF 入库说明](docs/PDF_IMPORT.md)。
+论文 PDF 可以直接放入 `knowledge/`。`knowledge` 独立窗口显示当前转换状态、标词块数及发布/失败结果，普通后台回执不再打印到主 Console，完整事件仍写入 scratch。转换后的 Markdown 在 `state/pdf_markdown/<版本ID>.md`，可用编辑器审阅；自动输出不回写 `knowledge/`，避免重复索引。PDF 全篇转换及标词完成前继续使用旧发布版本，不会逐页混用。首版支持原生文字 PDF，OCR 关闭；公式、表格、图片和双栏阅读顺序未自动核验。转换预算与模型预算分别配置，详见 [PDF 入库说明](docs/PDF_IMPORT.md)。
 
 0.6.1 统一名称为 **Indeces**。已有配置中的旧产品名称在加载时自动映射为新名称，自定义名称保留；向导保存使用新名称。自身标注词过滤兼容新旧名称，只重建受影响的静态/来源支持缓存，保留原知识记录、动态权重和历史审计。旧运行记录与版本验证文件保留当时的原文；跨版本进程锁和 DPAPI 凭据继续兼容。scratch 中完整匹配旧固定模板的说明页自动更新，用户编辑过的说明保留。
 
@@ -86,7 +86,7 @@ Bot 需提前通过 Discord 的服务器安装流程加入目标服务器；向�
 把 `.pdf`、`.md`、`.markdown` 或 `.txt` 文件保存到 `knowledge/`，允许子目录。服务运行期间持续观察目录，默认每 0.5 秒开始下一次检测；大文件读取可能延长整次扫描，不承诺固定检测延迟。不用每次手动触发标词。关闭服务时不观察文件，更新会在下次启动时检测。
 
 1. 保存文件原文、路径、SHA-256 和不可变版本，记录当前服务器范围内待处理的文件版本。
-2. 按最多 400 个字符分块，后台只让模型返回标注词，保持原文不变。Console 显示排队、开始、逐块进度、完成或失败回执，包含路径、版本/来源 ID、digest 和当前供新检索使用的已发布版本；进度回执显示已标注/总块数，结束回执显示已知输入/输出 token 与耗时。未知远端 usage 在 scratch 中明确标记，不能把累计已知计量当成完整账单。
+2. 按最多 400 个字符分块，后台只让模型返回标注词，保持原文不变。`knowledge` 只读窗口每两秒查询当前服务器范围的持久状态，变化时显示路径、版本/来源 ID、digest、已标注/总块数，以及当前可检索的已发布版本；完整排队/开始/进度/完成/失败回执继续保存在 scratch。窗口退出不影响服务；`python -m indeces knowledge --once` 只显示一次。停服后状态是最后存储快照，不证明任务仍在运行；已知累计耗时不是实时钟，转换排队与进行中目前无法从持久状态区分。未知远端 usage 在 scratch 中明确标记，不能把累计已知计量当成完整账单。撤下、拒绝、扫描故障及不可恢复后台故障仍在主 Console 提示。
 3. 文件编辑后，新版处于 `converting`、`pending`、`labelling` 或 `failed` 时，已有的完整版本继续参与回答：**旧原文、旧标注词、旧来源 ID 整体保留**。新文件在首次完成前没有可供回退的已发布版本。不会把正在编辑的原文配上旧标签。
 4. 所有块通过标签校验、文件 digest 再次核对及预算检查后，在同一 SQLite 事务中撤回旧版记录、添加新版记录，并更新已发布指针和 `ready` 状态。失败不提前切换，也不发布部分块。
 

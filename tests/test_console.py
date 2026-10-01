@@ -5,7 +5,9 @@ from dataclasses import replace
 import io
 import os
 from pathlib import Path
+import shlex
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, patch
 
@@ -86,7 +88,8 @@ class ConsoleTests(unittest.TestCase):
     def test_cli_knowledge_opens_directory_without_starting_or_prompting_credentials(self):
         with patch.object(console, "show_knowledge_directory") as directory, \
                 patch.object(console, "run") as run, patch.object(console, "serve") as serve, \
-                patch.object(console, "prompt_secret") as prompt, patch.object(console, "load_openai_key") as key:
+                patch.object(console, "prompt_secret") as prompt, patch.object(console, "load_openai_key") as key, \
+                patch.object(console, "show_knowledge_progress") as progress:
             self.main("knowledge")
         directory.assert_called_once()
         self.assertEqual(directory.call_args.args[0].knowledge_dir, self.config.knowledge_dir)
@@ -94,15 +97,76 @@ class ConsoleTests(unittest.TestCase):
         serve.assert_not_called()
         prompt.assert_not_called()
         key.assert_not_called()
+        progress.assert_called_once_with(directory.call_args.args[0], watch=True)
 
     def test_interactive_knowledge_returns_to_console_without_starting(self):
         with patch("builtins.input", side_effect=["knowledge", "quit"]), \
-                patch.object(console, "show_knowledge_directory") as directory, \
+                patch.object(console, "open_knowledge_window") as window, \
+                patch.object(console, "show_knowledge_progress") as progress, \
                 patch.object(console, "run") as run:
             output = self.main()
-        directory.assert_called_once()
+        window.assert_called_once_with(self.path)
+        progress.assert_not_called()
         run.assert_not_called()
         self.assertIn("apikey | knowledge | start", output)
+
+    def test_cli_knowledge_once_reads_one_snapshot_without_starting_service(self):
+        with patch("sys.argv", ["indeces", "knowledge", "--once", "--config", str(self.path)]), \
+                patch.object(console, "show_knowledge_directory"), \
+                patch.object(console, "show_knowledge_progress") as progress, \
+                patch.object(console, "run") as run, redirect_stdout(io.StringIO()):
+            console.main()
+        progress.assert_called_once_with(self.config, watch=False)
+        run.assert_not_called()
+
+    def test_knowledge_window_keeps_config_path_and_never_runs_view_in_main_console(self):
+        with patch.object(console, "os", SimpleNamespace(name="nt")), \
+                patch.object(console.subprocess, "CREATE_NEW_CONSOLE", 16, create=True), \
+                patch.object(console.subprocess, "Popen") as launch, \
+                patch.object(console, "show_knowledge_progress") as progress, \
+                patch.object(console, "run") as run, redirect_stdout(io.StringIO()) as output:
+            console.open_knowledge_window(self.path)
+        arguments = launch.call_args.args[0]
+        self.assertEqual(arguments[1:], ["-m", "indeces", "knowledge", "--config", str(self.path)])
+        self.assertEqual(launch.call_args.kwargs["creationflags"], 16)
+        self.assertEqual(launch.call_args.kwargs["cwd"], Path(console.__file__).resolve().parent.parent)
+        self.assertIn("独立窗口", output.getvalue())
+        progress.assert_not_called()
+        run.assert_not_called()
+
+    def test_failed_knowledge_window_never_leaks_transport_exception_or_runs_view(self):
+        with patch.object(console, "os", SimpleNamespace(name="nt")), \
+                patch.object(console.subprocess, "CREATE_NEW_CONSOLE", 16, create=True), \
+                patch.object(console.subprocess, "Popen", side_effect=OSError(KEY)), \
+                patch.object(console, "show_knowledge_progress") as progress, \
+                redirect_stdout(io.StringIO()) as output:
+            console.open_knowledge_window(self.path)
+        self.assertIn("窗口未打开：OSError", output.getvalue())
+        self.assertNotIn(KEY, output.getvalue())
+        progress.assert_not_called()
+
+    def test_nonwindows_knowledge_window_explains_separate_terminal_without_launching(self):
+        config_path = self.path.with_name("config 'quote' $(no-run).toml")
+        executable = "/synthetic venv/$(no-run)/python"
+        with patch.object(console, "os", SimpleNamespace(name="posix")), \
+                patch.object(console.sys, "executable", executable), \
+                patch.object(console.subprocess, "Popen") as launch, redirect_stdout(io.StringIO()) as output:
+            console.open_knowledge_window(config_path)
+        self.assertIn("另一个终端", output.getvalue())
+        lines = output.getvalue().splitlines()
+        self.assertEqual(shlex.split(lines[-2]), ["cd", "--", str(Path(console.__file__).resolve().parent.parent)])
+        self.assertEqual(shlex.split(lines[-1]),
+                         [executable, "-m", "indeces", "knowledge", "--config", str(config_path)])
+        launch.assert_not_called()
+
+    def test_once_on_start_is_rejected_before_loading_config_or_starting(self):
+        with patch("sys.argv", ["indeces", "start", "--once"]), \
+                patch.object(console, "load_config") as load, patch.object(console, "run") as run, \
+                self.assertRaises(SystemExit) as error:
+            console.main()
+        self.assertEqual(error.exception.code, 2)
+        load.assert_not_called()
+        run.assert_not_called()
 
     def test_console_reloads_configuration_after_wizard_before_start(self):
         old_config = self.config

@@ -1,8 +1,10 @@
-# 交付状态：0.9.1
+# 交付状态：0.9.2
 
 截至用户时区日期 2026-09-30，本体已在 `D:\Indeces` 实现。GitHub 仓库为 [Indeces_memory_manager](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。源码提交/推送及公开状态由交付消息、Git 历史和 GitHub 元数据确认；创建仓库本身不代表服务已启动。
 
 已实现：无头/Console 入口、单实例存储锁、一个 Discord Gateway/有界消息队列、显式 @ 门禁、实际送达回执、短期 100%/70% 整轮水位摘要、GPT-6-Luna stateless adaptor、独立阶段预算、计量门禁、usage 核验、超时/阶段熔断、scratch hash 链与持久原文/checkpoint。
+
+0.9.2 按用户要求将普通 PDF 转换/后台标词进度与完成、失败、中断结果移出主 Console。Windows Console `knowledge` 打开独立进度窗口，`Indeces-Knowledge.cmd` 或另一终端的 `python -m indeces knowledge` 持续查看；`--once` 单次查看。保留实际材料目录入口及全部 scratch 回执，主 Console 仍提示迁移、撤下、拒绝、扫描故障和后台停摆。进度每两秒以短事务只读 SQLite 查询当前 Guild 的版本、标词块数、发布指针及失败 code，不读取原文、PDF、标注词内容、graph 或 scratch，不占模型请求槽、不重放任务或迁移状态。失败新版与可检索旧版分列，只有 ready 与发布指针一致才显示发布完成；转换排队/进行中不能区分，停服快照不证明服务在线。查看退出不停止服务，原有模型、NPMI、预算、并发与存储 schema 均未改变。当前实例不停止或热更新，新输出规则在下次加载新版时生效。
 
 0.9.0 增加原始材料目录入口：本机实际位置已核验为 `D:\Indeces\knowledge`，桌面“Indeces 知识库”快捷方式、项目根 `Indeces-Knowledge.cmd` 与 Console `knowledge` 方便到达，入口只打开目录，不启动 Bot/模型。根级 `.indeces` 放固定说明、`_staging` 放未入库材料，递归前剪枝，不计候选/标词；正常主题与年份子目录仍入库，目录链接/junction不遍历。保留原文件及自定义指南；可读但不可写的安全目录以只读方式访问，不因指南写入失败阻断。用户批准支持文件上限128→256，默认/示例/现有本地配置已同步，其他模型/单篇/版本预算不增。第257个候选仍按原策略撤下并归档全部当前范围来源，超限恢复需重新入库；暂存不冒充无限索引。详见 [KNOWLEDGE_DIRECTORY.md](KNOWLEDGE_DIRECTORY.md)。
 
@@ -31,6 +33,8 @@ Bot token 在 Windows 使用当前用户 DPAPI 加密，带应用 entropy、版�
 Console `scratch` 校验外层结构/hash 与新每轮记录合同，分别报告 complete/failed/incomplete/invalid/legacy，并以 call_counts 核对成功 adaptor 调用的计量/生成输入、响应、门禁、预算、usage/时间和输出；reply_context 对照实际 `/responses` 请求。图权重与首次事件审计在同一个数据库事务内提交，事务后立即写 `memory_observation` 回执；日志 fsync 另有边界，不能描述成跨数据库与日志原子。日志可能写入后的 I/O 失败禁止当前 writer 续写，不自动修复；后续审计失败不覆盖已确认的 Discord 送达状态。具体记录规范与限制见 [RUN_RECORDS.md](RUN_RECORDS.md)。没有增加模型调用、修改公式/预算或开展真实联网验收。
 
 ## 验证证据
+
+- 0.9.2 本机完整离线测试：Windows/CPython 3.12.14，**613 tests / 0 failures / 14 skips**，40.063 秒。新增当前版本进度覆盖只读不创建/不修改、服务器与路径隔离、并发 WAL 一致快照、checkpoint 刷新、旧发布保留、未发布 ready、截断、终端控制字符和查看中断；真实合成 PDF 转换、标词成功/失败/取消均保持 stdout 静默与完整 scratch 审计。Console 独立窗口路由及 POSIX 解释器/工作目录/引号指令经离线验证，窗口启动 mock，不冒充真实桌面体验。配置/依赖导入、`pip check`、帮助与 Console 退出通过，见 [verification/OFFLINE_092.json](../verification/OFFLINE_092.json)。非 editable wheel 在独立解释器进程验证 knowledge 单次输出、1/2 块进度、旧发布与数据库字节不变，目录 GUI mock，见 [verification/WHEEL_092.json](../verification/WHEEL_092.json)。未读取真实配置/运行数据、未启停实例或调用真实模型/Discord；本次不是后台标词质量或线上验收。
 
 - 0.9.1 公开发布准备：只调整忽略规则、文档和版本元数据，运行实现未变。本机42个私密路径样例均排除、15个公开样例允许，92个已跟踪路径不违反忽略规则；配置/导入、`pip check`、Console退出与安装版本核验通过，见 [verification/OFFLINE_091.json](../verification/OFFLINE_091.json)。对0.9.0基线公开引用可达的11个提交、221个blob及本地工具引用做秘密审计，校验官方checksum的Gitleaks8.30.1只有一项合成Guild ID误报，补充扫描的密钥形状匹配也均为具名离线假值；未发现真实秘密或公开历史中的运行数据路径，详见 [verification/REPOSITORY_AUDIT_091.json](../verification/REPOSITORY_AUDIT_091.json)。本地工具引用中的附件不发布；GitHub release/assets、Actions artifacts、issues/PR均为空。规则扫描不证明任意秘密不存在，完整Actions历史日志未下载审计。最终提交复扫、Windows/Ubuntu CI与GitHub公开元数据以交付消息确认，不以准备记录代替公开验收。
 - 0.9.0 本机完整离线测试：Windows/CPython 3.12.14，**588 tests / 0 failures / 14 skips**，62.073 秒。新增目录入口 27、候选扫描与生命周期 16、Console 路由 2 项；真实 Windows junction 测试通过，本机符号链接权限及平台相关用例保留跳过。配置/依赖导入、`pip check`、Console退出、命令帮助通过，见 [verification/OFFLINE_090.json](../verification/OFFLINE_090.json)。非editable wheel在独立进程验证固定说明、Console目录路由、256上限与300个暂存文件排除，Explorer/服务均mock，见 [verification/WHEEL_090.json](../verification/WHEEL_090.json)。审计修复文件链接误占候选额度、目录枚举失败误当删除，以及指南保存失败清理可能删除竞争写入的用户说明；合成故障回归保留旧发布来源及用户README。本机仅同步已授权`max_files`字段、准备管理/暂存目录与桌面文件夹快捷方式，未读取真实材料、凭据、数据库或scratch，未启动Explorer、Bot或模型；精确提交远端CI由交付消息确认。

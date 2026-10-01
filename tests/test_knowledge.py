@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
+from contextlib import redirect_stdout
 from copy import deepcopy
 from dataclasses import replace
 import hashlib
+from io import StringIO
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -867,7 +869,14 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.records(source_id, active=True)), 1)
 
     async def test_completion_receipt_matches_durable_published_version_and_accounting(self):
-        source_id = await self.ready_source()
+        output = StringIO()
+        self.quiet.stop()
+        try:
+            with redirect_stdout(output):
+                source_id = await self.ready_source()
+        finally:
+            self.printed = self.quiet.start()
+        self.assertEqual(output.getvalue(), "")
         version = self.version(source_id)
         receipts = self.receipts(source_id)
         self.assertEqual([receipt["receipt"] for receipt in receipts], ["queued", "started", "progress", "completed"])
@@ -879,12 +888,42 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((done["labelled_chunks"], done["total_chunks"], done["records"]), (1, 1, 1))
         self.assertEqual((done["input_tokens"], done["output_tokens"], done["elapsed_seconds"]),
                          (version["input_tokens"], version["output_tokens"], version["elapsed_seconds"]))
-        printed = "\n".join(str(call.args[0]) for call in self.printed.call_args_list)
-        self.assertIn("知识库更新完成", printed)
-        self.assertIn(source_id, printed)
-        self.assertIn(version["digest"], printed)
-        self.assertIn("input_tokens=25", printed)
-        self.assertIn("output_tokens=8", printed)
+
+    async def test_partial_label_failure_keeps_audit_and_old_publication_without_console_receipts(self):
+        old = await self.ready_source()
+        self.file("alpha topic replacement material " * 8)
+        self.adapter.outcomes.extend([labels(), GovernedError("provider_network_error")])
+        calls_before = len(self.adapter.calls)
+        output = StringIO()
+        self.quiet.stop()
+        try:
+            with redirect_stdout(output):
+                self.service.scan_once()
+                new = self.head()["source_id"]
+                self.assertTrue(await self.service.label_next())
+        finally:
+            self.printed = self.quiet.start()
+        self.assertEqual(output.getvalue(), "")
+        self.assertEqual((self.version(new)["status"], self.version(new)["error"]),
+                         ("failed", "provider_network_error"))
+        self.assertEqual(self.published()["source_id"], old)
+        self.assertEqual(self.records(new), [])
+        self.assertEqual(len(self.adapter.calls) - calls_before, 2)
+        receipts = self.receipts(new)
+        self.assertEqual([receipt["receipt"] for receipt in receipts],
+                         ["queued", "started", "progress", "failed"])
+        failed = receipts[-1]
+        self.assertEqual((failed["reply_source_id"], failed["labelled_chunks"], failed["records"]),
+                         (old, 1, 0))
+        self.assertGreater(failed["total_chunks"], 1)
+        self.assertEqual((failed["input_tokens"], failed["output_tokens"]), (25, 8))
+        self.assertEqual(failed["code"], "provider_network_error")
+        self.assertTrue(failed["remote_usage_unknown"])
+        labelled = [fields for event, fields in self.scratch.events
+                    if event == "knowledge_chunk_labelled" and fields["source_id"] == new]
+        self.assertEqual(len(labelled), 1)
+        self.assertIn("replacement material", labelled[0]["quote"])
+        self.assertEqual(labelled[0]["marks"], ["alpha", "topic"])
 
     async def test_failed_publication_has_only_failed_receipt_with_prior_reply_version(self):
         old = await self.ready_source()
@@ -908,16 +947,23 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
     async def test_cancelled_replacement_preserves_prior_snapshot_and_reports_unknown_request_usage(self):
         old = await self.ready_source()
         self.file("alpha topic cancelled replacement")
-        self.service.scan_once()
-        new = self.head()["source_id"]
         self.adapter = LabelAdapter(gate=asyncio.Event())
         self.service.adapter = self.adapter
-        task = asyncio.create_task(self.service.label_next())
-        async with asyncio.timeout(1):
-            await self.adapter.entered.wait()
-        task.cancel()
-        with self.assertRaises(asyncio.CancelledError):
-            await task
+        output = StringIO()
+        self.quiet.stop()
+        try:
+            with redirect_stdout(output):
+                self.service.scan_once()
+                new = self.head()["source_id"]
+                task = asyncio.create_task(self.service.label_next())
+                async with asyncio.timeout(1):
+                    await self.adapter.entered.wait()
+                task.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await task
+        finally:
+            self.printed = self.quiet.start()
+        self.assertEqual(output.getvalue(), "")
         self.assertEqual(self.version(new)["status"], "failed")
         self.assertEqual(self.version(new)["error"], "interrupted_unknown_usage")
         self.assertEqual(self.published()["source_id"], old)

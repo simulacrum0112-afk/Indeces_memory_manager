@@ -27,7 +27,7 @@ Console 输入 `knowledge` 查看绝对路径和当前导入限制；Windows 会
 模型或 Discord。PDF 先在本机独立进程转换为 Markdown，审阅稿保存于配置的
 state 目录下 `pdf_markdown/`，不会回写或替换这里的原始 PDF。
 随后按原切块策略后台标词；新版本全部完成后才发布。合法替换在处理期间或失败
-后仍使用已有完整发布版本，完成后 Console 显示回执。删除或超限会按撤下策略
+后仍使用已有完整发布版本，使用 `knowledge` 独立窗口查看进度和完成状态。删除或超限会按撤下策略
 处理，不保留为在线证据。聊天本身不标词、不自动入库。
 
 本目录不是无限量在线索引。默认支持候选上限为 256 个，以 Console 显示的配置
@@ -197,7 +197,7 @@ def show_knowledge_directory(config, *, open_directory=True) -> Path:
           f"转换 {pdf.seconds} 秒。")
     print(f"整篇标词：输入 {knowledge.version_input_tokens} tokens；输出 {knowledge.version_output_tokens} tokens；"
           f"总时间 {knowledge.version_seconds} 秒。各阶段原有预算不扩额。")
-    print("服务显式 start 后才转换和后台标词，完整版本发布后 Console 给回执；打开目录不会启动服务。")
+    print("服务显式 start 后才转换和后台标词；进度与发布结果在 knowledge 窗口查看，回执保留于 scratch。打开目录不会启动服务。")
     print("原文件不自动移动、删除、重新命名或上传；改名/移动视为原来源删除和新来源新增。")
     staging_label = "未入库暂存区" if preparation_error is None else "暂存区目标（本次未准备，可能不存在）"
     print(f"{staging_label}：{root / STAGING_DIRECTORY}；不扫描、不标词、不计候选上限。超量 raw 请留在此处。")
