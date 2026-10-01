@@ -7,10 +7,10 @@ class PersonaTests(unittest.TestCase):
     """Offline prompt contract checks, not claims about live model adherence."""
 
     def setUp(self):
-        self.instructions = prompts.reply_instructions("Indices")
+        self.instructions = prompts.reply_instructions("Indeces")
 
     def test_identity_and_conversational_scope(self):
-        self.assertIn("You are Indices,", self.instructions)
+        self.assertIn("You are Indeces,", self.instructions)
         self.assertIn("calm, curious, warm", self.instructions)
         self.assertIn("current explicitly addressed message", self.instructions)
         self.assertIn("user's language", self.instructions)

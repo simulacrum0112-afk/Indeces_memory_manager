@@ -22,14 +22,14 @@ class InstanceLock:
                 msvcrt.locking(self.stream.fileno(), msvcrt.LK_NBLCK, 1)
             except OSError:
                 self.stream.close()
-                raise RuntimeError("another Indices instance owns this state directory") from None
+                raise RuntimeError("another Indeces instance owns this state directory") from None
         else:
             import fcntl
             try:
                 fcntl.flock(self.stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             except OSError:
                 self.stream.close()
-                raise RuntimeError("another Indices instance owns this state directory") from None
+                raise RuntimeError("another Indeces instance owns this state directory") from None
 
     def close(self):
         self.stream.close()

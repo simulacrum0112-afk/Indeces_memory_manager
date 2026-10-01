@@ -35,6 +35,8 @@ from collections import Counter
 from contextlib import nullcontext
 from typing import Any
 
+from .identity import AGENT_NAME, SELF_NAME_ALIASES
+
 
 UPSTREAM_COMMIT = "8769b9ed0af3531b9fbc09fb6e084d8e7adf724d"
 ETA = 1.0
@@ -72,9 +74,11 @@ class MemoryGraph:
     """
 
     def __init__(self, connection: sqlite3.Connection,
-                 self_marks: tuple[str, ...] = ("Indices",)) -> None:
+                 self_marks: tuple[str, ...] = (AGENT_NAME,)) -> None:
         self.connection = connection
         self.self_marks = {_canonical(mark) for mark in self_marks}
+        if self.self_marks & SELF_NAME_ALIASES:
+            self.self_marks.update(SELF_NAME_ALIASES)
         had_support = connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name='memory_support'").fetchone()
         connection.executescript("""
@@ -143,6 +147,18 @@ class MemoryGraph:
                 scopes = [row[0] for row in connection.execute("SELECT DISTINCT scope FROM memory_records")]
                 for scope in scopes:
                     self._rebuild_static(scope)
+            # A former self-name may have been labelled as a normal mark.
+            # Only derived caches change: records, dynamic weights and frozen
+            # event evidence retain their original values and identity.
+            affected_scopes = set()
+            for table in ("memory_static", "memory_support"):
+                for scope, a, b, context_json in connection.execute(
+                        f"SELECT scope,a,b,context_json FROM {table}"):
+                    cached_marks = {a, b, *json.loads(context_json)}
+                    if cached_marks & self.self_marks:
+                        affected_scopes.add(scope)
+            for scope in sorted(affected_scopes):
+                self._rebuild_static(scope)
 
     def _marks(self, marks: list[str]) -> list[str]:
         if not isinstance(marks, list) or not all(isinstance(m, str) for m in marks):

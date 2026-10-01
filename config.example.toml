@@ -1,6 +1,6 @@
 # Copy to config.local.toml, or use the console's discord wizard.
 # Bot credentials are outside TOML; wizard storage uses Windows user DPAPI.
-name = "Indices"
+name = "Indeces"
 state_dir = "state"
 scratch_dir = "scratch"
 knowledge_dir = "knowledge"

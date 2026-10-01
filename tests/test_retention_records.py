@@ -52,12 +52,12 @@ class RetentionRecordTests(unittest.IsolatedAsyncioTestCase):
         self.store = Store(self.root / "state")
         self.scratch = CollectingScratch()
         self.config = SimpleNamespace(
-            name="Indices", discord=DiscordConfig("10"),
+            name="Indeces", discord=DiscordConfig("10"),
             runtime=RuntimeConfig(summary_max_bytes=256, turn_seconds=5),
             adapter=AdapterConfig("gpt-6-luna", "https://api.openai.com/v1", {
                 stage: Budget(16384, 2048, 1) for stage in ("reply", "summary", "label")}),
         )
-        graph = MemoryGraph(self.store.db, self_marks=("Indices",))
+        graph = MemoryGraph(self.store.db, self_marks=("Indeces",))
         graph.add("10:knowledge", "synthetic-source", "fixture", [
             {"text": "alpha topic source", "quote": "alpha topic source", "marks": ["alpha", "topic"]}], 1.0)
 

@@ -18,7 +18,7 @@ from indeces.store import Store
 
 
 def main():
-    with TemporaryDirectory(prefix="indices-synthetic-observer-") as directory:
+    with TemporaryDirectory(prefix="indeces-synthetic-observer-") as directory:
         root = Path(directory).resolve()
         base = load_config(Path(__file__).resolve().parents[1] / "config.example.toml")
         config = replace(base, state_dir=root / "state", scratch_dir=root / "scratch",

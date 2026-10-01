@@ -71,7 +71,7 @@ class ObserverServiceTests(unittest.IsolatedAsyncioTestCase):
         self.observer_factory.assert_called_once_with(self.config)
         self.observer.start.assert_called_once()
         self.observer.close.assert_called_once()
-        self.assertIn("Indices read-only observer: http://127.0.0.1:12345/synthetic/", self.output.getvalue())
+        self.assertIn("Indeces read-only observer: http://127.0.0.1:12345/synthetic/", self.output.getvalue())
         self.assertLess(self.order.index("observer_started"), self.order.index("gateway_started"))
         for event in ("bridge_close", "knowledge_close", "adapter_close", "service_stop", "scratch_close", "store_close"):
             self.assertLess(self.order.index("observer_closed"), self.order.index(event))
@@ -170,7 +170,7 @@ class ObserverStandaloneTests(unittest.TestCase):
         self.observer.close.assert_called_once()
         adapter.assert_not_called()
         bridge.assert_not_called()
-        self.assertIn("Indices observer stopped.", output.getvalue())
+        self.assertIn("Indeces observer stopped.", output.getvalue())
 
     def test_observe_closes_after_start_failure_without_echoing_exception(self):
         self.observer.start.side_effect = OSError("synthetic-private-start-error")

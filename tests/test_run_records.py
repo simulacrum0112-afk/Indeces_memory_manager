@@ -41,7 +41,7 @@ class RecordFixture:
         self.graph = MemoryGraph(self.store.db)
         self.scope = "10:knowledge"
         self.scratch = Scratch()
-        self.config = SimpleNamespace(name="Indices", knowledge_dir=self.root / "knowledge",
+        self.config = SimpleNamespace(name="Indeces", knowledge_dir=self.root / "knowledge",
             knowledge=KnowledgeConfig(), discord=DiscordConfig("10"),
             runtime=RuntimeConfig(summary_max_bytes=256, turn_seconds=5),
             adapter=AdapterConfig("gpt-6-luna", "https://api.openai.com/v1", {

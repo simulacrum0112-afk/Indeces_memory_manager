@@ -4,7 +4,7 @@
 
 ## 已确定的产品边界
 
-- 智能体名为 **Indices**（大写 I）；仓库名仍为 `Indeces_memory_manager`。Console 的 `discord` 向导接收服务器 Guild ID、可选频道与隐藏 Bot token；Windows 本机持久化只用当前用户 DPAPI，服务运行期间禁止向导修改配置。保存后由用户显式 `start`。
+- 智能体名为 **Indeces**（大写 I）；仓库名仍为 `Indeces_memory_manager`。Console 的 `discord` 向导接收服务器 Guild ID、可选频道与隐藏 Bot token；Windows 本机持久化只用当前用户 DPAPI，服务运行期间禁止向导修改配置。保存后由用户显式 `start`。
 - 一个 Discord Bot/Gateway、一个配置服务器、显式 @Bot 的人类文字消息与一条回复。
 - 无头服务、CLI Console、LLM adaptor、短期水位摘要、Hebbian 标注词知识库、scratch 输入输出审计。
 - 只使用 GPT-6-Luna。官方 Responses API 是当前实现；用户尚未另外指定认证/代理接口。

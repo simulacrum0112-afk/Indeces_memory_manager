@@ -85,7 +85,7 @@ async def serve(config, key, token):
         try:
             prepare_scratch_directory(config.scratch_dir)
             observer = ObserverServer(config)
-            print(f"Indices read-only observer: {observer.start()}", flush=True)
+            print(f"Indeces read-only observer: {observer.start()}", flush=True)
         except Exception as error:
             if observer is not None:
                 try:
@@ -95,8 +95,8 @@ async def serve(config, key, token):
             observer = None
             print(f"Observer unavailable: {type(error).__name__}; use observe in a separate console.", flush=True)
         knowledge.start()
-        maintenance_task = asyncio.create_task(_maintain_scratch(scratch), name="indices-scratch-retention")
-        gateway_task = asyncio.create_task(bridge.run(token), name="indices-discord-gateway")
+        maintenance_task = asyncio.create_task(_maintain_scratch(scratch), name="indeces-scratch-retention")
+        gateway_task = asyncio.create_task(bridge.run(token), name="indeces-discord-gateway")
         done, _ = await asyncio.wait({maintenance_task, gateway_task}, return_when=asyncio.FIRST_COMPLETED)
         if maintenance_task in done:
             await maintenance_task
@@ -239,7 +239,7 @@ def check_scratch(config):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Indices: minimal Discord runtime console")
+    parser = argparse.ArgumentParser(description="Indeces: minimal Discord runtime console")
     parser.add_argument("command", nargs="?", choices=["console", "init", "discord", "start", "status", "check", "scratch", "observe", "logs"], default="console")
     parser.add_argument("--config", type=Path, default=Path("config.local.toml"))
     args = parser.parse_args()
@@ -270,10 +270,10 @@ def main():
             else:
                 check_scratch(config)
             return
-        print(f"Indices {__version__} console: discord | start | status | scratch | observe | logs | quit")
+        print(f"Indeces {__version__} console: discord | start | status | scratch | observe | logs | quit")
         while True:
             try:
-                command = input("Indices> ").strip().lower()
+                command = input("Indeces> ").strip().lower()
             except (EOFError, KeyboardInterrupt):
                 break
             if command in {"quit", "exit"}:

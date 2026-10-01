@@ -40,7 +40,7 @@ class DiscordWizardTests(unittest.TestCase):
         # Match the wizard's canonical path, including Windows 8.3 aliases.
         self.path = (Path(self.directory.name) / "config.local.toml").resolve()
         example = Path(__file__).resolve().parents[1] / "config.example.toml"
-        self.original = example.read_bytes().replace(b'name = "Indices"', b'name = "Indeces"')
+        self.original = example.read_bytes().replace(b'name = "Indeces"', b'name = "old-name"')
         self.path.write_bytes(self.original)
         self.addCleanup(patch.stopall)
         self.protect = patch.object(credentials, "_protect", side_effect=fake_protect).start()
@@ -71,7 +71,7 @@ class DiscordWizardTests(unittest.TestCase):
         self.assertTrue(saved)
         after = tomllib.loads(self.path.read_text(encoding="utf-8"))
         expected = deepcopy(before)
-        expected["name"] = "Indices"
+        expected["name"] = "Indeces"
         expected["discord"]["guild_id"] = GUILD
         expected["discord"]["channel_ids"] = [CHANNEL, OTHER_CHANNEL]
         self.assertEqual(after, expected)
@@ -343,12 +343,12 @@ class DiscordWizardTests(unittest.TestCase):
 
 class ConfigPatchTests(unittest.TestCase):
     def test_scope_edits_preserve_comments_crlf_and_other_bytes(self):
-        original = (b'# Header\r\nname = "Indeces" # identity\r\nstate_dir = "state"\r\n\r\n'
+        original = (b'# Header\r\nname = "old-name" # identity\r\nstate_dir = "state"\r\n\r\n'
                     b'[discord] # transport\r\nguild_id = "" # server\r\n'
                     b'channel_ids = [] # selection\r\nqueue_capacity = 19\r\n\r\n'
                     b'[adapter]\r\nmodel = "gpt-6-luna"\r\n')
         updated = discord_wizard.patch_config(original, GUILD, (CHANNEL,))
-        expected = (original.replace(b'name = "Indeces"', b'name = "Indices"')
+        expected = (original.replace(b'name = "old-name"', b'name = "Indeces"')
                     .replace(b'guild_id = ""', f'guild_id = "{GUILD}"'.encode())
                     .replace(b'channel_ids = []', f'channel_ids = ["{CHANNEL}"]'.encode()))
         self.assertEqual(updated, expected)
@@ -376,7 +376,7 @@ class ConfigPatchTests(unittest.TestCase):
         original = b'state_dir = "state"\n[discord]\nguild_id = "123"\n[adapter]\nmodel = "gpt-6-luna"'
         updated = discord_wizard.patch_config(original, GUILD, (CHANNEL,))
         self.assertEqual(tomllib.loads(updated.decode()), {
-            "name": "Indices", "state_dir": "state",
+            "name": "Indeces", "state_dir": "state",
             "discord": {"guild_id": GUILD, "channel_ids": [CHANNEL]},
             "adapter": {"model": "gpt-6-luna"}})
 

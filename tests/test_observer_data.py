@@ -35,7 +35,7 @@ class ObserverDataTests(unittest.TestCase):
     def setUp(self):
         self.temp = TemporaryDirectory()
         self.root = Path(self.temp.name).resolve()
-        self.config = SimpleNamespace(name="Indices", state_dir=self.root / "state", scratch_dir=self.root / "scratch",
+        self.config = SimpleNamespace(name="Indeces", state_dir=self.root / "state", scratch_dir=self.root / "scratch",
             knowledge_dir=self.root / "knowledge", discord=DiscordConfig("10"), knowledge=KnowledgeConfig())
         self.clock_patch = patch("indeces.observer_data._now", return_value=NOW)
         self.clock_patch.start()

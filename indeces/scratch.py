@@ -126,6 +126,8 @@ def _access_guard(directory: Path, *, write=False):
     import ctypes
     from ctypes import wintypes
     identity = os.path.normcase(str(Path(directory).resolve()))
+    # Stable v0.6.0 protocol ID: old and new processes must share this mutex.
+    # This identifier is not a displayed agent name.
     name = "Local\\IndicesScratch-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     create = kernel.CreateMutexW

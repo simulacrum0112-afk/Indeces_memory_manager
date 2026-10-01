@@ -1,6 +1,6 @@
 # Indeces_memory_manager
 
-一个名为 **Indices** 的小型 Python 无头智能体：一个 Discord Bot 连接、一个串行消息 worker、GPT-6-Luna adaptor、本地知识库、动态 Hebbian 标注词网络，以及可检查的输入输出 scratch log。项目仓库名保留 `Indeces_memory_manager`。
+一个名为 **Indeces** 的小型 Python 无头智能体：一个 Discord Bot 连接、一个串行消息 worker、GPT-6-Luna adaptor、本地知识库、动态 Hebbian 标注词网络，以及可检查的输入输出 scratch log。项目仓库名保留 `Indeces_memory_manager`。
 
 只处理指定服务器中人类显式 `@Bot` 的文字消息，并回复一条 Discord 消息。短期上下文按频道隔离。没有工具执行、MCP、HTTP 服务、网页搜索、日程、主动发言或多 Bot 路由。
 
@@ -46,7 +46,7 @@ Linux 使用 `.venv/bin/python`。Windows 首次桥接可在 Console 输入 `dis
 
 向导接收服务器 **Guild ID**、可选频道 ID 和隐藏输入的 **Bot token**。Guild ID 是目标服务器 ID；频道 ID 以逗号分隔，留空保留现有配置，输入 `*` 允许该服务器中所有符合显式 @ 条件的频道。向导展示不含 token 的设置预览，输入 `y` 才保存；取消不应用桥接设置。已有 runtime 持有同一 state 目录的实例锁时，向导拒绝修改。
 
-Guild/频道设置写入 `config.local.toml`，名称同步为 `Indices`；Bot token 只在 Windows 以当前用户 DPAPI 加密，保存到相邻的 `config.local.discord.secret`，并绑定该 Guild ID。它不能作为明文配置迁移到其他 Windows 用户或系统。密钥不进入配置、scratch 或仓库。终端无法保证隐藏输入时拒绝回显输入；损坏或不匹配的旧凭据可在向导里提供新 token 修复。其他平台没有持久化明文回退，可手动设置配置中的 Guild/频道 ID，并使用环境变量或启动时的隐藏输入。
+Guild/频道设置写入 `config.local.toml`，名称同步为 `Indeces`；Bot token 只在 Windows 以当前用户 DPAPI 加密，保存到相邻的 `config.local.discord.secret`，并绑定该 Guild ID。它不能作为明文配置迁移到其他 Windows 用户或系统。密钥不进入配置、scratch 或仓库。终端无法保证隐藏输入时拒绝回显输入；损坏或不匹配的旧凭据可在向导里提供新 token 修复。其他平台没有持久化明文回退，可手动设置配置中的 Guild/频道 ID，并使用环境变量或启动时的隐藏输入。
 
 **向导只做本地设置，不连接 Discord、不验证 token 是否被 Discord 接受，也不启动服务。** 保存后在 Console 明确执行 `start`。启动时 Discord token 来源按 `DISCORD_BOT_TOKEN` 环境变量 → 与配置 Guild 匹配的已保存 token → 本次会话隐藏输入的顺序选择。OpenAI API key 仍由 `OPENAI_API_KEY` 环境变量或每次启动的隐藏输入提供，不持久化。不读取 Yuki 的秘密配置。`.env.example` 只说明变量名，不自动加载 `.env`。
 
@@ -58,9 +58,11 @@ Console 命令：`discord`、`start`、`status`、`scratch`、`quit`。`start` �
 
 Bot 需提前通过 Discord 的服务器安装流程加入目标服务器；向导不创建或邀请 Bot。Token 来自 Developer Portal 的 Bot 页面，安装步骤见 [Discord 官方入门](https://docs.discord.com/developers/quick-start/getting-started)。Bot 需接收服务器消息事件，并具有 View Channel、Send Messages、Read Message History [频道权限](https://docs.discord.com/developers/topics/permissions#permissions-bitwise-permission-flags)；在线程中回复还需 Send Messages in Threads。显式提及应用的消息正文可使用 Message Content intent 的例外；本实现不申请该特权 intent。[Discord Gateway](https://docs.discord.com/developers/events/gateway#message-content-intent)
 
-## Indices 人设与记忆测试
+## Indeces 人设与记忆测试
 
-默认提示词把 Indices 设为平静、好奇、温和且简洁的对话伙伴，使用当前用户的语言回复。目标是帮助观察 Hebbian 治理下的长期召回表现；日常交流不会自动改成测试报告。
+默认提示词把 Indeces 设为平静、好奇、温和且简洁的对话伙伴，使用当前用户的语言回复。目标是帮助观察 Hebbian 治理下的长期召回表现；日常交流不会自动改成测试报告。
+
+0.6.1 统一名称为 **Indeces**。已有配置中的旧产品名称在加载时自动映射为新名称，自定义名称保留；向导保存使用新名称。自身标注词过滤兼容新旧名称，只重建受影响的静态/来源支持缓存，保留原知识记录、动态权重和历史审计。旧运行记录与版本验证文件保留当时的原文；跨版本进程锁和 DPAPI 凭据继续兼容。scratch 中完整匹配旧固定模板的说明页自动更新，用户编辑过的说明保留。
 
 回答必须区分当前消息、最近对话/连续性摘要、带来源的长期知识和一般知识。涉及召回问题时，使用长期知识需引用本轮提供的 `[M1]` 一类标记，它们在运行记录中绑定实际来源 ID；没有相关长期证据时说明未检索到，不编造记忆、来源、图权重或测试结果。知识文件中的说法仍需保留来源、冲突和不确定性。
 

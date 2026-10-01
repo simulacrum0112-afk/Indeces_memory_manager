@@ -4,8 +4,10 @@ from __future__ import annotations
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from importlib.resources import files
 import json
+import os
 from pathlib import Path
 import secrets
+import tempfile
 import threading
 from urllib.parse import parse_qs, urlsplit
 
@@ -16,8 +18,10 @@ MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 ASSETS = {"": ("observer.html", "text/html; charset=utf-8"),
           "observer.css": ("observer.css", "text/css; charset=utf-8"),
           "observer.js": ("observer.js", "text/javascript; charset=utf-8")}
-GUIDE_MARKER = "# Indices scratch directory"
-GUIDE = """# Indices scratch directory
+GUIDE_MARKER = "# Indeces scratch directory"
+# Exact v0.6.0 fixed templates are compatibility inputs, never new display text.
+# Retain their complete bytes so a name migration cannot overwrite user notes.
+LEGACY_GUIDE = """# Indices scratch directory
 
 这是 Indices 的可核验运行记录目录。日期 JSONL 是原始记录；每行一条事件。
 请在编辑器中只读查看，勿修改序号、hash 或 retention checkpoint。
@@ -38,7 +42,7 @@ GUIDE = """# Indices scratch directory
 页面不落盘缓存或生成日志副本。认证凭据不进入 scratch。
 材料召回、字面引用和语义支持是不同结果；页面不证明事实或语义蕴含。
 """
-LANDING = """<!doctype html><html lang="zh-CN"><meta charset="utf-8">
+LEGACY_LANDING = """<!doctype html><html lang="zh-CN"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Indices · Scratch</title><body>
 <h1>Indices 运行记录</h1><p>此目录的日期 JSONL 是原始可核验记录。</p>
@@ -49,26 +53,55 @@ LANDING = """<!doctype html><html lang="zh-CN"><meta charset="utf-8">
 完整记录校验：<code>python -m indeces scratch</code>。</p>
 <p><a href="README.md">阅读目录说明</a>。停服时页面不清理磁盘记录；图审计独立持久保存。</p>
 </body></html>"""
+GUIDE = LEGACY_GUIDE.replace("Indices", "Indeces")
+LANDING = LEGACY_LANDING.replace("Indices", "Indeces")
+
+
+def _replace_managed_guide(target: Path, previous: bytes, desired: bytes):
+    """Replace only an unchanged, byte-exact known guide using a same-dir swap."""
+    descriptor, name = tempfile.mkstemp(prefix=".scratch-guide-", suffix=".tmp", dir=target.parent)
+    temporary = Path(name)
+    try:
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(desired)
+            output.flush()
+            os.fsync(output.fileno())
+        if target.is_symlink():
+            raise ValueError("scratch guide must not be a link")
+        # A user may edit the guide during preparation. Re-check immediately
+        # before publication and preserve anything that no longer matches.
+        if not target.is_file() or target.read_bytes() != previous:
+            return
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def prepare_scratch_directory(directory: Path):
-    """Create fixed guides only; never overwrite user files or log records."""
+    """Create fixed guides or migrate exact managed templates; preserve user files."""
     directory = Path(directory)
     if directory.is_symlink():
         raise ValueError("scratch directory must not be a link")
     directory.mkdir(parents=True, exist_ok=True)
     if directory.resolve() != directory.absolute():
         raise ValueError("scratch directory must be canonical")
-    for name, content in (("README.md", GUIDE), ("index.html", LANDING)):
+    for name, content, previous in (("README.md", GUIDE, LEGACY_GUIDE),
+                                   ("index.html", LANDING, LEGACY_LANDING)):
         target = directory / name
         if target.is_symlink():
             raise ValueError("scratch guide must not be a link")
         try:
-            with target.open("x", encoding="utf-8", newline="\n") as output:
-                output.write(content)
+            with target.open("xb") as output:
+                output.write(content.encode("utf-8"))
         except FileExistsError:
-            # Existing guide or user content is intentionally preserved.
-            pass
+            desired, old = content.encode("utf-8"), previous.encode("utf-8")
+            if not target.is_file() or target.stat().st_size not in {len(old), len(desired)}:
+                continue
+            current = target.read_bytes()
+            if current == old and current != desired:
+                _replace_managed_guide(target, old, desired)
+            # The current managed template is already correct. Every other
+            # byte sequence belongs to the user and is intentionally preserved.
 
 
 class _Server(HTTPServer):
@@ -100,7 +133,7 @@ class ObserverServer:
 
         class Handler(BaseHTTPRequestHandler):
             protocol_version = "HTTP/1.0"
-            server_version = "Indices"
+            server_version = "Indeces"
             sys_version = ""
 
             def log_message(self, *args):
@@ -179,7 +212,7 @@ class ObserverServer:
         self.url = f"http://127.0.0.1:{server.server_port}{self.prefix}"
         try:
             thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": .05},
-                                      name="indices-observer", daemon=True)
+                                      name="indeces-observer", daemon=True)
             self._thread = thread
             thread.start()
         except BaseException:
@@ -203,11 +236,11 @@ def observe(config):
     prepare_scratch_directory(config.scratch_dir)
     observer = ObserverServer(config)
     try:
-        print(f"Indices read-only observer: {observer.start()}", flush=True)
+        print(f"Indeces read-only observer: {observer.start()}", flush=True)
         print(f"Scratch directory: {config.scratch_dir}; Ctrl+C stops this observer.", flush=True)
         observer._thread.join()
     except KeyboardInterrupt:
-        print("Indices observer stopped.", flush=True)
+        print("Indeces observer stopped.", flush=True)
     finally:
         observer.close()
 

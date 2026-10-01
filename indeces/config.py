@@ -5,6 +5,8 @@ import math
 from pathlib import Path
 import tomllib
 
+from .identity import AGENT_NAME, normalize_agent_name
+
 
 @dataclass(frozen=True)
 class Budget:
@@ -135,9 +137,10 @@ def load_config(path: Path) -> Config:
     if set(budgets) != {"label", "summary", "reply"}:
         raise ValueError("exactly label, summary and reply budgets required")
     ac = AdapterConfig(**{**a, "budgets": {k: Budget(**v) for k, v in budgets.items()}})
-    name = raw.get("name", "Indices")
+    name = raw.get("name", AGENT_NAME)
     if not isinstance(name, str) or not name.strip() or len(name) > 80:
         raise ValueError("invalid agent name")
+    name = normalize_agent_name(name)
     def directory(key):
         value = Path(raw.get(key, key.removesuffix("_dir")))
         return (path.parent / value).resolve()

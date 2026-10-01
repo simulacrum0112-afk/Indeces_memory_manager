@@ -18,7 +18,7 @@ from indeces.store import Store
 
 
 def configuration():
-    return SimpleNamespace(name="Indices", runtime=RuntimeConfig(summary_max_bytes=256),
+    return SimpleNamespace(name="Indeces", runtime=RuntimeConfig(summary_max_bytes=256),
                            knowledge=KnowledgeConfig(), discord=DiscordConfig(guild_id="10"),
                            adapter=AdapterConfig("gpt-6-luna", "https://api.openai.com/v1",
                                                  {s: Budget(10000, 100, 1) for s in ("reply", "summary", "label")}))

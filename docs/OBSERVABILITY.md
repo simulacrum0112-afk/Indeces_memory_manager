@@ -1,10 +1,10 @@
 # 本机图与运行记录观察
 
-智能体名为 **Indices**。`scratch/` 是人类可访问的普通目录：可以直接用资源管理器/编辑器查看原始日期 JSONL，固定 `README.md` 和 `index.html` 说明查阅方法。Console 的 `logs` 打印此目录和说明路径，不读取认证密钥，不创建运行记录副本。
+智能体名为 **Indeces**。`scratch/` 是人类可访问的普通目录：可以直接用资源管理器/编辑器查看原始日期 JSONL，固定 `README.md` 和 `index.html` 说明查阅方法。Console 的 `logs` 打印此目录和说明路径，不读取认证密钥，不创建运行记录副本。
 
 ## 启动与查阅
 
-Console 的 `start` 启动 Bot 时会显示 `Indices read-only observer: http://127.0.0.1:.../.../`。将完整 URL 复制到浏览器地址栏；末尾 `/` 和随机路径都是地址的一部分。该观察服务随 Bot 停止，端口/随机路径下次会改变。观察服务无法启动时 Console 报告固定错误类型，回复服务继续运行，可另开终端观察。
+Console 的 `start` 启动 Bot 时会显示 `Indeces read-only observer: http://127.0.0.1:.../.../`。将完整 URL 复制到浏览器地址栏；末尾 `/` 和随机路径都是地址的一部分。该观察服务随 Bot 停止，端口/随机路径下次会改变。观察服务无法启动时 Console 报告固定错误类型，回复服务继续运行，可另开终端观察。
 
 独立观察命令不需要 Bot token、OpenAI key 或运行实例锁，可以在 Bot 已运行时使用：
 

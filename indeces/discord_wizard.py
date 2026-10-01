@@ -59,7 +59,7 @@ def patch_config(contents: bytes, guild_id: str, channels: tuple[str, ...]) -> b
     before = tomllib.loads(text)
     lines = text.splitlines(keepends=True)
     newline = "\r\n" if "\r\n" in text else "\n"
-    targets = {((), "name"): "Indices", (("discord",), "guild_id"): guild_id,
+    targets = {((), "name"): "Indeces", (("discord",), "guild_id"): guild_id,
                (("discord",), "channel_ids"): list(channels)}
     edits = []
     found = set()
@@ -124,7 +124,7 @@ def patch_config(contents: bytes, guild_id: str, channels: tuple[str, ...]) -> b
         lines[start:end] = [replacement]
     result = "".join(lines)
     expected = copy.deepcopy(before)
-    expected["name"] = "Indices"
+    expected["name"] = "Indeces"
     expected["discord"]["guild_id"] = guild_id
     expected["discord"]["channel_ids"] = list(channels)
     if tomllib.loads(result) != expected:
@@ -192,7 +192,7 @@ def configure_discord(config_path: Path, input_fn=None, secret_fn=None, output=N
                 old_token = load_discord_token(path, config.discord.guild_id)
             except CredentialError as error:
                 output(f"Saved token unavailable: {error.code}. Supply a replacement token to repair setup.")
-        output("Indices Discord bridge wizard. Guild ID means SERVER ID, not Application/Bot ID.")
+        output("Indeces Discord bridge wizard. Guild ID means SERVER ID, not Application/Bot ID.")
         output("Enable Discord Developer Mode, then Copy Server ID. No connection is made during setup.")
         while True:
             value = input_fn(f"Guild ID [{config.discord.guild_id or 'required'}]: ").strip() or config.discord.guild_id
@@ -221,7 +221,7 @@ def configure_discord(config_path: Path, input_fn=None, secret_fn=None, output=N
                 output("Enter a nonempty Bot token without whitespace/control characters; it will stay hidden.")
         # Prepare and validate the full reviewable configuration before asking to save.
         updated = patch_config(original, guild_id, channels)
-        output(f"Review: name=Indices; Guild={guild_id}; channels={', '.join(channels) or 'all mentioned channels'}")
+        output(f"Review: name=Indeces; Guild={guild_id}; channels={', '.join(channels) or 'all mentioned channels'}")
         output("Bot token: supplied (hidden). Save encrypted for the current Windows user. No service starts here.")
         if input_fn("Save this bridge configuration? [y/N]: ").strip().lower() not in {"y", "yes"}:
             output("Cancelled; configuration and saved token unchanged.")
