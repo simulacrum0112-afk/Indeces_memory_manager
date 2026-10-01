@@ -8,9 +8,11 @@ static edges, remain separate, and use w <- 0.99*w + 1 per co-activated
 pair. A retrieval event is one explicit decay cycle; retries of the same
 event do neither. Historical records and annotation alone never reinforce.
 
-Approved live extension: a dynamic weight, where present, replaces the
-static weight for one-hop expansion and ranking. Direct matches have
-priority; equally direct records are ranked by their incident live weights.
+Current retrieval uses only positive static NPMI edges. Dynamic weights
+remain a shadow layer for audit and never affect the default one-hop
+expansion or ranking. The explicit dynamic mode is a deferred extension;
+where selected, a dynamic weight replaces its static weight. Direct
+matches have priority in either mode.
 The graph is not a probability model: dynamic weights can exceed one.
 The upstream source-context gate and self-name exclusion still apply.
 Archived source versions retain their records and dynamic weights, but
@@ -398,7 +400,7 @@ class MemoryGraph:
                 audit.update(details)
         return True
 
-    def _edges(self, scope: str) -> dict[tuple[str, str], dict[str, Any]]:
+    def _edges(self, scope: str, ranking_mode: str) -> dict[tuple[str, str], dict[str, Any]]:
         edges: dict[tuple[str, str], dict[str, Any]] = {}
         for a, b, context, evidence, count in self.connection.execute(
                 "SELECT a,b,context_json,evidence_json,co_count "
@@ -420,15 +422,17 @@ class MemoryGraph:
             if (a, b) not in edges:
                 continue  # Preserved history is not valid live source support.
             edge = edges[(a, b)]
-            edge.update(dynamic_score=weight, effective_score=weight,
-                        dynamic_last_event_id=event_id)
+            edge.update(dynamic_score=weight, dynamic_last_event_id=event_id)
+            if ranking_mode == "dynamic":
+                edge["effective_score"] = weight
             # Prefer current static evidence when it exists. The seeded
             # dynamic context remains stored unchanged for audit.
         return {pair: edge for pair, edge in edges.items() if edge["effective_score"] > 0}
 
     def retrieve(self, scope: str, marks: list[str], query: str,
                  now: float, *, event_id: str | None = None,
-                 audit: dict | None = None) -> list[dict[str, Any]]:
+                 audit: dict | None = None,
+                 ranking_mode: str = "static") -> list[dict[str, Any]]:
         """Return at most three sourced references, with <=400 text chars.
 
         Direct hits require literal current-message evidence and known
@@ -437,12 +441,16 @@ class MemoryGraph:
         ``audit`` receives committed observable transitions and selection. The
         first event audit is durable and immutable; replay selection remains
         based on current active sources without repeating graph learning.
+        Static mode is the product default. Dynamic mode is retained as an
+        explicit low-level option, without a Console/config activation path.
         """
         self._validate_scope_time(scope, now)
         if not isinstance(query, str):
             raise ValueError("query must be a string")
         if audit is not None and not isinstance(audit, dict):
             raise ValueError("audit must be a dictionary")
+        if ranking_mode not in ("static", "dynamic"):
+            raise ValueError("ranking_mode must be static or dynamic")
         requested = self._marks(marks)
         if event_id is None:
             event_id = hashlib.sha256(_json([scope, query, requested, now]).encode()).hexdigest()
@@ -469,12 +477,17 @@ class MemoryGraph:
                 "SELECT query FROM memory_events WHERE scope=? AND event_id=?", (scope, event_id)).fetchone()
             if (original and original["request"]["query"] != query) or (legacy and legacy[0] != query):
                 raise ValueError("retrieval event ID reused with different input")
+            # A replay may select current active source versions, but cannot
+            # relabel an old dynamic experiment as a static retrieval event.
+            original_mode = original["selection"].get("ranking_mode", "dynamic") if original else "dynamic"
+            if (original or legacy) and original_mode != ranking_mode:
+                raise ValueError("retrieval event ID reused with different ranking mode")
             observation = {}
             if hits:
                 if original and not original["match"]["direct_hits"]:
                     raise ValueError("retrieval event ID reused with different input")
                 self._observe(scope, hits, query, now, event_id, audit=observation, commit=False)
-                result, selection = self._selection(records, hits, self._edges(scope), query, event_id)
+                result, selection = self._selection(records, hits, self._edges(scope, ranking_mode), query, event_id)
             else:
                 state = self.connection.execute(
                     "SELECT dynamic_seeded FROM memory_scopes WHERE scope=?", (scope,)).fetchone()
@@ -483,10 +496,15 @@ class MemoryGraph:
                                "seeded_before": seeded, "seeded_after": seeded, "seeded_edges": 0,
                                "changed_edges": [], "reason": "no_literal_known_mark"}
                 result, selection = self._selection(records, [], {}, query, event_id)
+            selection.update(ranking_mode=ranking_mode,
+                             weight_basis="static_npmi" if ranking_mode == "static" else "dynamic_or_static")
+            for record in result:
+                record.update(ranking_mode=selection["ranking_mode"], weight_basis=selection["weight_basis"])
             if original:
                 observation["original_changes_known"] = original["observation"]["original_changes_known"]
                 payload["original_event"] = {"payload_sha256": hashlib.sha256(stored[0].encode()).hexdigest(),
                     "observed_at": original["request"]["observed_at"],
+                    "ranking_mode": original_mode,
                     "observation_status": original["observation"]["status"],
                     "changed_edges_count": len(original["observation"]["changed_edges"])}
             elif legacy:

@@ -1,8 +1,14 @@
-# 交付状态：0.9.3
+# 交付状态：0.10.0
 
-截至用户时区日期 2026-09-30，本体已在 `D:\Indeces` 实现。GitHub 仓库为 [Indeces_memory_manager](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。源码提交/推送及公开状态由交付消息、Git 历史和 GitHub 元数据确认；创建仓库本身不代表服务已启动。
+截至用户时区日期 2026-10-01，本体已在 `D:\Indeces` 实现。GitHub 仓库为公开 MIT [Indeces_memory_manager](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。源码提交/推送及公开状态由交付消息、Git 历史和 GitHub 元数据确认；创建仓库本身不代表服务已启动。
 
 已实现：无头/Console 入口、单实例存储锁、一个 Discord Gateway/有界消息队列、显式 @ 门禁、实际送达回执、短期 100%/70% 整轮水位摘要、GPT-6-Luna stateless adaptor、独立阶段预算、计量门禁、usage 核验、超时/阶段熔断、scratch hash 链与持久原文/checkpoint。
+
+0.10.0 审计发现旧代码仍以动态权重扩展和排序，与先前已更正文档中的“静态检索”不一致。Runtime 现明确使用静态 NPMI，只有有用正静态权重才能一跳扩展；动态 seed/decay/reinforce 和不可变历史保留为 shadow 观察。新冻结材料与排序审计绑定 ranking_mode/weight_basis，同一事件不能换模式重放；旧无模式记录按旧动态算术核验，不能追认为静态实验。公式、SQLite schema、知识发布指针及原始材料未迁移。Console 新增 `npmi` 只读完整范围统计，观察网页默认静态层，说明单块/单来源支持和绘图截断；查询规划优化在原限额内避免重复范围扫描。
+
+修复 worker 崩溃后 Gateway 仍继续接收但无人处理、实际 Discord 回执已确认后 scratch 故障丢失送达状态，以及重复取消打断队列/资源清理的路径。清理继续持锁等待实际退出；超时是诊断点，不声称操作系统硬抢占。模型槽等待与远端调用进度分列，不扩大阶段预算或共享单槽；只有本地等待的超时不处罚供应商，合法 usage 后的失败/取消/审计异常保存已知用量，无合法 usage 的已发生成保守标为未知。标词 JSON schema 增加与既有本地合同一致的 1–8 项及非空白字符串约束；本地40字符限制继续保留，未进行真实供应商 schema 验收。
+
+现有六个职责与状态归属写入 [ARCHITECTURE.md](ARCHITECTURE.md)：Service、Bridge、Runtime、KnowledgeService、Adapter、Observer。仅参考 Yuki 三份已跟踪设计文档，没有读取或修改其私有配置/运行数据；没有引入新智能体框架、工具、并发、模型或预算。用户授权的本地 Indeces 图只读审计与合成测试分开完成，实际知识/运行指标未写入公开验证附件。旧失败任务未重试，已有服务未启停或热更新，新代码需下次进程加载才生效。
 
 0.9.3 修复交互 `start` 直接进入 `asyncio.run(serve)`、`observe` 直接等待观察线程导致主 Console 不再读取命令的问题。Windows 三个持续入口 `start`/`observe`/`knowledge` 在独立可见窗口运行，同一解释器、配置绝对路径及源码目录传给子进程；主 Console 继续输入，启动/结束/错误信息留在入口窗口。直接 CLI 保持前台，其他平台提示另开终端。主 `quit` 不停止服务，服务窗口 Ctrl+C 停机。启动锁提前覆盖隐藏凭据输入及服务清理，取得锁后及输入后校验配置，避免向导竞争和重复 Gateway；`serve` 仍可自行管理独立调用的租约。观察 CLI 以短时 join 周期回到 Python，降低 Windows 长等待延迟 Ctrl+C 的风险。没有修改运行中任务、模型、NPMI、科学参数、阶段预算、并发或存储格式。
 
@@ -28,13 +34,15 @@ Bot token 在 Windows 使用当前用户 DPAPI 加密，带应用 entropy、版�
 
 删除或清空文档在下一次检测时撤回旧来源；无效输入、单文件超限和全局文件总数超限保留既有撤回/暂停策略。迁移只接纳旧当前 head 中归属明确、ready 且已有完整 active 记录的版本为发布快照，不重复标词；已归档或非当前证据不重新激活。归属/用量无法确认的旧待处理记录隔离至文件内容改变，并显示回执；未知用量的中断状态不自动重试。保存的原文、版本和已知 usage 不删除。
 
-图策略来自固定 MIT 上游，动态在线排序为已实现、当前暂缓的选项;现阶段回复链仅静态检索；NPMI、η=1、λ=.99、单跳来源门控、静态/动态分表、检索事件幂等与自身称呼排除已验证。改动粒度、周期、排名与日记过滤的适配差异在 `BASELINE.md` 如实列出。2026-09-30 同步更正基线、协作约定与交付状态中的动态排序表述；本次仅修改文档，未变更实现或运行参数，版本保持 0.9.1。
+图策略来自固定 MIT 上游，NPMI、η=1、λ=.99、单跳来源门控、静态/动态分表、检索事件幂等与自身称呼排除保留。2026-09-30 曾仅在文档中声明“动态排序暂缓、回复仅静态”，未修改实现；0.10.0 发现该声明与当时实际动态排序接线冲突并修复，旧运行不属于已验证的静态实验。改动粒度、周期、排名与日记过滤的适配差异见 `BASELINE.md`。
 
 0.4.0 新增可核验运行记录：检索后立即冻结全文/quote/标注词、来源版本与 desired/published 指针、模型可见材料、scope/event/query；图记录每步 seed/decay/reinforce、来源支持、NPMI 计数与排名依据。生成文本和实际送达文本分别记录 `[M1]` 一类字面引用的段落、字符偏移及来源绑定。未知标记明确告警，`semantic_support=not_evaluated`、`citation_coverage=not_established`；记录一致性不当成语义、事实或 Hebbian 效果证明。来源文本 SHA 可重算，原文件字节 SHA 仅作元数据保留而不声称验证原字节。
 
 Console `scratch` 校验外层结构/hash 与新每轮记录合同，分别报告 complete/failed/incomplete/invalid/legacy，并以 call_counts 核对成功 adaptor 调用的计量/生成输入、响应、门禁、预算、usage/时间和输出；reply_context 对照实际 `/responses` 请求。图权重与首次事件审计在同一个数据库事务内提交，事务后立即写 `memory_observation` 回执；日志 fsync 另有边界，不能描述成跨数据库与日志原子。日志可能写入后的 I/O 失败禁止当前 writer 续写，不自动修复；后续审计失败不覆盖已确认的 Discord 送达状态。具体记录规范与限制见 [RUN_RECORDS.md](RUN_RECORDS.md)。没有增加模型调用、修改公式/预算或开展真实联网验收。
 
 ## 验证证据
+
+- 0.10.0 本机完整离线回归：Windows/CPython 3.12.14，**676 tests / 0 failures / 14 skips**，36.285 秒；跳过原因为平台行为及本机符号链接权限。覆盖静态/shadow 分离、模式重放与冻结审计、防计账遗漏、worker/送达/取消生命周期和只读全量诊断。可复现文件入口、依赖检查、CLI/Console 检查见 [verification/OFFLINE_0100.json](../verification/OFFLINE_0100.json) 与 [verify_offline.py](../verification/verify_offline.py)。早期 stdin 测试入口使 Windows spawn 无法导入 `<stdin>`，产生三项进程测试失败，原记录保留于 [OFFLINE_0100_INITIAL.json](../verification/OFFLINE_0100_INITIAL.json)；改用带 main guard 的文件入口后全部通过，不把测试器故障记为产品修复。非 editable wheel 使用临时隔离构建工具，不改运行 venv，核验安装路径、静态默认、诊断入口及三个网页资源，见 [WHEEL_0100.json](../verification/WHEEL_0100.json)。合成浏览器检查默认静态、搜索范围、shadow说明、390px窄屏及失败后暂停警示，无页面错误；合成1300块/2789词/19459边数据的完整聚合约0.109秒、有界图约0.303秒，是本机测量，不承诺其他硬件速度。没有真实模型或 Discord 验收，没有自动启动实例；长期召回相关性、真实标词质量、复杂PDF语义及线上长时间运行仍待验证。
 
 - 0.9.3 本机完整离线测试：Windows/CPython 3.12.14，**634 tests / 0 failures / 14 skips**，37.203 秒。覆盖三个交互入口后继续输入、子进程不被主退出终止、固定失败留窗、直接 CLI 保持前台、真实临时实例锁的凭据/向导竞争和退出释放，以及观察短等待/清理路径。配置/依赖导入、`pip check`、Console 退出、帮助与未配置 Guild 的留窗失败检查通过，见 [verification/OFFLINE_093.json](../verification/OFFLINE_093.json)。非 editable wheel 在隔离进程核验同一解释器/配置路径传递、连续命令、主窗口不读凭据或启动服务及错误留窗，GUI/子进程启动为 mock，见 [verification/WHEEL_093.json](../verification/WHEEL_093.json)。没有真实模型/Discord 验收，窗口与 Ctrl+C 的真实用户交互仍需区分于离线合同验证；已有服务不停止或重启。
 

@@ -1,0 +1,660 @@
+{
+  "version": "0.10.0",
+  "recorded_at_utc": "2026-10-01T05:37:17.000748+00:00",
+  "baseline_main": "7b92d1e6366e88fb0cd6f431c047e6bef92262b4",
+  "main_reachable_commits": 15,
+  "main_reachable_unique_blobs": 265,
+  "current_public_files_scanned": 110,
+  "rules": [
+    "provider_key_shape",
+    "discord_token_shape",
+    "private_key_header",
+    "secret_assignment",
+    "private_runtime_path"
+  ],
+  "findings": [
+    {
+      "rule": "secret_assignment",
+      "path": "indeces/knowledge.py",
+      "line": 85,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_sql_schema_marker_not_credential",
+      "blob": "b891af40815be48c869fc34d9d57592a7e3a096c"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_adapter.py",
+      "line": 52,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_mock_transport_fixture",
+      "blob": "bddf7a343b844ea3d8c9137ce407bbff735d58d2"
+    },
+    {
+      "rule": "provider_key_shape",
+      "path": "tests/test_api_key_wizard.py",
+      "line": 17,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "a4f0f260767f83c113d8e4d7007938d3eb14beca"
+    },
+    {
+      "rule": "provider_key_shape",
+      "path": "tests/test_api_key_wizard.py",
+      "line": 18,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "a4f0f260767f83c113d8e4d7007938d3eb14beca"
+    },
+    {
+      "rule": "provider_key_shape",
+      "path": "tests/test_api_key_wizard.py",
+      "line": 19,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "a4f0f260767f83c113d8e4d7007938d3eb14beca"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_console.py",
+      "line": 20,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "0d79bf694cb80fcebd5c7d894020ac6ad4730b5b"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_console.py",
+      "line": 21,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "0d79bf694cb80fcebd5c7d894020ac6ad4730b5b"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_console_start_lock.py",
+      "line": 21,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "9489aae75c595f9da5babcbbb7c5aefecef6cb31"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_console_start_lock.py",
+      "line": 22,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "9489aae75c595f9da5babcbbb7c5aefecef6cb31"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_credentials.py",
+      "line": 17,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "ca7aaa4738b80a08068c59eecec7461a06bb492a"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_discord_wizard.py",
+      "line": 21,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "c7637a3d94e97b4743bd897f527c7a70cda052dc"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_discord_wizard.py",
+      "line": 22,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "c7637a3d94e97b4743bd897f527c7a70cda052dc"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_knowledge.py",
+      "line": 125,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_sql_schema_marker_not_credential",
+      "blob": "710ff79ce100c64fb43ce3c31ee9c8c2f0c4dcaf"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_name_migration.py",
+      "line": 26,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "5015d1263a706cbf72447aa6d468cb3871237fe2"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_openai_credentials.py",
+      "line": 17,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "1d0576a879231daf0c490b6d719e9ebf91e64bfd"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_console.py",
+      "line": 20,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "8bba92208997de7df9690e40871b206ab1836e31"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_console.py",
+      "line": 21,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "8bba92208997de7df9690e40871b206ab1836e31"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "indeces/knowledge.py",
+      "line": 85,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_sql_schema_marker_not_credential",
+      "blob": "43f88929ab47e0de1741db234e9164d126d65369"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_console.py",
+      "line": 18,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "16fbce94389d2023e5197d35475c2990ecee03cf"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_console.py",
+      "line": 19,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "16fbce94389d2023e5197d35475c2990ecee03cf"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_knowledge.py",
+      "line": 123,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_sql_schema_marker_not_credential",
+      "blob": "831910fa1eefdc4e251fa1865d2cda033231ade0"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "indeces/knowledge.py",
+      "line": 82,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_sql_schema_marker_not_credential",
+      "blob": "f4f0d3983128aff5e0cfbf6b65fe4a099d483842"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_console.py",
+      "line": 18,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "784e411357ac65e2d01570cf3e827dff5228bcdf"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_console.py",
+      "line": 19,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "784e411357ac65e2d01570cf3e827dff5228bcdf"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_adapter.py",
+      "line": 49,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_mock_transport_fixture",
+      "blob": "87e013467b8599eb08e183e6a3dfd4f1724af8a7"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_console.py",
+      "line": 17,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "727886345386de61dd26fe51e05a4dba5af4aadb"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_console.py",
+      "line": 18,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "727886345386de61dd26fe51e05a4dba5af4aadb"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "indeces/knowledge.py",
+      "line": 73,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_sql_schema_marker_not_credential",
+      "blob": "89dff57f528670169498a3c4ce193341c5351ec7"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_discord_wizard.py",
+      "line": 21,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "30a28647ad217795f866d25fa710a35f297b0edb"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_discord_wizard.py",
+      "line": 22,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "30a28647ad217795f866d25fa710a35f297b0edb"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_knowledge.py",
+      "line": 123,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_sql_schema_marker_not_credential",
+      "blob": "5ca63c5c71fef1f4f06b379f4217e1ca8888e196"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_discord_wizard.py",
+      "line": 21,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "a57956a69bf3cb918668b33f3213438a8365ae6f"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_discord_wizard.py",
+      "line": 22,
+      "scope": "main_reachable_history",
+      "classification": "confirmed_named_synthetic_fixture",
+      "blob": "a57956a69bf3cb918668b33f3213438a8365ae6f"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "indeces/knowledge.py",
+      "line": 85,
+      "scope": "current_public_files",
+      "classification": "confirmed_sql_schema_marker_not_credential"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_adapter.py",
+      "line": 55,
+      "scope": "current_public_files",
+      "classification": "confirmed_mock_transport_fixture"
+    },
+    {
+      "rule": "provider_key_shape",
+      "path": "tests/test_api_key_wizard.py",
+      "line": 17,
+      "scope": "current_public_files",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "rule": "provider_key_shape",
+      "path": "tests/test_api_key_wizard.py",
+      "line": 18,
+      "scope": "current_public_files",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "rule": "provider_key_shape",
+      "path": "tests/test_api_key_wizard.py",
+      "line": 19,
+      "scope": "current_public_files",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_console.py",
+      "line": 20,
+      "scope": "current_public_files",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_console.py",
+      "line": 21,
+      "scope": "current_public_files",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_console_start_lock.py",
+      "line": 21,
+      "scope": "current_public_files",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_console_start_lock.py",
+      "line": 22,
+      "scope": "current_public_files",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_credentials.py",
+      "line": 17,
+      "scope": "current_public_files",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_discord_wizard.py",
+      "line": 21,
+      "scope": "current_public_files",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_discord_wizard.py",
+      "line": 22,
+      "scope": "current_public_files",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_knowledge.py",
+      "line": 126,
+      "scope": "current_public_files",
+      "classification": "confirmed_sql_schema_marker_not_credential"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_name_migration.py",
+      "line": 26,
+      "scope": "current_public_files",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "rule": "secret_assignment",
+      "path": "tests/test_openai_credentials.py",
+      "line": 17,
+      "scope": "current_public_files",
+      "classification": "confirmed_named_synthetic_fixture"
+    }
+  ],
+  "private_path_findings": [],
+  "unreviewed_findings": [],
+  "secret_values_printed_or_saved": false,
+  "private_runtime_read_in_this_scan": false,
+  "refs_scope": [
+    "main"
+  ],
+  "excluded_refs": [
+    "refs/codex/*",
+    "other_local_tool_refs"
+  ],
+  "publish_scope": [
+    "main"
+  ],
+  "limitations": [
+    "Finite regex and manually confirmed fixture checks; not proof of absence of arbitrary secrets.",
+    "Supplement to REPOSITORY_AUDIT_091; no new Gitleaks run or full Actions-log audit."
+  ],
+  "passed": true,
+  "manual_review": [
+    "Matched SQL key literals are fixed schema markers, not credentials.",
+    "Only the identified AdapterTests.adapter literal using request=transport was confirmed as a synthetic mock fixture; tests as a whole are not excluded.",
+    "Portable fake_protect and named synthetic wizard fixtures were individually classified."
+  ],
+  "staged_review": {
+    "index_public_files_scanned": 111,
+    "changed_files": [
+      "AGENTS.md",
+      "README.md",
+      "docs/ARCHITECTURE.md",
+      "docs/BASELINE.md",
+      "docs/OBSERVABILITY.md",
+      "docs/REPOSITORY_PRIVACY.md",
+      "docs/RUN_RECORDS.md",
+      "docs/STATUS.md",
+      "indeces/__init__.py",
+      "indeces/adapter.py",
+      "indeces/console.py",
+      "indeces/contracts.py",
+      "indeces/discord_bridge.py",
+      "indeces/knowledge.py",
+      "indeces/memory.py",
+      "indeces/observer_data.py",
+      "indeces/prompts.py",
+      "indeces/run_records.py",
+      "indeces/runtime.py",
+      "indeces/web/observer.css",
+      "indeces/web/observer.html",
+      "indeces/web/observer.js",
+      "pyproject.toml",
+      "tests/observer_frontend.test.cjs",
+      "tests/test_adapter.py",
+      "tests/test_console.py",
+      "tests/test_context.py",
+      "tests/test_discord_bridge.py",
+      "tests/test_knowledge.py",
+      "tests/test_label_contract.py",
+      "tests/test_memory.py",
+      "tests/test_name_migration.py",
+      "tests/test_observer_data.py",
+      "tests/test_run_records.py",
+      "verification/OFFLINE_0100.json",
+      "verification/OFFLINE_0100_INITIAL.json",
+      "verification/REPOSITORY_AUDIT_0100.json",
+      "verification/WHEEL_0100.json",
+      "verification/verify_offline.py",
+      "verification/verify_wheel.py"
+    ],
+    "findings": [
+      {
+        "rule": "secret_assignment",
+        "path": "indeces/knowledge.py",
+        "line": 85,
+        "classification": "confirmed_sql_schema_marker_not_credential"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_adapter.py",
+        "line": 55,
+        "classification": "confirmed_mock_transport_fixture"
+      },
+      {
+        "rule": "provider_key_shape",
+        "path": "tests/test_api_key_wizard.py",
+        "line": 17,
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "provider_key_shape",
+        "path": "tests/test_api_key_wizard.py",
+        "line": 18,
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "provider_key_shape",
+        "path": "tests/test_api_key_wizard.py",
+        "line": 19,
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console.py",
+        "line": 20,
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console.py",
+        "line": 21,
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console_start_lock.py",
+        "line": 21,
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_console_start_lock.py",
+        "line": 22,
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_credentials.py",
+        "line": 17,
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_discord_wizard.py",
+        "line": 21,
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_discord_wizard.py",
+        "line": 22,
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_knowledge.py",
+        "line": 126,
+        "classification": "confirmed_sql_schema_marker_not_credential"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_name_migration.py",
+        "line": 26,
+        "classification": "confirmed_named_synthetic_fixture"
+      },
+      {
+        "rule": "secret_assignment",
+        "path": "tests/test_openai_credentials.py",
+        "line": 17,
+        "classification": "confirmed_named_synthetic_fixture"
+      }
+    ],
+    "sha256_by_index_path_excluding_this_self_referential_report": {
+      ".env.example": "548751e850dcb3cec2c23c9be62a5e9559b1ae6f56a46d876a23eca8d45b0c90",
+      ".gitattributes": "61ed2c4effbbe5060e2a745e9e8416080aa5cc7bc0e3eda2cd1bc7feefc994ff",
+      ".github/workflows/check.yml": "d7472834b2c6330068211ac64029918719fbc14411bcc1e0b8fcb04098271578",
+      ".gitignore": "50177e6d45a7a0e45817c2ff38e7c43999916ace744b9d9d142cb27507663328",
+      "AGENTS.md": "e71b709118c3e13b827121f3b5ccc71017a51ff6011e96f89fa51ae287e6fa71",
+      "Indeces-Console.cmd": "1ca629a7809895085603a4b5b96f0d41e90efa9e58511f67ce6b974404993df1",
+      "Indeces-Knowledge.cmd": "663a2c564643b77bc6e5b330b0a213b9fb6f5962709d83a59d0fccf77e2a7ea8",
+      "LICENSE": "c999f1b1ac2fefc551e84587262f207036ec2009f21704218f2325b9e47a5efa",
+      "README.md": "52596f67c990aceee2c8969798d236487cdfe85bbd7d970454e986705029ecbf",
+      "THIRD_PARTY_NOTICES.md": "598b4e6482d731bdcaa3e6093e96823681a9fd3b39d37b2286705db9e074bd0c",
+      "config.example.toml": "189cbceb21a77026bf2c38e9041b4adea0e06259e34c31bff73aafdb2d3c5f7c",
+      "docs/ARCHITECTURE.md": "584196de94154edc8218fa40c7104acfcdfc5f21febb0ae1b9cc53b28ac50457",
+      "docs/BASELINE.md": "c45d6c4e24042a029a19a95b509d9be677b99833e0d97125ade4fea5841d0c61",
+      "docs/KNOWLEDGE_DIRECTORY.md": "89bad9371c14ee01f4c28c3d61b6624d38325495ab94aef9c67aafb83963dff6",
+      "docs/OBSERVABILITY.md": "d7ba3cd3e78c553304116c543dfe51b72509b15462a9c435ed46238eb003d80c",
+      "docs/PDF_IMPORT.md": "22467c68e4583134ed742fd0f5c3b0ecd2f35c069806f4420617eb16bf714d01",
+      "docs/REPOSITORY_PRIVACY.md": "683a615ad5963507ab97b3f8e98010447c695f40c9f9d8e8f1a78d8b4dca30f2",
+      "docs/RUN_RECORDS.md": "97ba5e83b028b42c7975793bd6b1b2b0e3011749e5b038964edbe9ac91d9bbf0",
+      "docs/STATUS.md": "0583c169085dd2ed9c5b878ba3f71a15906db14d54830df1147819b2e20a26d5",
+      "indeces/__init__.py": "db6a730edb73d5fc02501fc5beb0d65be5874a5b4b6c846462497e9fc73597ed",
+      "indeces/__main__.py": "abcc116070f461a306416f8237bded7444713e6fd33b07c58b8d72c64bcaea88",
+      "indeces/adapter.py": "01139d161d2e5c7bd1c7034586a34a0b499f30fd8e664a1be510572b86d48c82",
+      "indeces/api_key_wizard.py": "4694dd6419d8cadfd6b74c21b523216806f074d994812bf83c1fbfc41d0ce4c6",
+      "indeces/config.py": "b08ce3912ecc060395779483f6f5dd8a9043e65cf30c6e639ae87de6a292c0c2",
+      "indeces/console.py": "84d746283c37b4b9f97f70393267356653aecabdebde6f4a62a0522d2b49e281",
+      "indeces/context.py": "84de784bb38543d5ec3f9f814e1294354e430bce9da589af427feebed3874827",
+      "indeces/contracts.py": "43967a225b69bcc85add8dba17dbfb83f7dcc0408aa6308b066b32bf5f8ade36",
+      "indeces/credentials.py": "c3e70845c9c558e4dd707471f5868446d4317a1c126b6f07755596070dd480ce",
+      "indeces/discord_bridge.py": "7779d6a1f093864904938c931cdfea5a63088e962cd210b1ef05b2051d2e5cd6",
+      "indeces/discord_wizard.py": "a2337021806597702c66a09fa5c7503b9db0585372e320add0de97f07a0165b5",
+      "indeces/identity.py": "64bcf3c86e9c0c4533ae87bf3094830f3d7e32211af0f4d6f7df0bb159ec4b48",
+      "indeces/knowledge.py": "2b19d0290fe4584e497f521e8e0476297b6a37c3ba4c4e1363094137ee24da24",
+      "indeces/knowledge_directory.py": "b0373a60ca80e64f565d6221f086e89a683644a68b0b3ad0ba920547d559ad34",
+      "indeces/knowledge_progress.py": "b570788c4f5bff9dd9a2cfa7e677c83457e2d5a8b6527f482e27ad2188004b43",
+      "indeces/lock.py": "99794376fe4ef39fcd9877a6ae2e31f2df03ae05ee2c8db2c81ff6365c5bfa4e",
+      "indeces/memory.py": "7bf0c3fd9daf1175ab7b1969dd52e3893c555b5792d38fe5fb56092d4ca5e75c",
+      "indeces/observer.py": "1eca6acde8e79fc0230b70e894df454517779f0e099970b0612035d32f2cb698",
+      "indeces/observer_data.py": "f4bbf910000b5ed5c6eb23ebec20c590a24b3530b1ca4df026dbdb8bab8c7eeb",
+      "indeces/pdf_import.py": "a9327336109e1561582a9016b152e58145b79cf400ea79f3cbc908fe1a1cc346",
+      "indeces/prompts.py": "a5bdbe129e3fe72aa07a127f9edca2c978ac7a82ac201fd9018f6584ddbc60bd",
+      "indeces/run_records.py": "d625b7d4be13137f33c1aab64b4dc879e91bb05d11ccfea4258c7fdd51041e26",
+      "indeces/runtime.py": "6f6147773ca305933047925369109ba5dd8053e84cb3c07444a148c49f6d6dd7",
+      "indeces/scratch.py": "1565ce2df4268d31a44a50a75789ea6dbcf3cb5629f0236e5c927bfbed9a7193",
+      "indeces/store.py": "e8cf80b5ffe6f946a14db1528455098bafc696a86001d2ed6e1eb9079d9ec077",
+      "indeces/web/observer.css": "35798652e89337efb16fbed441787407306ccf2372d72610ec993b18e049c03a",
+      "indeces/web/observer.html": "c3dff7dc476896b50100907eb7cd0e6ebd1b9b964f16647febd2f445be3dfce1",
+      "indeces/web/observer.js": "3cf3e678a8a66831411d4eef8c25104d9ce82e70c861bf142d837339970bcdbd",
+      "knowledge/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pyproject.toml": "d15677fbdc959c77114ea439fafed21f4d9768c328a63026b924b2512a3cf8b1",
+      "requirements.lock": "399a18dbe4fd944fa24b90eee86e00d4c2b35c8d47a0a4907c8ae7032f0d548b",
+      "setup.cmd": "b48d03652ac53c8e46cba2ccddfc94983f669b874c5883473b953ab9ee0c96bd",
+      "tests/observer_demo.py": "7a76b4bdb8027a4de31810104b502b9b4dec7bd9f723bfbfc0f28ca332d3ef8f",
+      "tests/observer_frontend.test.cjs": "a0e39e28414cb7f9da10a9962f4d38a8770f48827fe5c7ed702dd09424dbfc5d",
+      "tests/pdf_fixtures.py": "00bd5e0c5e490a8a0dc763cbd5696bf9812685befa2eb3ca21c2d8d0bced491e",
+      "tests/test_adapter.py": "224fc87547bccbafb385bace2b0fb58e90ef688601a60b4131dce2206c9bdccc",
+      "tests/test_api_key_wizard.py": "9ccb6ee72838835ce2e2ffffe6d1e77e1f9367639f05603498edf784ed46c021",
+      "tests/test_audit_failures.py": "e01ae1afac7bb266501f53b0aac8529f53a1bab95925aa51d8ef9a9048bdf636",
+      "tests/test_console.py": "f4e982f553fd5f5f7af3ca0d28988fa4cf43e7374dca6981fde414bcc7f05db4",
+      "tests/test_console_start_lock.py": "18cdf8dbdc32382e4dd8a2a83f7d361c5d9aec9f5806ff937b78df4090aa48ed",
+      "tests/test_context.py": "1d0b11676709e095524ddaf581d288dd539dd2d041bcf979c3d936fd2152c7e8",
+      "tests/test_credentials.py": "38969a400bf87a728cb74046a1301ae6d1e1cf33bc14e7de08a936a5b333de76",
+      "tests/test_discord_bridge.py": "e7ea8b2fe7fda70261047344f5aa96982e5512b8f8851741b5a55dc64fd0be6a",
+      "tests/test_discord_wizard.py": "547c56b29007719efeb661ae0cced4abd902542733d6a7acd6373d9836efb3c8",
+      "tests/test_knowledge.py": "27dc68003842bc04248f85daa0b1e0e47dcf7529f5292f0f81342910a66eb0a9",
+      "tests/test_knowledge_directory.py": "cf1bb7a3bf08bacafd9cef3413a38702a7f6e9e4cdbac84520e3b1e9194920e7",
+      "tests/test_knowledge_directory_scan.py": "d389b47074936f5013bdb0403ca7b2dbbd164034d331c8cedcee84bbaf403217",
+      "tests/test_knowledge_pdf.py": "a9c7e976c5005de4d54b991b748a7d8c06ed582831f026146a56ba4c0a26cb23",
+      "tests/test_knowledge_progress.py": "01bdcda2d1c00cfbd1b09d4943ec7bf75a8e015c877efa2d650250d6185c779d",
+      "tests/test_label_contract.py": "ebc6a32f1fce23629d980eb722b3f1ce7ff10fa26b5ee461131e97749e5dfe34",
+      "tests/test_lock.py": "0ab52d5e670a5194b97f2f6eddf8d0716a1cd512f47e45080265f85794306d3a",
+      "tests/test_memory.py": "9cfac7d67e10824255984cdddbbc5505bed9d59e6de4c3b54ecbada07a8c90f5",
+      "tests/test_name_migration.py": "17a7f7bfb0ad54302381d28774137c240510919a9d8568903d31cae5f2a416ff",
+      "tests/test_observer_data.py": "46e08ab3905632aee02c6d825d0a219b116c96e81894ed4a040151b92938bf56",
+      "tests/test_observer_frontend.py": "a918aa4590071200a80b73d96e66233a38675bacf5aaf719bb2cb1f47f728d23",
+      "tests/test_observer_review.py": "d2b90413e4217670946a2dd07f75c10248ae24b3eab7b5bd7b9fa5c1324611fb",
+      "tests/test_observer_server.py": "6b3f5aae1ca61fb345c5dfcd9b6bccd325e023e92bd63ec31ef8b698e8a6c454",
+      "tests/test_observer_service.py": "9a75cbd32c8ebea473d3551c99a85e2a9054921a8f00cf0e3ad1f4999a94be49",
+      "tests/test_observer_wait.py": "52e31866fa4f5c1db1dbd95f5e004ccba8c192f77c664dbd528a74ddb5f6a097",
+      "tests/test_openai_credentials.py": "feae2d1ba03bbc2975d5cd0709e40419026200cadc4b210758fdf79de4dff4ca",
+      "tests/test_pdf_import.py": "38e7850060cac15a496e08b658679f9e83f31fd1262482093e12d501c982c1c0",
+      "tests/test_pdf_provenance.py": "9ccb494f90653dc4360672e7b240c26ea95b87192b6870320cad519db9ea95c2",
+      "tests/test_persona.py": "bea2b5ce19a33d8910058a509275c5bbdee530df9b5969f959a457825f870441",
+      "tests/test_retention_records.py": "d7f82b7be409cab748a0acbcd3caf47b0f3a7da857cc1a933e29efe1f95b17e1",
+      "tests/test_retention_service.py": "da47559fc3192485d1119bd2cafc67c09fa2f3cf96a295ad6815d4bd94f5a0ba",
+      "tests/test_run_records.py": "a48f9cbd757efca22844db9dec7dfe2b84c8c271641cbac7955ffc7eda59fdb7",
+      "tests/test_scratch.py": "5e961d10f35060199f5958179c394abf4401a0194d57f33b92e2975990bb4509",
+      "tests/test_scratch_observer.py": "c1b3601339f16cde29b504bd445c845ecd4055bf5a5e725da8e519b5054b1b02",
+      "verification/OFFLINE_010.json": "84146ea9436d3ba74a4adb029e20d9730df107e40d282524f5489ba402570775",
+      "verification/OFFLINE_0100.json": "fbd15452e100121c7b3f849371595bc362bc50a41e109a23377609e9605c2cff",
+      "verification/OFFLINE_0100_INITIAL.json": "869b2e7fa38b60e9d6be7dd6b47538b245d12650d44c3f1571b67eb6e285564e",
+      "verification/OFFLINE_020.json": "a976a72bb1ad05e57ed599211858912a9bb0a3f2090ed239e88d0ffe62093907",
+      "verification/OFFLINE_021.json": "ae00767196970dc9098e70765f5d0d40fc4060f7651f8ae69d1a1dec68fdf76a",
+      "verification/OFFLINE_030.json": "14c102d6e6a4311d5e527fef1d683b3dd953100541d59e51c4209a28cc790120",
+      "verification/OFFLINE_040.json": "718e5750504eac4fd2f63a12848f528d907c4be5a696e92b5f2724f225c19a2a",
+      "verification/OFFLINE_050.json": "2b0f53d22fd8c8559b06cd658528cc3f0b80b76363838031f32b8bcb5d8abc3f",
+      "verification/OFFLINE_060.json": "e03acfa63fb197569171691e126149d4a2fd7c2ad59691b280a493a1bd8173bc",
+      "verification/OFFLINE_061.json": "8d49a2e72891a6a0f79289ce2b153ec0313bd71bcfc398f93a54c94cdc12014c",
+      "verification/OFFLINE_070.json": "11d95a6e669b2b800dffc6c2e4c034c1999fc37c5d1b760f00c2d020f2e379a0",
+      "verification/OFFLINE_080.json": "0dece5a446f169b76fe5369641907b469099ff28a6c732eea20ffd32b5120a37",
+      "verification/OFFLINE_090.json": "7b6a6ec9a3f0692a427f24c7d6e974c84cb359a51ff3e6abf50cf3b078d4c76c",
+      "verification/OFFLINE_091.json": "105724173734adb12456289c2951875c746a3233ec8fc566205ebd7dd70e8315",
+      "verification/OFFLINE_092.json": "335c393ef8c3f3c658f46b5a17645155fe56670ca84c0c23c44b26e652b548b8",
+      "verification/OFFLINE_093.json": "0153085e9f3df836e93540947e8128ff5a2639f7fbae05c7d71d84a2bb111265",
+      "verification/REPOSITORY_AUDIT_091.json": "33e524731285b075684b5f9b613ddbcb981ed13e6138ab2f8ae6d36798eb1213",
+      "verification/WHEEL_0100.json": "14e6379f8c1940363242479b07522e1080adeecb5b4e3f8bfc10614fb8caff17",
+      "verification/WHEEL_090.json": "920255941c0224a287a20163b9e9710bbff737a41d9cf79507c9496aa2d93cab",
+      "verification/WHEEL_092.json": "0b27991a1c9ecfefe466ef9984e0a3761afa782e7c231934940b0a740a1561c2",
+      "verification/WHEEL_093.json": "719ee43586d0da5640190c7955096a54f6412cc3ae01b7913a32162a19a8e5db",
+      "verification/verify_offline.py": "5d384ab22afb85a966bb50522974a723ba73c9f15a4e90faf9428ebf2b1072e3",
+      "verification/verify_wheel.py": "c1764519d84aed8e7f2e18cf44fb3a01350eae4a0711fa8bda5869a4964aac2f"
+    },
+    "passed": true
+  }
+}

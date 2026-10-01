@@ -15,6 +15,7 @@
       <div class="refresh-controls"><span class="status-chip" id="connection-status" role="status">正在读取</span><button id="refresh" class="button" type="button">刷新</button><button id="pause" class="button subtle" type="button" aria-pressed="false">暂停刷新</button></div>
     </header>
     <div class="snapshot-meta"><span id="scope">本机 · 只读观察</span><span id="freshness">等待第一次快照</span></div>
+    <p class="service-note">此页读取存储快照；Discord Gateway 在线状态未核验。知识监听仅在服务运行期间进行。</p>
     <div class="notice error" id="error-banner" role="alert" hidden></div>
     <div class="notice" id="limit-banner" hidden></div>
     <nav class="tabs" aria-label="观察视图">
@@ -25,19 +26,24 @@
     <main class="workspace">
       <section class="main-panel" aria-label="观察内容">
         <div id="view-graph" class="view-panel">
+          <div class="npmi-overview" aria-label="整个知识范围的静态 NPMI 统计">
+            <div class="overview-heading"><strong>静态 NPMI 概况</strong><span>整个知识 scope · 当前检索使用静态正边</span></div>
+            <div id="npmi-metrics" class="overview-metrics"></div>
+            <p id="npmi-summary">等待统计；图谱展示有上限，统计结果独立计算。</p>
+          </div>
           <div class="graph-toolbar">
             <label class="search-field"><span class="visually-hidden">查找标注词及相邻节点</span><input type="search" id="mark-search" placeholder="查找标注词及相邻节点" autocomplete="off" spellcheck="false"></label>
-            <label class="field-label">权重层<select id="weight-layer"><option value="effective">当前检索权重</option><option value="static">静态 NPMI</option><option value="dynamic">动态 Hebbian</option></select></label>
+            <label class="field-label">权重层<select id="weight-layer"><option value="static">静态 NPMI</option><option value="effective">当前检索权重</option><option value="dynamic">动态观察 / 历史</option></select></label>
             <label class="field-label compact">最低权重<input id="min-weight" type="number" min="0" step="0.05" value="0" inputmode="decimal"></label>
           </div>
           <div class="graph-subtoolbar"><label class="checkbox-label"><input type="checkbox" id="show-archived"> 显示失去有效来源的历史边</label><span class="graph-controls"><button id="zoom-out" class="icon-button" type="button" aria-label="缩小图谱">−</button><span id="zoom-value">100%</span><button id="zoom-in" class="icon-button" type="button" aria-label="放大图谱">+</button><button id="fit-graph" class="button small" type="button">居中</button></span></div>
           <div class="graph-stage" id="graph-stage">
             <svg id="network" viewBox="0 0 900 580" preserveAspectRatio="xMidYMid meet" aria-label="标注词关联图，可拖动节点、平移与缩放" role="img"><g id="network-transform"><g id="network-edges"></g><g id="network-nodes"></g></g></svg>
-            <div class="graph-empty" id="graph-empty" hidden><div class="empty-symbol" aria-hidden="true">⋅ ∴ ⋅</div><h2 id="graph-empty-title">还没有关联图谱</h2><p id="graph-empty-text">在 knowledge 目录添加 Markdown 或文本文件。服务完成后台标词后，这里会显示有来源支持的关联。</p></div>
+            <div class="graph-empty" id="graph-empty" hidden><div class="empty-symbol" aria-hidden="true">⋅ ∴ ⋅</div><h2 id="graph-empty-title">还没有关联图谱</h2><p id="graph-empty-text">在 knowledge 目录添加 PDF、Markdown 或文本，显式 start 后服务才会转换和标词。这里展示完成发布的版本。</p></div>
             <div class="graph-key"><span><i class="key-dot live"></i> 有效来源支持</span><span><i class="key-line"></i> 权重决定线宽</span><span id="visible-count">—</span></div>
             <p class="graph-hint">拖动节点 · 空白处平移 · 滚轮缩放 · 点击连线查看来源与变化</p>
           </div>
-          <div class="method-strip"><strong id="layer-description">动态值存在时用于排序，否则使用静态 NPMI。</strong><span>当前按字面命中更新；语义效果尚未评估。</span></div>
+          <div class="method-strip"><strong id="layer-description">当前检索使用有有效来源支持的静态正 NPMI；动态权重只作观察与历史记录。</strong><span>NPMI 衡量本语料中的共现关联，不是正确率或语义支持概率；标词、召回和语义效果仍需分别验证。</span></div>
         </div>
         <div id="view-knowledge" class="view-panel padded" hidden>
           <div class="section-heading"><div><h2>知识版本</h2><p>标词完成后原子发布；更新期间沿用上一完整版本。</p></div><span id="knowledge-summary" class="muted"></span></div>
@@ -50,7 +56,7 @@
           <div id="trace-list" class="trace-list"></div>
         </div>
       </section>
-      <aside class="detail-panel" id="detail-panel" aria-label="所选对象的证据与详情" aria-live="polite"><div class="detail-empty"><span class="eyebrow">从图谱走向证据</span><h2>选择一条关联</h2><p>查看静态 NPMI、动态权重、有效来源与每次权重变更。</p><div class="mini-network" aria-hidden="true"><span></span><span></span><span></span></div><p class="small-note">召回与引用记录可核验。引用标记本身不证明语义支持，也不证明结论真实。</p></div></aside>
+      <aside class="detail-panel" id="detail-panel" aria-label="所选对象的证据与详情" aria-live="polite"><div class="detail-empty"><span class="eyebrow">从图谱走向证据</span><h2>选择一条关联</h2><p>查看静态 NPMI 的材料频次与共现依据、有效来源，以及单独保留的动态观察历史。</p><div class="mini-network" aria-hidden="true"><span></span><span></span><span></span></div><p class="small-note">召回与引用记录可核验。引用标记本身不证明语义支持，也不证明结论真实。</p></div></aside>
     </main>
     <footer><span>本机只读页面 · 不调用模型 · 不修改权重</span><span>Scratch 保留 24 小时；知识版本与 SQLite 图事件历史单独持久保存。</span></footer>
   </div>

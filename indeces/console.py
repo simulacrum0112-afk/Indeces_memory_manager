@@ -27,6 +27,7 @@ from .knowledge_directory import prepare_knowledge_directory, show_knowledge_dir
 from .knowledge_progress import show_knowledge_progress
 from .lock import InstanceLock
 from .observer import ObserverServer, observe, prepare_scratch_directory, show_logs
+from .observer_data import npmi_diagnostics
 from .runtime import Runtime
 from .run_records import verify_runs
 from .scratch import ScratchLog, retention_checkpoint, verify
@@ -295,6 +296,35 @@ def knowledge(config, *, once=False):
     show_knowledge_progress(config, watch=not once)
 
 
+def npmi(config):
+    """Inspect the saved static corpus without touching model or scratch slots."""
+    report = npmi_diagnostics(config)
+    print("静态 NPMI：当前回复按静态边扩展和排序；动态权重仅作观察历史。")
+    stats = report["statistics"]
+    if stats is None:
+        if "graph_not_initialized" in report["warnings"]:
+            print("尚无可读取的知识图；材料完成发布后才进入统计。")
+        else:
+            print("只读快照暂不可用或查询达到限额；本次无法判断图状态。")
+        return
+    print(f"完整范围：{stats['active_records']} 个有效块；{stats['active_source_versions']} 个来源版本；"
+          f"{stats['active_marks']} 个标注词；{stats['positive_edges']} 条正 NPMI 边。")
+    print(f"共现词对：{stats['supported_pairs']}；未保存可用正权重的词对：{stats['supported_without_positive']}；"
+          f"无共现支持的孤立词：{stats['isolated_marks']}；无正边的词：{stats['marks_without_positive_edges']}。")
+    total = stats["positive_edges"]
+    def ratio(count):
+        return f"{count}（{count / total:.1%}）" if total else "0（无正边）"
+    print(f"仅一个块支持的正边：{ratio(stats['single_support_positive_edges'])}；"
+          f"NPMI=1 的边：{ratio(stats['unit_weight_edges'])}。")
+    if "single_source_positive_edges" in stats:
+        print(f"仅一个来源版本支持的正边：{ratio(stats['single_source_positive_edges'])}。")
+    if total:
+        print(f"正边 NPMI 最小/中位/最大：{stats['min_positive_weight']} / "
+              f"{stats.get('median_positive_weight', '未统计')} / {stats['max_positive_weight']}。")
+    print("NPMI 是块共现关联，不是置信度；少量共现也可能得到高分。召回相关性和语义支持尚需评测。")
+    print("这是持久化快照，不证明服务或 Gateway 在线。observe 可查看图和来源详情。")
+
+
 def open_command_window(command, config_path):
     """Open a user-requested long-lived command without blocking Console input."""
     labels = {"start": "服务入口", "observe": "只读观察", "knowledge": "知识库进度"}
@@ -337,7 +367,7 @@ def _wait_for_window_close():
 
 def main():
     parser = argparse.ArgumentParser(description="Indeces: minimal Discord runtime console")
-    parser.add_argument("command", nargs="?", choices=["console", "init", "discord", "apikey", "knowledge", "start", "status", "check", "scratch", "observe", "logs"], default="console")
+    parser.add_argument("command", nargs="?", choices=["console", "init", "discord", "apikey", "knowledge", "start", "status", "npmi", "check", "scratch", "observe", "logs"], default="console")
     parser.add_argument("--config", type=Path, default=Path("config.local.toml"))
     parser.add_argument("--once", action="store_true", help="knowledge: show one read-only progress snapshot and exit")
     parser.add_argument("--keep-window", action="store_true", help=argparse.SUPPRESS)
@@ -364,6 +394,9 @@ def main():
             print("Live Discord and model calls were not made.")
             return
         if not args.config.exists():
+            if args.command == "npmi":
+                print("未找到配置；npmi 只读检查不会创建配置或启动服务。")
+                return
             initialize(args.config)
         if args.command in {"discord", "apikey"}:
             if not {"discord": configure_discord, "apikey": configure_api_key}[args.command](args.config):
@@ -375,12 +408,12 @@ def main():
                 {"start": run, "status": status}[args.command](config, args.config)
             elif args.command == "knowledge":
                 knowledge(config, once=args.once)
-            elif args.command in {"observe", "logs"}:
-                {"observe": observe, "logs": show_logs}[args.command](config)
+            elif args.command in {"observe", "logs", "npmi"}:
+                {"observe": observe, "logs": show_logs, "npmi": npmi}[args.command](config)
             else:
                 check_scratch(config)
             return
-        print(f"Indeces {__version__} console: discord | apikey | knowledge | start | status | scratch | observe | logs | quit")
+        print(f"Indeces {__version__} console: discord | apikey | knowledge | start | status | npmi | scratch | observe | logs | quit")
         print("start、observe、knowledge 使用独立窗口/终端。主 Console 的 quit 只退出命令窗口；服务窗口内 Ctrl+C 停止服务。")
         while True:
             try:
@@ -402,7 +435,7 @@ def main():
                     open_command_window(command, args.config)
                     continue
                 config = load_config(args.config)
-                action = {"status": status, "scratch": check_scratch,
+                action = {"status": status, "npmi": npmi, "scratch": check_scratch,
                           "logs": show_logs}.get(command)
                 if action:
                     if command == "status":
@@ -410,7 +443,7 @@ def main():
                     else:
                         action(config)
                 else:
-                    print("Commands: discord | apikey | knowledge | start | status | scratch | observe | logs | quit")
+                    print("Commands: discord | apikey | knowledge | start | status | npmi | scratch | observe | logs | quit")
             except CredentialError as error:
                 print(f"Credential error: {error.code}. Use discord setup for the Bot token, or apikey for the OpenAI key.")
             except Exception as error:

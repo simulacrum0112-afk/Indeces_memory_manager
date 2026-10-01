@@ -11,7 +11,7 @@ import stat
 import time
 import uuid
 
-from .contracts import GovernedError
+from .contracts import GovernedError, validated_token_usage
 from .config import PdfConfig
 from .knowledge_directory import RESERVED_ROOT_DIRECTORIES, SUPPORTED_SUFFIXES
 from .context import encode
@@ -492,6 +492,7 @@ class KnowledgeService:
         outcome = "failed"
         error_code = None
         request_failed = False
+        request_usage_unknown = None
         records = []
         chunks = self.store.db.execute("SELECT * FROM knowledge_chunks WHERE source_id=? ORDER BY chunk_index", (source_id,)).fetchall()
         with self.store.db:
@@ -516,8 +517,18 @@ class KnowledgeService:
                         result = await self.adapter.call("label", LABEL, [{"role": "user", "content": encode({
                             "source_id": source_id, "path": version["path"], "digest": version["digest"],
                             "chunk_index": chunk["chunk_index"], "start_character": chunk["start_character"], "text": chunk["text"]})}], trace_id, LABEL_SCHEMA)
-                    except BaseException:
+                    except BaseException as error:
                         request_failed = True
+                        request_usage_unknown = getattr(error, "remote_usage_unknown", None)
+                        known_usage = validated_token_usage(getattr(error, "known_usage", None))
+                        if known_usage is not None:
+                            # Rejected output still consumed its confirmed tokens.
+                            # This failure path is exclusive of result accounting.
+                            version["input_tokens"] += known_usage["input_tokens"]
+                            version["output_tokens"] += known_usage["output_tokens"]
+                            with self.store.db:
+                                self.store.db.execute("UPDATE knowledge_versions SET input_tokens=?,output_tokens=? WHERE source_id=?",
+                                                      (version["input_tokens"], version["output_tokens"], source_id))
                         raise
                     version["input_tokens"] += result.input_tokens
                     version["output_tokens"] += result.output_tokens
@@ -538,9 +549,11 @@ class KnowledgeService:
                 records, previous = self._publish(version, facts, deadline)
                 outcome = "completed"
         except asyncio.CancelledError:
+            usage_unknown = request_usage_unknown if type(request_usage_unknown) is bool else request_failed
             with self.store.db:
-                self.store.db.execute("UPDATE knowledge_versions SET status='failed',error='interrupted_unknown_usage' WHERE source_id=? AND status='labelling'", (source_id,))
-            self.scratch.write("label_job_end", trace_id=trace_id, source_id=source_id, status="cancelled", remote_usage_unknown=True)
+                self.store.db.execute("UPDATE knowledge_versions SET status='failed',error=? WHERE source_id=? AND status='labelling'",
+                                      ("interrupted_unknown_usage" if usage_unknown else "interrupted", source_id))
+            self.scratch.write("label_job_end", trace_id=trace_id, source_id=source_id, status="cancelled", remote_usage_unknown=usage_unknown)
             outcome = "cancelled"
             raise
         except Exception as error:
@@ -565,8 +578,9 @@ class KnowledgeService:
             self._receipt(outcome, version, labelled_chunks=labelled, total_chunks=len(chunks), records=len(records),
                           input_tokens=accounting[1], output_tokens=accounting[2], elapsed_seconds=accounting[3],
                           code=error_code, trace_id=trace_id,
-                          remote_usage_unknown=request_failed and error_code not in {
-                              "input_token_limit", "circuit_open", "missing_openai_key", "invalid_input_token_count"})
+                          remote_usage_unknown=(request_usage_unknown if type(request_usage_unknown) is bool else
+                              request_failed and error_code not in {"input_token_limit", "circuit_open", "missing_openai_key",
+                                                                  "invalid_input_token_count", "model_slot_timeout"}))
         return True
 
     async def _watch(self):

@@ -11,11 +11,12 @@ import unittest
 from indeces.config import AdapterConfig, Budget, DiscordConfig, KnowledgeConfig, RuntimeConfig
 from indeces.adapter import OpenAIAdapter
 from indeces.context import encode
-from indeces.contracts import DeliveryReceipt, IncomingMessage
+from indeces.contracts import DeliveryReceipt, GovernedError, IncomingMessage
 from indeces.discord_bridge import discord_reply_text
 from indeces.knowledge import KnowledgeService
 from indeces.memory import MemoryGraph
-from indeces.run_records import answer_record, digest, freeze_retrieval, validate_answer, validate_retrieval, verify_runs
+from indeces.run_records import (answer_record, digest, freeze_retrieval, validate_answer,
+                                validate_graph_audit, validate_retrieval, verify_runs)
 from indeces.runtime import Runtime
 from indeces.scratch import ScratchLog, verify
 from indeces.store import Store
@@ -111,6 +112,17 @@ class RetrievalRecordTests(RecordFixture, unittest.TestCase):
         self.assertEqual(source["normalized_text_sha256"], hashlib.sha256(raw.decode("utf-8-sig").encode()).hexdigest())
         self.assertNotEqual(source["original_file_bytes_sha256"], source["normalized_text_sha256"])
         self.assertFalse(source["raw_text"].startswith("\ufeff"))
+
+    def test_model_material_explicitly_distinguishes_static_basis_from_shadow_weight(self):
+        self.seed()
+        retrieval = self.retrieval()
+        payload = retrieval["model_materials"][0]
+        self.assertEqual((payload["ranking_mode"], payload["weight_basis"]), ("static", "static_npmi"))
+        self.assertEqual(payload["ranking_score"], 1.0)
+        self.assertEqual(payload["dynamic_score"], 1.99)
+        payload["weight_basis"] = "dynamic_or_static"
+        with self.assertRaisesRegex(ValueError, "model material weight basis"):
+            validate_graph_audit(retrieval["graph_audit"], retrieval)
 
     def test_full_material_survives_model_display_text_truncation(self):
         raw = ("alpha topic " + "long source text " * 20).encode()
@@ -610,6 +622,54 @@ class RuntimeRecordTests(RecordFixture, unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(count == 0 for count in result["counts"].values()))
         self.assertEqual(result["call_counts"]["complete"], 1)
         self.assertEqual(result["issues"], [])
+
+    async def test_failed_generation_confirmed_usage_binds_transport_and_allows_actual_breach_counts(self):
+        for case, code, output_tokens in (("incomplete", "incomplete_response", 6),
+                                          ("breach", "provider_token_limit_breach", 2049),
+                                          ("invalid_output", "invalid_output", 6)):
+            with self.subTest(case=case):
+                scratch = ScratchLog(self.root / ("failed-usage-" + case))
+
+                async def request(path, payload):
+                    if path.endswith("input_tokens"):
+                        return {"input_tokens": 17}
+                    return {"id": "synthetic-rejected", "status": "incomplete" if case == "incomplete" else "completed",
+                            "usage": {"input_tokens": 17, "output_tokens": output_tokens},
+                            "output": None if case == "invalid_output" else [{"type": "message", "role": "assistant",
+                                "content": [{"type": "output_text", "text": "partial model text"}]}]}
+
+                adapter = OpenAIAdapter(self.config.adapter, scratch, request=request)
+                try:
+                    with self.assertRaises(GovernedError) as caught:
+                        await adapter.call("label", "Label local source.", [{"role": "user", "content": "alpha source"}], "failed-label-" + case)
+                finally:
+                    await adapter.close()
+                    scratch.close()
+                self.assertEqual(caught.exception.code, code)
+                entries = [json.loads(line) for line in scratch.path.read_text(encoding="utf-8").splitlines()]
+                end = self.events(entries, "call_end")[0]
+                self.assertEqual(end["known_usage"], {"input_tokens": 17, "output_tokens": output_tokens})
+                self.assertEqual(end["status"], "failed")
+                self.assertNotIn("result", end)
+                report = verify_runs([scratch.path])
+                self.assertEqual(report["call_counts"]["failed"], 1, report)
+                self.assertEqual(report["issues"], [])
+                for mutation in ("known", "transport", "missing", "unknown"):
+                    def edit(event, fields):
+                        if event == "call_end":
+                            if mutation == "known":
+                                fields["known_usage"]["output_tokens"] += 1
+                            elif mutation == "missing":
+                                fields.pop("known_usage")
+                            elif mutation == "unknown":
+                                fields["remote_usage_unknown"] = True
+                        elif event == "http_response" and fields["path"] == "/responses" and mutation == "transport":
+                            fields["payload"]["usage"]["input_tokens"] += 1
+
+                    rewritten = self.rewritten(entries, "failed-usage-" + case + "-" + mutation, edit=edit)
+                    changed = verify_runs([rewritten])
+                    self.assertEqual(changed["call_counts"]["invalid"], 1, changed)
+                    self.assertTrue(changed["issues"])
 
 
 if __name__ == "__main__":

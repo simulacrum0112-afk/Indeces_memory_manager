@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 
 from .scratch import canonical, read_records, retention_checkpoint
+from .contracts import validated_token_usage
 
 
 MAX_PDF_METADATA_BYTES = 512 * 1024
@@ -249,6 +250,37 @@ def validate_answer(record, retrieval):
     _require(record == answer_record(record["text"], retrieval), "answer citation receipt mismatch")
 
 
+def _validate_known_usage(events, end, *, partial=False):
+    # Older call receipts did not carry usage separately from a successful
+    # result. Preserve them; new receipts bind failed/cancelled usage as well.
+    if "known_usage" not in end:
+        return
+    known = end["known_usage"]
+    _require(known is None or (validated_token_usage(known) == known
+             and set(known) == {"input_tokens", "output_tokens"}), "known generation usage schema invalid")
+    responses = [fields for event, fields in events
+                 if event == "http_response" and fields.get("path") == "/responses"]
+    _require(len(responses) <= 1, "duplicate generation usage receipt")
+    if responses:
+        payload = responses[0]["payload"]
+        observed = validated_token_usage(payload.get("usage")) if isinstance(payload, dict) else None
+        _require(known == observed, "known generation usage/transport mismatch")
+    elif known is not None and not partial:
+        raise ValueError("known generation usage transport evidence missing")
+    if known is not None and not partial:
+        requests = [fields for event, fields in events
+                    if event == "http_request" and fields.get("path") == "/responses"]
+        _require(len(requests) == 1, "known generation usage request evidence missing")
+    if "generation_usage_received" in end:
+        _require(type(end["generation_usage_received"]) is bool
+                 and end["generation_usage_received"] == (known is not None), "generation usage receipt flag mismatch")
+    if "generation_request_started" in end and "remote_usage_unknown" in end:
+        started, unknown = end["generation_request_started"], end["remote_usage_unknown"]
+        _require(type(started) is bool and type(unknown) is bool
+                 and unknown == (started and known is None), "unknown generation usage classification mismatch")
+        _require(known is None or started, "known usage without generation request")
+
+
 def _validate_call(events):
     starts = [f for e, f in events if e == "call_start"]
     ends = [f for e, f in events if e in {"call_end", "call_rejected"}]
@@ -257,6 +289,10 @@ def _validate_call(events):
         return "incomplete"
     start, end = starts[0], ends[0]
     _require(start["stage"] == end["stage"] and start["trace_id"] == end["trace_id"], "call stage/trace mismatch")
+    if "usage_receipt_version" in start:
+        _require(type(start["usage_receipt_version"]) is int and start["usage_receipt_version"] == 1
+                 and "known_usage" in end, "generation usage receipt version/schema mismatch")
+    _validate_known_usage(events, end)
     if end.get("status") != "completed":
         return "failed"
     requests = [f for e, f in events if e == "http_request"]
@@ -300,6 +336,8 @@ def _validate_partial_call(events):
     """Check available transport receipts without inventing expired budgets."""
     ends = [f for e, f in events if e in {"call_end", "call_rejected"}]
     _require(len(ends) <= 1, "duplicate retained call end")
+    if ends:
+        _validate_known_usage(events, ends[0], partial=True)
     _require(len({f["trace_id"] for _, f in events}) == 1, "retained call trace mismatch")
     requests, responses = {}, {}
     for event, fields in events:
@@ -587,6 +625,17 @@ def validate_graph_audit(audit, retrieval=None):
     else:
         _require(audit["original_event"]["payload_sha256"] == durable, "replayed graph audit link mismatch")
     observation, selection = audit["observation"], audit["selection"]
+    # Older immutable schema-1 records predate the static wiring repair and
+    # used dynamic ranking. Preserve their historical arithmetic contract.
+    if "ranking_mode" not in selection and "weight_basis" not in selection:
+        ranking_mode = "dynamic"
+    else:
+        ranking_mode = selection.get("ranking_mode")
+        _require(ranking_mode in ("static", "dynamic"), "invalid graph ranking mode")
+        expected_basis = "static_npmi" if ranking_mode == "static" else "dynamic_or_static"
+        _require(selection.get("weight_basis") == expected_basis, "graph weight basis mismatch")
+    if audit.get("original_event", {}).get("ranking_mode") is not None:
+        _require(audit["original_event"]["ranking_mode"] == ranking_mode, "replayed graph ranking mode mismatch")
     hits = audit["match"]["direct_hits"]
     _require(hits == audit["match"]["literal_matches"][:4], "direct hit limit mismatch")
     _require(selection["limits"] == {"direct_marks": 4, "neighbors_per_hit": 5, "expanded_marks": 2,
@@ -652,16 +701,22 @@ def validate_graph_audit(audit, retrieval=None):
         npmi = 1.0 if p_ab == 1.0 else math.log(p_ab / ((frequencies[edge["a"]] / n) * (frequencies[edge["b"]] / n))) / -math.log(p_ab)
         expected = round(npmi, 4) if npmi > 0 else 0.0
         _require(edge["static_score"] == expected, "static NPMI mismatch")
-        _require(edge["effective_score"] == (edge["dynamic_score"] or edge["static_score"]), "effective weight mismatch")
+        if ranking_mode == "static":
+            _require(edge["static_score"] > 0 and edge["effective_score"] == edge["static_score"],
+                     "static ranking weight mismatch")
+        else:
+            _require(edge["effective_score"] == (edge["dynamic_score"] or edge["static_score"]), "effective weight mismatch")
     if observation["applied"]:
         for edge in transitions:
             pair = (edge["a"], edge["b"])
-            if edge["active_source_support"] and edge["after_weight"] > 0:
+            eligible = edge["active_source_support"] and (
+                edge["static_score"] > 0 if ranking_mode == "static" else edge["after_weight"] > 0)
+            if eligible:
                 _require(pair in live_edges and live_edges[pair]["dynamic_score"] == edge["after_weight"]
                          and live_edges[pair]["source_record_ids"] == edge["source_record_ids"]
                          and live_edges[pair]["static_score"] == edge["static_score"], "committed/live weight mismatch")
             else:
-                _require(pair not in live_edges, "unsupported/zero dynamic edge entered ranking")
+                _require(pair not in live_edges, "unsupported or excluded edge entered ranking")
     ranked = selection["ranked_candidates"]
     expected_order = sorted(ranked, key=lambda c: (-c["direct_match_count"], -c["effective_score"], -c["static_score"], -c["record_id"]))
     _require(ranked == expected_order and [c["rank"] for c in ranked] == list(range(1, len(ranked) + 1)), "ranking order mismatch")
@@ -685,6 +740,9 @@ def validate_graph_audit(audit, retrieval=None):
     _require(len(selection["selected"]) == len(materials), "selected receipt mismatch")
     for material, selected, candidate in zip(materials, selection["selected"], ranked):
         payload = material["model_payload"]
+        if "ranking_mode" in selection:
+            _require(payload.get("ranking_mode") == ranking_mode
+                     and payload.get("weight_basis") == selection["weight_basis"], "model material weight basis mismatch")
         _require(selected["source_id"] == candidate["source_id"] == material["source_id"]
                  and candidate["text_sha256"] == text_digest(material["stored_text"])
                  and candidate["quote_sha256"] == text_digest(material["quote"])

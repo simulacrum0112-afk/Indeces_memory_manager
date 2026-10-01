@@ -13,7 +13,7 @@
 
 `.gitignore` 防止通常的新增文件被选入提交；它无法清除已经提交的文件，也无法阻止 `git add -f`。自定义凭据文件名或运行目录时，应补充忽略规则，并检查 `git status --short` 与 `git diff --cached --name-only`；不要把真实运行记录改名放进源码、测试或验证目录。
 
-公开发布前检查所有可达分支和标签的 Git 历史、已跟踪路径与内容，并核验 GitHub release 附件、Actions artifacts 等发布面。秘密扫描是有限规则检查，不证明任意格式或未知凭据都能检出。本次审计范围及工具版本由 `verification/REPOSITORY_AUDIT_091.json` 记录，不保存密钥值或真实运行记录。
+公开发布前检查所有可达分支和标签的 Git 历史、已跟踪路径与内容，并核验 GitHub release 附件、Actions artifacts 等发布面。秘密扫描是有限规则检查，不证明任意格式或未知凭据都能检出。公开准备审计见 `verification/REPOSITORY_AUDIT_091.json`，0.10.0 对 main 可达历史和本次待提交文件的补充检查见 `verification/REPOSITORY_AUDIT_0100.json`；不保存密钥值或真实运行记录。
 
 仅推送主分支和明确的版本标签，不用 `push --mirror` 或 `push --all`。本地工具引用（如 `refs/codex/*`）可能包含私有附件的历史快照，应保留在本机，不发布到 GitHub。公开仓库可另外启用 GitHub 的密钥扫描与推送保护，作为新增提交的补充检查，不替代忽略规则或人工核验。
 

@@ -3,12 +3,18 @@ from __future__ import annotations
 import asyncio
 from dataclasses import replace
 from datetime import datetime, timezone
+from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 from indeces.discord_bridge import DiscordBridge, _Envelope, discord_reply_text, select_messages
+from indeces.config import AdapterConfig, Budget, DiscordConfig, KnowledgeConfig, RuntimeConfig
+from indeces.contracts import GovernedError, ModelResult
+from indeces.runtime import Runtime as ChatRuntime
+from indeces.store import Store
 
 
 def configuration(*, capacity: int = 2, seconds: float = 0.05, channels: tuple[str, ...] = (), queue_seconds: float = 120.0) -> SimpleNamespace:
@@ -279,9 +285,99 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(started["truncated"])
         self.assertLessEqual(len(receipt.text.encode("utf-16-le")) // 2, 2000)
 
-    async def test_shutdown_wait_is_bounded_if_runtime_suppresses_cancellation(self):
+    async def test_confirmed_delivery_receipt_survives_post_delivery_audit_failure(self):
+        bridge, scratch = self.make_bridge()
+        original_write = scratch.write
+
+        def write(event, **fields):
+            if event == "discord_delivery_finished":
+                raise OSError("synthetic post-delivery audit failure")
+            original_write(event, **fields)
+
+        scratch.write = write
+        source = Message()
+        incoming = select_messages(source, "99", bridge.config)
+        with self.assertLogs("indeces.discord_bridge", level="ERROR"):
+            receipt = await bridge._deliver(_Envelope(incoming, source), "acknowledged reply")
+        self.assertEqual(receipt.message_ids, ("1001",))
+        self.assertEqual(receipt.text, source.sent[0][0])
+        self.assertEqual(len(source.sent), 1)
+        self.assertFalse(bridge._accepting)
+        self.assertIsInstance(bridge._delivery_audit_error, OSError)
+
+    async def test_post_delivery_audit_failure_preserves_authoritative_turn_and_history(self):
+        class ReplyAdapter:
+            def __init__(self):
+                self.calls = 0
+
+            async def call(self, *args, **kwargs):
+                self.calls += 1
+                return ModelResult("acknowledged reply", 10, 5, "offline", 0)
+
+        scratch = Scratch()
+        original_write = scratch.write
+
+        def write(event, **fields):
+            if event == "discord_delivery_finished":
+                raise OSError("synthetic post-delivery audit failure")
+            original_write(event, **fields)
+
+        scratch.write = write
+        config = SimpleNamespace(name="Indeces", runtime=RuntimeConfig(summary_max_bytes=256),
+                                 knowledge=KnowledgeConfig(), discord=DiscordConfig(guild_id="10"),
+                                 adapter=AdapterConfig("gpt-6-luna", "https://api.openai.com/v1",
+                                     {stage: Budget(10000, 100, 1) for stage in ("reply", "summary", "label")}))
+        adapter = ReplyAdapter()
+        with TemporaryDirectory() as directory:
+            store = Store(Path(directory) / "state")
+            runtime = ChatRuntime(config, store, adapter, scratch)
+            bridge = DiscordBridge(config, runtime, scratch)
+            source = Message()
+            try:
+                with self.assertLogs("indeces.discord_bridge", level="ERROR"):
+                    bridge._start_worker()
+                    bridge.enqueue(source, "99")
+                    await asyncio.wait_for(bridge._worker_failed.wait(), timeout=1)
+                turn = store.db.execute("SELECT status,delivered,receipt FROM turns").fetchone()
+                self.assertEqual(turn["status"], "delivered")
+                self.assertEqual(turn["delivered"], source.sent[0][0])
+                self.assertIn("1001", turn["receipt"])
+                self.assertEqual(store.history("10:20")[-1]["content"], source.sent[0][0])
+                self.assertEqual(adapter.calls, 1)
+                self.assertEqual(len(source.sent), 1)
+                self.assertFalse(bridge._accepting)
+                await asyncio.wait_for(bridge._queue.join(), timeout=1)
+            finally:
+                await bridge.close()
+                store.close()
+
+    async def test_shutdown_audit_failure_still_settles_queue_and_stops_worker(self):
+        runtime = Runtime(asyncio.Event())
+        bridge, scratch = self.make_bridge(runtime=runtime)
+        original_write = scratch.write
+
+        def write(event, **fields):
+            if event == "discord_message_dropped":
+                raise OSError("synthetic shutdown audit failure")
+            original_write(event, **fields)
+
+        scratch.write = write
+        bridge._start_worker()
+        first, second = Message(1), Message(2)
+        bridge.enqueue(first, "99")
+        await asyncio.wait_for(runtime.started.wait(), timeout=1)
+        bridge.enqueue(second, "99")
+        with self.assertRaises(OSError):
+            await bridge.close()
+        self.assertEqual(runtime.active, 0)
+        self.assertIsNone(bridge._worker)
+        self.assertEqual(first.sent + second.sent, [])
+        await asyncio.wait_for(bridge._queue.join(), timeout=1)
+
+    async def test_shutdown_keeps_waiting_for_physical_worker_exit(self):
         release = asyncio.Event()
         started = asyncio.Event()
+        reported = asyncio.Event()
 
         class StubbornRuntime:
             async def process(self, message, deliver):
@@ -292,21 +388,105 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
                     await release.wait()
 
         bridge, scratch = self.make_bridge(configuration(seconds=0.001), StubbornRuntime())
+        original_write = scratch.write
+
+        def write(event, **fields):
+            original_write(event, **fields)
+            if event == "discord_shutdown_incomplete":
+                reported.set()
+
+        scratch.write = write
         bridge._start_worker()
         worker = bridge._worker
         bridge.enqueue(Message(), "99")
         await asyncio.wait_for(started.wait(), timeout=1)
+        closing = None
         try:
             with self.assertLogs("indeces.discord_bridge", level="ERROR"):
-                await asyncio.wait_for(bridge.close(), timeout=0.1)
+                closing = asyncio.create_task(bridge.close())
+                await asyncio.wait_for(reported.wait(), timeout=1)
             self.assertTrue(any(event == "discord_shutdown_incomplete" for event, _ in scratch.events))
             self.assertFalse(bridge._accepting)
+            self.assertFalse(closing.done())
+            self.assertFalse(worker.done())
+            # Repeated cancellation of the waiter cannot cancel physical cleanup.
+            closing.cancel()
+            await asyncio.sleep(0)
+            closing.cancel()
+            await asyncio.sleep(0)
+            self.assertFalse(closing.done())
+            self.assertFalse(worker.done())
+            release.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await asyncio.wait_for(closing, timeout=1)
+            self.assertTrue(worker.done())
+            self.assertIsNone(bridge._worker)
+            await asyncio.wait_for(bridge._queue.join(), timeout=1)
         finally:
             release.set()
-            await asyncio.sleep(0)
-            worker.cancel()
-            with self.assertRaises(asyncio.CancelledError):
-                await asyncio.wait_for(worker, timeout=1)
+            if closing is not None and not closing.done():
+                await asyncio.gather(closing, return_exceptions=True)
+
+    async def test_delivery_after_shutdown_never_dispatches(self):
+        bridge, scratch = self.make_bridge()
+        await bridge.close()
+        source = Message()
+        incoming = select_messages(source, "99", bridge.config)
+        with self.assertRaisesRegex(GovernedError, "discord_stopping"):
+            await bridge._deliver(_Envelope(incoming, source), "late reply")
+        self.assertEqual(source.sent, [])
+
+    async def test_worker_audit_crash_stops_gateway_and_closes_client(self):
+        bridge, scratch = self.make_bridge()
+        original_write = scratch.write
+
+        def write(event, **fields):
+            if event in {"discord_runtime_started", "discord_runtime_failed"}:
+                raise OSError("synthetic consumer audit failure")
+            original_write(event, **fields)
+
+        scratch.write = write
+        clients = []
+        source = Message()
+
+        class EmptyFlags:
+            @staticmethod
+            def none():
+                return SimpleNamespace()
+
+        class FakeClient:
+            def __init__(self, **options):
+                self.user = SimpleNamespace(id=99)
+                self.closes = 0
+                clients.append(self)
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                await self.close()
+
+            async def start(self, token):
+                await self.setup_hook()
+                await self.on_message(source)
+                await asyncio.Event().wait()
+
+            async def close(self):
+                self.closes += 1
+
+        fake = SimpleNamespace(Client=FakeClient, Intents=EmptyFlags, AllowedMentions=EmptyFlags,
+                               MemberCacheFlags=EmptyFlags, HTTPException=HTTPError)
+        with patch.dict(sys.modules, {"discord": fake}), self.assertLogs("indeces.discord_bridge", level="ERROR"):
+            with self.assertRaisesRegex(RuntimeError, "worker stopped unexpectedly"):
+                await asyncio.wait_for(bridge.run("synthetic-token"), timeout=1)
+        self.assertEqual(len(clients), 1)
+        self.assertEqual(clients[0].closes, 1)
+        self.assertEqual(source.sent, [])
+        self.assertFalse(bridge._accepting)
+        self.assertFalse(bridge._running)
+        self.assertIsNone(bridge._worker)
+        self.assertIsNone(bridge._client)
+        await asyncio.wait_for(bridge._queue.join(), timeout=1)
 
     async def test_run_has_one_lazy_client_and_one_worker_across_ready_events(self):
         bridge, scratch = self.make_bridge()

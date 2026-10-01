@@ -45,6 +45,50 @@ class ConsoleTests(unittest.TestCase):
         serve.assert_not_called()
         loader.assert_not_called()
 
+    def test_cli_npmi_reads_aggregate_without_service_credentials_or_scratch(self):
+        from indeces.memory import MemoryGraph
+        from indeces.store import Store
+        store = Store(self.config.state_dir)
+        try:
+            graph = MemoryGraph(store.db)
+            graph.add(f"{GUILD}:knowledge", "synthetic-source", "offline", [
+                {"text": "alpha beta", "quote": "alpha beta", "marks": ["alpha", "beta"]}], 1)
+        finally:
+            store.close()
+        with patch.object(console, "run") as run, patch.object(console, "serve") as serve, \
+                patch.object(console, "prompt_secret") as secret, patch.object(console, "ScratchLog") as scratch:
+            output = self.main("npmi")
+        self.assertIn("1 个有效块", output)
+        self.assertIn("1 条正 NPMI 边", output)
+        self.assertIn("不是置信度", output)
+        run.assert_not_called()
+        serve.assert_not_called()
+        secret.assert_not_called()
+        scratch.assert_not_called()
+        self.assertFalse(self.config.scratch_dir.exists())
+
+    def test_interactive_npmi_returns_to_command_input(self):
+        with patch("builtins.input", side_effect=["npmi", "quit"]), \
+                patch.object(console, "run") as run:
+            output = self.main()
+        self.assertIn("尚无可读取的知识图", output)
+        run.assert_not_called()
+
+    def test_npmi_without_config_does_not_initialize_files(self):
+        self.path.unlink()
+        with patch.object(console, "initialize") as initialize:
+            output = self.main("npmi")
+        self.assertIn("不会创建配置", output)
+        initialize.assert_not_called()
+        self.assertFalse(self.path.exists())
+
+    def test_npmi_unavailable_snapshot_does_not_report_empty_graph(self):
+        with patch.object(console, "npmi_diagnostics", return_value={
+                "statistics": None, "warnings": ["database_snapshot_unavailable"]}):
+            output = self.main("npmi")
+        self.assertIn("无法判断图状态", output)
+        self.assertNotIn("尚无可读取", output)
+
     def test_cli_cancelled_discord_setup_returns_failure_code(self):
         with patch.object(console, "configure_discord", return_value=False), \
                 self.assertRaises(SystemExit) as error:

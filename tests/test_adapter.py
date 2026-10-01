@@ -6,7 +6,10 @@ from collections import deque
 from dataclasses import replace
 from pathlib import Path
 import tempfile
+import time
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from indeces.adapter import OpenAIAdapter, reservation
 from indeces.config import AdapterConfig, Budget, load_config
@@ -58,6 +61,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(GovernedError) as caught:
             await self.invoke(adapter, stage)
         self.assertEqual(caught.exception.code, code)
+        return caught.exception
 
     async def test_count_precedes_generation_and_both_payloads_are_traced(self):
         transport = SequenceTransport([{"input_tokens": 10}, completed()])
@@ -147,6 +151,9 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
                 await self.assert_code(adapter, "provider_token_limit_breach")
                 self.assertEqual(len(transport.requests), 2)
                 self.assertEqual(scratch.select("call_end")[0]["code"], "provider_token_limit_breach")
+                self.assertFalse(scratch.select("call_end")[0]["remote_usage_unknown"])
+                self.assertTrue(scratch.select("call_end")[0]["generation_usage_received"])
+                self.assertEqual(scratch.select("call_end")[0]["known_usage"], {"input_tokens": inp, "output_tokens": out})
 
     async def test_missing_and_invalid_usage_are_rejected(self):
         for usage, code in ((None, "missing_usage"), ({"input_tokens": True, "output_tokens": 4}, "invalid_usage"),
@@ -155,18 +162,25 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
                 response = completed()
                 response["usage"] = usage
                 transport = SequenceTransport([{"input_tokens": 10}, response])
-                adapter, _ = self.adapter(transport)
+                adapter, scratch = self.adapter(transport)
                 await self.assert_code(adapter, code)
                 self.assertEqual(len(transport.requests), 2)
+                self.assertTrue(scratch.select("call_end")[0]["generation_request_started"])
+                self.assertFalse(scratch.select("call_end")[0]["generation_usage_received"])
+                self.assertTrue(scratch.select("call_end")[0]["remote_usage_unknown"])
+                self.assertIsNone(scratch.select("call_end")[0]["known_usage"])
 
     async def test_incomplete_text_is_never_returned_as_success(self):
         response = completed("partial answer")
         response.update(status="incomplete", incomplete_details={"reason": "max_output_tokens"})
         transport = SequenceTransport([{"input_tokens": 10}, response])
         adapter, scratch = self.adapter(transport)
-        await self.assert_code(adapter, "incomplete_response")
+        error = await self.assert_code(adapter, "incomplete_response")
         self.assertEqual(len(transport.requests), 2)
         self.assertEqual(scratch.select("http_response")[-1]["payload"]["output"][0]["content"][0]["text"], "partial answer")
+        self.assertEqual(error.known_usage, {"input_tokens": 10, "output_tokens": 4})
+        self.assertEqual(scratch.select("call_end")[0]["known_usage"], error.known_usage)
+        self.assertFalse(error.remote_usage_unknown)
 
     async def test_timeout_stops_request_and_stage_circuits_are_independent(self):
         requests = []
@@ -188,7 +202,116 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(requests, ["/responses/input_tokens"])
         self.assertEqual((await self.invoke(adapter, "summary")).text, "a visible reply")
         timeout = next(row for row in scratch.select("call_end") if row.get("code") == "stage_timeout")
-        self.assertTrue(timeout["remote_usage_unknown"])
+        self.assertEqual(timeout["phase"], "input_count")
+        self.assertTrue(timeout["remote_request_started"])
+        self.assertFalse(timeout["generation_request_started"])
+        self.assertFalse(timeout["remote_usage_unknown"])
+
+    async def test_label_slot_timeout_issues_no_request_and_preserves_provider_circuit(self):
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        requests = []
+
+        async def transport(path, payload):
+            requests.append(path)
+            if path == "/responses":
+                entered.set()
+                await release.wait()
+                return completed()
+            return {"input_tokens": 10}
+
+        adapter, scratch = self.adapter(transport, threshold=1)
+        adapter.config = replace(adapter.config, budgets={**adapter.config.budgets,
+                                                       "label": Budget(100, 20, 0.01)})
+        first = asyncio.create_task(self.invoke(adapter, "reply"))
+        try:
+            await asyncio.wait_for(entered.wait(), timeout=1)
+            await self.assert_code(adapter, "model_slot_timeout", stage="label")
+            self.assertEqual(requests, ["/responses/input_tokens", "/responses"])
+            self.assertEqual(adapter._circuits["label"], {"failures": 0, "until": 0.0})
+            end = next(row for row in scratch.select("call_end") if row["stage"] == "label")
+            self.assertEqual(end["phase"], "slot_wait")
+            self.assertGreaterEqual(end["slot_wait_seconds"], 0.01)
+            self.assertFalse(end["remote_request_started"])
+            self.assertFalse(end["generation_request_started"])
+            self.assertFalse(end["remote_usage_unknown"])
+        finally:
+            release.set()
+            await first
+
+    async def test_generation_timeout_preserves_unknown_usage_and_provider_circuit(self):
+        requests = []
+
+        async def transport(path, payload):
+            requests.append(path)
+            if path.endswith("input_tokens"):
+                return {"input_tokens": 10}
+            await asyncio.Event().wait()
+
+        adapter, scratch = self.adapter(transport, seconds=0.01, threshold=1)
+        await self.assert_code(adapter, "stage_timeout")
+        end = scratch.select("call_end")[0]
+        self.assertEqual(requests, ["/responses/input_tokens", "/responses"])
+        self.assertEqual(end["phase"], "generation")
+        self.assertTrue(end["generation_request_started"])
+        self.assertTrue(end["remote_request_in_flight"])
+        self.assertFalse(end["generation_usage_received"])
+        self.assertTrue(end["remote_usage_unknown"])
+        self.assertEqual(adapter._circuits["reply"]["failures"], 1)
+        self.assertGreater(adapter._circuits["reply"]["until"], 0)
+
+    async def test_local_deadline_after_count_never_issues_generation_or_penalizes_provider(self):
+        transport = SequenceTransport([{"input_tokens": 10}])
+        adapter, scratch = self.adapter(transport, threshold=1)
+        offset = 0.0
+        original_write = scratch.write
+
+        def write(event, **fields):
+            nonlocal offset
+            original_write(event, **fields)
+            if event == "input_gate":
+                # Simulate local work crossing the unchanged one-second limit;
+                # keep the event loop's own monotonic clock untouched.
+                offset = 2.0
+
+        scratch.write = write
+        with patch("indeces.adapter.time", SimpleNamespace(monotonic=lambda: time.monotonic() + offset)):
+            with self.assertRaises(GovernedError) as caught:
+                await self.invoke(adapter)
+        self.assertEqual(caught.exception.code, "stage_timeout")
+        self.assertFalse(caught.exception.remote_usage_unknown)
+        self.assertEqual([path for path, _ in transport.requests], ["/responses/input_tokens"])
+        self.assertEqual(adapter._circuits["reply"], {"failures": 0, "until": 0.0})
+        end = scratch.select("call_end")[0]
+        self.assertEqual(end["phase"], "input_gate")
+        self.assertTrue(end["remote_request_started"])
+        self.assertFalse(end["remote_request_in_flight"])
+        self.assertFalse(end["generation_request_started"])
+        self.assertFalse(end["remote_usage_unknown"])
+
+    async def test_local_start_audit_deadline_exhaustion_never_issues_input_count(self):
+        transport = SequenceTransport([])
+        adapter, scratch = self.adapter(transport, threshold=1)
+        original_write = scratch.write
+        offset = 0.0
+
+        def write(event, **fields):
+            nonlocal offset
+            original_write(event, **fields)
+            if event == "call_start":
+                offset = 2.0
+
+        scratch.write = write
+        with patch("indeces.adapter.time", SimpleNamespace(monotonic=lambda: time.monotonic() + offset)):
+            error = await self.assert_code(adapter, "stage_timeout")
+        self.assertEqual(transport.requests, [])
+        self.assertEqual(adapter._circuits["reply"], {"failures": 0, "until": 0.0})
+        self.assertFalse(error.remote_usage_unknown)
+        self.assertIsNone(error.known_usage)
+        end = scratch.select("call_end")[0]
+        self.assertEqual(end["phase"], "slot_acquired")
+        self.assertFalse(end["remote_request_started"])
+        self.assertFalse(end["remote_usage_unknown"])
 
     async def test_cancellation_is_traced_and_never_retried(self):
         started = asyncio.Event()
@@ -207,6 +330,122 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             await task
         self.assertEqual(requests, ["/responses/input_tokens"])
         self.assertEqual(scratch.select("call_end")[0]["status"], "cancelled")
+        self.assertFalse(scratch.select("call_end")[0]["remote_usage_unknown"])
+
+    async def test_cancellation_during_generation_preserves_unknown_generation_usage(self):
+        entered = asyncio.Event()
+        requests = []
+
+        async def transport(path, payload):
+            requests.append(path)
+            if path.endswith("input_tokens"):
+                return {"input_tokens": 10}
+            entered.set()
+            await asyncio.Event().wait()
+
+        adapter, scratch = self.adapter(transport)
+        task = asyncio.create_task(self.invoke(adapter))
+        await asyncio.wait_for(entered.wait(), timeout=1)
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError) as caught:
+            await task
+        end = scratch.select("call_end")[0]
+        self.assertEqual(requests, ["/responses/input_tokens", "/responses"])
+        self.assertEqual(end["phase"], "generation")
+        self.assertTrue(end["generation_request_started"])
+        self.assertFalse(end["generation_usage_received"])
+        self.assertTrue(end["remote_usage_unknown"])
+        self.assertTrue(caught.exception.remote_usage_unknown)
+
+    async def test_cancellation_after_generation_response_preserves_confirmed_usage(self):
+        transport = SequenceTransport([{"input_tokens": 10}, completed(inp=17, out=6)])
+        adapter, scratch = self.adapter(transport)
+        original_write = scratch.write
+
+        def write(event, **fields):
+            original_write(event, **fields)
+            if event == "http_response" and fields["path"] == "/responses":
+                raise asyncio.CancelledError()
+
+        scratch.write = write
+        with self.assertRaises(asyncio.CancelledError) as caught:
+            await self.invoke(adapter)
+        known = {"input_tokens": 17, "output_tokens": 6}
+        self.assertEqual(caught.exception.known_usage, known)
+        self.assertFalse(caught.exception.remote_usage_unknown)
+        end = scratch.select("call_end")[0]
+        self.assertEqual(end["status"], "cancelled")
+        self.assertEqual(end["known_usage"], known)
+        self.assertFalse(end["remote_usage_unknown"])
+
+    async def test_generation_http_rejection_without_usage_stays_unknown(self):
+        class Content:
+            async def iter_chunked(self, size):
+                yield b'{"input_tokens": 10}'
+
+        class Response:
+            def __init__(self, status):
+                self.status, self.content = status, Content()
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return None
+
+        class Session:
+            def __init__(self, status):
+                self.status, self.requests = status, []
+
+            def post(self, url, **options):
+                self.requests.append(url)
+                return Response(200 if url.endswith("input_tokens") else self.status)
+
+        for status in (400, 401, 403, 408, 409, 429):
+            with self.subTest(status=status):
+                adapter, scratch = self.adapter(None)
+                adapter._session = Session(status)
+                error = await self.assert_code(adapter, "provider_http_" + str(status))
+                self.assertTrue(error.remote_usage_unknown)
+                self.assertIsNone(error.known_usage)
+                end = scratch.select("call_end")[0]
+                self.assertTrue(end["generation_rejected"])
+                self.assertTrue(end["remote_usage_unknown"])
+                self.assertIsNone(end["known_usage"])
+                self.assertEqual(len(adapter._session.requests), 2)
+
+    async def test_cancellation_while_waiting_for_slot_never_issues_label_request(self):
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        requests = []
+
+        async def transport(path, payload):
+            requests.append(path)
+            if path == "/responses":
+                entered.set()
+                await release.wait()
+                return completed()
+            return {"input_tokens": 10}
+
+        adapter, scratch = self.adapter(transport)
+        first = asyncio.create_task(self.invoke(adapter, "reply"))
+        try:
+            await asyncio.wait_for(entered.wait(), timeout=1)
+            second = asyncio.create_task(self.invoke(adapter, "label"))
+            await asyncio.sleep(0)
+            second.cancel()
+            with self.assertRaises(asyncio.CancelledError) as caught:
+                await second
+            self.assertFalse(caught.exception.remote_usage_unknown)
+            self.assertEqual(requests, ["/responses/input_tokens", "/responses"])
+            end = next(row for row in scratch.select("call_end") if row["stage"] == "label")
+            self.assertEqual(end["phase"], "slot_wait")
+            self.assertFalse(end["remote_request_started"])
+            self.assertFalse(end["remote_usage_unknown"])
+            self.assertEqual(adapter._circuits["label"], {"failures": 0, "until": 0.0})
+        finally:
+            release.set()
+            await first
 
     async def test_calls_have_no_parallel_transport_or_interleaved_generation(self):
         release = asyncio.Event()

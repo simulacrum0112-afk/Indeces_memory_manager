@@ -13,14 +13,19 @@
   const timeMillis = value => typeof value === "number" ? value * 1000 : Date.parse(value);
   const retainedAt = (value, now = Date.now()) => { const timestamp=timeMillis(value);return finite(timestamp)&&timestamp>now-86400000&&timestamp<=now; };
   const retainedRecords = (records, now = Date.now()) => list(records).filter(record=>retainedAt(record.timestamp,now));
+  function connectionPresentation({paused,readFailed,snapshot}) {
+    if(readFailed)return {className:"status-chip error",label:"快照未更新"+(paused?" · 已暂停":"")};
+    if(!snapshot)return {className:"status-chip quiet",label:paused?"尚未读取 · 已暂停":"正在读取"};
+    return {className:"status-chip"+(paused?" quiet":""),label:paused?"快照已暂停":"快照可读取 · 只读"};
+  }
   function graphSelection(graph, options) {
     const edges = list(graph.edges).filter(edge => (options.archived || edge.active_source_support === true) &&
-      finite(displayWeight(edge, options.layer)) && displayWeight(edge, options.layer) >= options.minimum);
+      finite(displayWeight(edge, options.layer)) && (options.layer!=="static" || displayWeight(edge, options.layer)>0) && displayWeight(edge, options.layer) >= options.minimum);
     const query = options.query.trim().toLocaleLowerCase();
     const allNodes = list(graph.nodes), available = new Set(allNodes.map(node => String(node.id)));
     let names;
     if (query) {
-      const matches = new Set(allNodes.filter(node => String(node.id).toLocaleLowerCase().includes(query)).map(node => String(node.id)));
+      const matches = new Set(allNodes.filter(node => (options.archived || node.frequency > 0) && String(node.id).toLocaleLowerCase().includes(query)).map(node => String(node.id)));
       names = new Set(matches);
       edges.forEach(edge => { if (matches.has(edge.a) || matches.has(edge.b)) { names.add(edge.a); names.add(edge.b); } });
     } else {
@@ -38,11 +43,11 @@
   }
   // Pure helpers are exposed only to offline Node tests; no browser global data API.
   if (typeof document === "undefined") {
-    if (typeof module !== "undefined") module.exports = {graphSelection, historyPoints, edgeWeight, displayWeight, numberText, edgeId, retainedAt, retainedRecords};
+    if (typeof module !== "undefined") module.exports = {graphSelection, historyPoints, edgeWeight, displayWeight, numberText, edgeId, retainedAt, retainedRecords, connectionPresentation};
     return;
   }
   const $ = id => document.getElementById(id), NS = "http://www.w3.org/2000/svg";
-  const state = {snapshot:null,view:"graph",paused:false,refreshing:false,selected:null,detailRequest:0,
+  const state = {snapshot:null,view:"graph",paused:false,refreshing:false,readFailed:false,selected:null,detailRequest:0,detailWarning:null,
     positions:new Map(),nodeElements:new Map(),edgeElements:[],transform:{x:0,y:0,k:1},drag:null,requestControllers:new Set()};
   function el(tag, className, content) {
     const node = document.createElement(tag);
@@ -108,15 +113,15 @@
     } finally { clearTimeout(timeout); state.requestControllers.delete(controller); }
   }
   function showError(message) { $("error-banner").hidden=false; $("error-banner").textContent=message; }
+  function renderConnection() { const status=connectionPresentation(state);$("connection-status").className=status.className;$("connection-status").textContent=status.label; }
   function errorText(error) { return error.name === "AbortError" ? "读取超时" : error.message || "读取失败"; }
   async function refresh() {
     if (state.refreshing) return;
     state.refreshing=true; $("refresh").disabled=true;
     try {
-      const snapshot = await api("snapshot"); state.snapshot=snapshot;
+      const snapshot = await api("snapshot"); state.snapshot=snapshot;state.readFailed=false;
       $("error-banner").hidden=true;
-      $("connection-status").className="status-chip"+(state.paused?" quiet":"");
-      $("connection-status").textContent=state.paused?"已暂停 · 只读":"本机 · 只读";
+      renderConnection();
       const timestamp=snapshot.generated_at || snapshot.timestamp;
       $("freshness").textContent="快照 "+localTime(timestamp)+" · "+(state.paused?"手动刷新":"每 5 秒刷新");
       $("freshness").title=timestamp?text(timestamp):"";
@@ -129,18 +134,30 @@
       if(graph.truncated) limits.push("图谱只显示受限快照");
       if(knowledge.truncated) limits.push("知识目录已截断");
       if(scratch.truncated) limits.push("运行目录已截断");
-      list(snapshot.warnings).forEach(value=>limits.push(value==="database_snapshot_unavailable"?"数据库快照暂时不可读取，当前空图不能证明数据库为空":"读取警告："+text(value)));
+      list(snapshot.warnings).forEach(value=>limits.push(value==="database_snapshot_unavailable"?"数据库快照暂时不可读取，当前空图不能证明数据库为空":value==="database_snapshot_timeout"?"数据库读取达到协作时间上限，当前统计与图不可用":"读取警告："+text(value)));
       $("limit-banner").hidden=limits.length===0;
       $("limit-banner").textContent=limits.join("；")+"。受限快照的总数与展示数可能不同。";
-      renderGraph(); renderKnowledge(); renderScratch();
+      renderDiagnostics();renderGraph(); renderKnowledge(); renderScratch();
       if(state.selected) await loadDetail(state.selected, true);
     } catch(error) {
       showError("观察服务读取失败（"+errorText(error)+"）。页面保留上次快照，检查 Console 中的观察服务地址与状态。");
-      $("connection-status").className="status-chip error"; $("connection-status").textContent="快照未更新";
+      state.readFailed=true;renderConnection();
     } finally { state.refreshing=false; $("refresh").disabled=false; }
   }
   function options() { return {layer:$("weight-layer").value,archived:$("show-archived").checked,
     minimum:Math.max(0,parseFloat($("min-weight").value)||0),query:$("mark-search").value}; }
+  function renderDiagnostics() {
+    const graph=object(object(state.snapshot).graph),stats=graph.diagnostics,metrics=$("npmi-metrics");clear(metrics);
+    if(!stats){$("npmi-summary").textContent=graph.diagnostics_status==="unavailable"||list(object(state.snapshot).warnings).some(value=>value.startsWith("database_snapshot_"))?"统计暂不可用；读取失败不能证明知识库为空。":"尚未建立图统计。添加材料并显式 start，完成后台标词发布后可查阅。";return;}
+    [["有效材料块",stats.active_records],["来源版本",stats.active_source_versions],["标注词",stats.active_marks],["正 NPMI 边",stats.positive_edges]].forEach(([label,value])=>append(metrics,append(el("div","overview-metric"),el("span","",label),el("strong","",value))));
+    const parts=["共现支持 "+text(stats.supported_pairs)+" 对；其中 "+text(stats.supported_without_positive)+" 对未保存正边；孤立词 "+text(stats.isolated_marks)+" 个。"];
+    if(stats.positive_edges>0){
+      parts.push("正边中位数 "+numberText(stats.median_positive_weight)+"；单块支持 "+text(stats.single_support_positive_edges)+" 条、单一来源支持 "+text(stats.single_source_positive_edges)+" 条、保存值为 1 的边 "+text(stats.unit_weight_edges)+" 条。");
+      if(stats.single_support_positive_edges||stats.single_source_positive_edges||stats.unit_weight_edges)parts.push("高分也可能来自稀少或同一来源的样本，不能据此证明稳健关联。");
+    } else if(stats.active_records>0)parts.push("尚无正关联边；已发布材料仍可通过标注词的直接字面命中召回。");
+    parts.push(graph.truncated?"以上为整个 scope 的聚合统计；下方图谱只展示受限子集。":"以上为整个 scope 的聚合统计，不随下方筛选条件改变。");
+    $("npmi-summary").textContent=parts.join(" ");
+  }
   function seedPositions(nodes) {
     const count=nodes.length;let inserted=false;
     nodes.forEach((node,index) => {
@@ -199,13 +216,15 @@
     });
     updateGraphPositions();
     $("graph-empty").hidden=selected.nodes.length>0;
-    $("graph-empty-title").textContent=list(graph.nodes).length?"没有符合条件的节点":"还没有关联图谱";
-    $("graph-empty-text").textContent=list(graph.nodes).length?"试试调整查找词、最低权重或显示历史边。":"在 knowledge 目录添加 Markdown 或文本文件。服务完成后台标词后，这里会显示有来源支持的关联。";
+    const unavailable=list(object(state.snapshot).warnings).some(value=>value.startsWith("database_snapshot_"));
+    $("graph-empty-title").textContent=unavailable?"图谱暂不可读取":list(graph.nodes).length?"没有符合条件的节点":"还没有关联图谱";
+    $("graph-empty-text").textContent=unavailable?"当前读取未完成，空图不能证明知识库为空。请稍后刷新或查看 Console 状态。":list(graph.nodes).length?"试试调整查找词或显示历史节点与边。":"在 knowledge 目录添加 PDF、Markdown 或文本，显式 start 后服务才会转换和标词。这里展示完成发布的版本。";
     $("visible-count").textContent=selected.nodes.length+" 词 · "+selected.edges.length+" 边";
-    const descriptions={effective:"动态值存在时用于排序，否则使用静态 NPMI。虚线展示历史保留值，不进入当前检索。",
-      static:"NPMI 取值范围为 −1 至 1；当前策略仅保存正关联，未保存的值显示为 —。",
-      dynamic:"每次有效字面命中事件按原规则衰减与强化；动态值可大于 1，不是概率。"};
+    const descriptions={effective:"当前检索使用有有效来源支持的静态正 NPMI。历史值只供观察，不进入当前检索。",
+      static:"NPMI 衡量超出词频基线的共现关联，范围 −1 至 1；当前仅保存正边。— 表示未保存正边，不是测得为零。",
+      dynamic:"动态值仅作字面命中的观察与历史记录，当前不用于回复排序。可大于 1，不是概率。"};
     $("layer-description").textContent=descriptions[current.layer];
+    if(selected.nodes.length>0&&!selected.edges.length)$("layer-description").textContent+=" 当前筛选无可展示的边，保留有效词节点供查阅；直接字面命中仍可召回材料。";
   }
   function updateGraphPositions() {
     state.nodeElements.forEach((group,name)=>{const position=state.positions.get(name);group.setAttribute("transform","translate("+position.x+" "+position.y+")");});
@@ -230,7 +249,7 @@
     published.forEach(version=>{const path=version.path || version.source_id;catalogue.set(path,{path,published:version});});
     pending.forEach(version=>{const path=version.path||version.source_id,entry=catalogue.get(path)||{path};entry.pending=version;catalogue.set(path,entry);});
     $("knowledge-summary").textContent=text(object(knowledge.counts).published??published.length)+" 已发布 · "+text(object(knowledge.counts).pending??pending.length)+" 待更新";
-    if(!catalogue.size)append(container,el("p","plain-empty","还没有知识版本。服务会持续监听 knowledge 目录。"));
+    if(!catalogue.size)append(container,el("p","plain-empty","还没有可展示的知识版本。显式 start 后，服务运行期间会持续监听 knowledge 目录。"));
     catalogue.forEach(entry=>{
       const card=append(el("article","catalogue-card"),el("h3","",entry.path));
       [["已发布",entry.published],["待更新",entry.pending]].forEach(([label,version])=>{
@@ -275,7 +294,8 @@
       if(selection.kind==="trace")renderTrace(data);
       panel.scrollTop=scroll;
     }catch(error){if(request!==state.detailRequest)return;
-      if(!quiet)clear(panel);append(panel,warning("详情读取失败（"+errorText(error)+"）。"+(quiet?"上次详情保留，尚未更新。":"请刷新后重试。"),true));}
+      if(!quiet)clear(panel);if(state.detailWarning)state.detailWarning.remove();
+      state.detailWarning=warning("详情读取失败（"+errorText(error)+"）。"+(quiet?"上次详情保留，尚未更新。":"请刷新后重试。"),true);append(panel,state.detailWarning);}
   }
   function detailHeading(eyebrow,title,subtitle) {
     const node=el("div","detail-heading"),body=el("div");append(body,el("span","eyebrow",eyebrow),el("h2","",title),subtitle?el("p","",subtitle):null);append(node,body);return node;
@@ -289,13 +309,21 @@
   }
   function renderEdge(data) {
     const panel=$("detail-panel"),edge=object(data.edge);
-    append(panel,detailHeading("关联证据",text(data.a||edge.a)+" ↔ "+text(data.b||edge.b),"静态与动态分开记录，当前检索还需要有效来源支持。"));
+    append(panel,detailHeading("关联证据",text(data.a||edge.a)+" ↔ "+text(data.b||edge.b),"当前检索使用静态正 NPMI；动态值单独保留为观察历史。"));
     list(data.warnings).forEach(value=>append(panel,warning("读取警告："+text(value),true)));
     if(!data.edge){append(panel,warning("当前快照中未找到这条关联。可能已更新或不属于此 scope。"));return;}
     const metrics=el("div","metric-grid");
-    [["静态 NPMI",edge.static_weight],["动态权重",edge.dynamic_weight],["检索权重",edge.effective_weight]].forEach(([label,value],index)=>append(metrics,append(el("div","metric"+(index===2?" emphasis":"")),el("span","",label),el("strong","",numberText(value)))));append(panel,metrics);
+    [["静态 NPMI",edge.static_weight],["动态观察",edge.dynamic_weight],["检索权重",edge.effective_weight]].forEach(([label,value],index)=>append(metrics,append(el("div","metric"+(index===2?" emphasis":"")),el("span","",label),el("strong","",numberText(value)))));append(panel,metrics);
     append(panel,facts([["来源状态",edge.active_source_support?"有效来源支持":"无有效来源 · 历史保留"],["共同出现材料",edge.co_count??0],["最近更新事件",edge.last_event_id??"未经过动态更新"]]));
     if(!edge.active_source_support)append(panel,warning("这条历史边不能参与当前在线检索。动态权重保留不等于来源仍然有效。"));
+    else if(!finite(edge.effective_weight))append(panel,warning("有共现来源，但没有保存的正 NPMI 边；此关联不能用于当前静态扩展。材料仍可被直接字面命中。"));
+    const statistics=object(edge.npmi_statistics);
+    if(finite(statistics.active_records)){
+      const basis=section("NPMI 的样本依据");
+      append(basis,facts([["有效材料块 N",statistics.active_records],[text(edge.a)+" 出现块数",statistics.frequency_a],[text(edge.b)+" 出现块数",statistics.frequency_b],["共同出现块数",statistics.co_count],["有效来源版本数",edge.source_count],["当前重算 NPMI",numberText(statistics.recomputed_npmi)]]),el("p","","NPMI = log(p(a,b) / (p(a)p(b))) / −log(p(a,b))；p(a,b)=1 时沿用基线规则取 1。保存的正边按原策略四舍五入到 4 位。"));
+      if(statistics.co_count===1||edge.source_count===1||edge.static_weight===1)append(basis,warning("单块或单一来源支持，或保存值为 1，都不能单独证明关联稳健；块数不等于独立证据数量。"));
+      append(panel,basis);
+    }
     const sourceSection=section("来源版本");
     list(edge.source_ids).forEach(id=>append(sourceSection,sourceButton(id)));
     if(!list(edge.source_ids).length)append(sourceSection,el("p","","当前没有有效版本支持。"));
@@ -485,7 +513,7 @@
   ["mark-search","weight-layer","min-weight","show-archived"].forEach(id=>$(id).addEventListener(id==="mark-search"||id==="min-weight"?"input":"change",renderGraph));
   $("refresh").addEventListener("click",refresh);
   $("pause").addEventListener("click",()=>{state.paused=!state.paused;$("pause").textContent=state.paused?"恢复刷新":"暂停刷新";$("pause").setAttribute("aria-pressed",String(state.paused));
-    $("connection-status").className="status-chip"+(state.paused?" quiet":"");$("connection-status").textContent=state.paused?"已暂停 · 只读":"本机 · 只读";
+    renderConnection();
     if(state.snapshot)$("freshness").textContent="快照 "+localTime(state.snapshot.generated_at||state.snapshot.timestamp)+" · "+(state.paused?"手动刷新":"每 5 秒刷新");
     if(!state.paused)refresh();});
   $("fit-graph").addEventListener("click",()=>{state.transform={x:0,y:0,k:1};applyTransform();});

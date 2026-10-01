@@ -14,6 +14,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+from indeces.adapter import OpenAIAdapter
 from indeces.config import AdapterConfig, Budget, DiscordConfig, KnowledgeConfig
 from indeces.context import encode
 from indeces.contracts import GovernedError, ModelResult
@@ -924,6 +925,176 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(labelled), 1)
         self.assertIn("replacement material", labelled[0]["quote"])
         self.assertEqual(labelled[0]["marks"], ["alpha", "topic"])
+
+    async def test_adapter_error_metadata_preserves_known_absence_of_generation_usage(self):
+        old = await self.ready_source()
+        for code in ("model_slot_timeout", "stage_timeout"):
+            with self.subTest(code=code):
+                self.file("alpha topic replacement " + code)
+                self.adapter.outcomes.append(GovernedError(code, remote_usage_unknown=False))
+                self.service.scan_once()
+                new = self.head()["source_id"]
+                self.assertTrue(await self.service.label_next())
+                self.assertEqual((self.version(new)["status"], self.version(new)["error"]), ("failed", code))
+                self.assertEqual(self.published()["source_id"], old)
+                self.assertEqual(self.records(new), [])
+                failed = self.receipts(new, "failed")[-1]
+                self.assertFalse(failed["remote_usage_unknown"])
+                self.assertEqual((failed["input_tokens"], failed["output_tokens"]), (0, 0))
+
+    async def test_cancelled_model_slot_wait_does_not_claim_unknown_generation_usage(self):
+        old = await self.ready_source()
+        self.file("alpha topic cancelled before generation")
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        requests = []
+
+        async def transport(path, payload):
+            requests.append(path)
+            return {"input_tokens": 10}
+
+        adapter = OpenAIAdapter(self.config.adapter, self.scratch, request=transport)
+        self.service.adapter = adapter
+        await adapter._lock.acquire()
+        try:
+            task = asyncio.create_task(self.service.label_next())
+            await asyncio.sleep(0)
+            self.assertTrue(any(event == "call_start" for event, _ in self.scratch.events))
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+        finally:
+            adapter._lock.release()
+            await adapter.close()
+        self.assertEqual(requests, [])
+        self.assertEqual((self.version(new)["status"], self.version(new)["error"]), ("failed", "interrupted"))
+        self.assertEqual(self.published()["source_id"], old)
+        self.assertEqual(self.records(new), [])
+        self.assertFalse(self.receipts(new, "cancelled")[-1]["remote_usage_unknown"])
+        job_end = [fields for event, fields in self.scratch.events
+                   if event == "label_job_end" and fields["source_id"] == new]
+        self.assertFalse(job_end[-1]["remote_usage_unknown"])
+
+    async def test_rejected_generation_accounts_confirmed_usage_once_without_publication(self):
+        old = await self.ready_source()
+        for case, code, out in (("incomplete", "incomplete_response", 6),
+                                ("breach", "provider_token_limit_breach", 33),
+                                ("invalid_output", "invalid_output", 6)):
+            with self.subTest(case=case):
+                self.file("alpha topic rejected generation " + case)
+                self.service.scan_once()
+                new = self.head()["source_id"]
+                requests = []
+
+                async def transport(path, payload):
+                    requests.append(path)
+                    if path.endswith("input_tokens"):
+                        return {"input_tokens": 17}
+                    return {"id": "synthetic-rejected", "status": "incomplete" if case == "incomplete" else "completed",
+                            "usage": {"input_tokens": 17, "output_tokens": out},
+                            "output": None if case == "invalid_output" else [{"type": "message", "role": "assistant",
+                                "content": [{"type": "output_text", "text": '{"marks":["alpha"]}'}]}]}
+
+                adapter = OpenAIAdapter(self.config.adapter, self.scratch, request=transport)
+                self.service.adapter = adapter
+                try:
+                    self.assertTrue(await self.service.label_next())
+                    self.assertFalse(await self.service.label_next())
+                finally:
+                    await adapter.close()
+                version = self.version(new)
+                self.assertEqual((version["status"], version["error"]), ("failed", code))
+                self.assertEqual((version["input_tokens"], version["output_tokens"]), (17, out))
+                self.assertEqual(self.published()["source_id"], old)
+                self.assertEqual(self.records(new), [])
+                self.assertEqual(requests, ["/responses/input_tokens", "/responses"])
+                receipt = self.receipts(new, "failed")[-1]
+                self.assertEqual((receipt["input_tokens"], receipt["output_tokens"]), (17, out))
+                self.assertFalse(receipt["remote_usage_unknown"])
+                accounting = [fields for event, fields in self.scratch.events
+                              if event == "label_job_accounting" and fields["source_id"] == new][-1]
+                self.assertEqual((accounting["input_tokens"], accounting["output_tokens"]), (17, out))
+
+    async def test_confirmed_usage_survives_original_adapter_audit_exception(self):
+        old = await self.ready_source()
+        original_write = self.scratch.write
+        for fail_event in ("http_response", "call_end"):
+            with self.subTest(fail_event=fail_event):
+                self.file("alpha topic adapter audit failure " + fail_event)
+                self.service.scan_once()
+                new = self.head()["source_id"]
+                failure = OSError("synthetic adapter audit failure")
+                failures = 0
+
+                def write(event, **fields):
+                    nonlocal failures
+                    if event == fail_event and (event != "http_response" or fields["path"] == "/responses"):
+                        failures += 1
+                        raise failure
+                    original_write(event, **fields)
+
+                async def transport(path, payload):
+                    return {"input_tokens": 17} if path.endswith("input_tokens") else {
+                        "id": "synthetic-audit", "status": "completed",
+                        "usage": {"input_tokens": 17, "output_tokens": 6},
+                        "output": [{"type": "message", "role": "assistant",
+                                    "content": [{"type": "output_text", "text": '{"marks":["alpha"]}'}]}]}
+
+                adapter = OpenAIAdapter(self.config.adapter, self.scratch, request=transport)
+                self.service.adapter = adapter
+                self.scratch.write = write
+                try:
+                    self.assertTrue(await self.service.label_next())
+                finally:
+                    self.scratch.write = original_write
+                    await adapter.close()
+                self.assertEqual(failures, 1)
+                self.assertEqual(failure.known_usage, {"input_tokens": 17, "output_tokens": 6})
+                self.assertFalse(failure.remote_usage_unknown)
+                self.assertEqual(adapter._circuits["label"], {"failures": 0, "until": 0.0})
+                version = self.version(new)
+                self.assertEqual((version["status"], version["error"]), ("failed", "OSError"))
+                self.assertEqual((version["input_tokens"], version["output_tokens"]), (17, 6))
+                self.assertEqual(self.published()["source_id"], old)
+                self.assertEqual(self.records(new), [])
+                self.assertFalse(self.receipts(new, "failed")[-1]["remote_usage_unknown"])
+
+    async def test_cancellation_after_generation_preserves_confirmed_version_usage(self):
+        old = await self.ready_source()
+        self.file("alpha topic cancelled after confirmed usage")
+        self.service.scan_once()
+        new = self.head()["source_id"]
+        original_write = self.scratch.write
+
+        def write(event, **fields):
+            original_write(event, **fields)
+            if event == "http_response" and fields["path"] == "/responses":
+                raise asyncio.CancelledError()
+
+        async def transport(path, payload):
+            return {"input_tokens": 17} if path.endswith("input_tokens") else {
+                "id": "synthetic-cancelled", "status": "completed",
+                "usage": {"input_tokens": 17, "output_tokens": 6},
+                "output": [{"type": "message", "role": "assistant",
+                            "content": [{"type": "output_text", "text": '{"marks":["alpha"]}'}]}]}
+
+        adapter = OpenAIAdapter(self.config.adapter, self.scratch, request=transport)
+        self.service.adapter = adapter
+        self.scratch.write = write
+        try:
+            with self.assertRaises(asyncio.CancelledError):
+                await self.service.label_next()
+        finally:
+            self.scratch.write = original_write
+            await adapter.close()
+        version = self.version(new)
+        self.assertEqual((version["status"], version["error"]), ("failed", "interrupted"))
+        self.assertEqual((version["input_tokens"], version["output_tokens"]), (17, 6))
+        self.assertEqual(self.published()["source_id"], old)
+        self.assertEqual(self.records(new), [])
+        receipt = self.receipts(new, "cancelled")[-1]
+        self.assertEqual((receipt["input_tokens"], receipt["output_tokens"]), (17, 6))
+        self.assertFalse(receipt["remote_usage_unknown"])
 
     async def test_failed_publication_has_only_failed_receipt_with_prior_reply_version(self):
         old = await self.ready_source()

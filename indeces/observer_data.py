@@ -9,12 +9,14 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 import sqlite3
 import time
 
 from . import scratch
+from .identity import SELF_NAME_ALIASES
 from .run_records import (MAX_PDF_METADATA_BYTES, digest, pdf_conversion_metadata,
                           validate_answer, validate_graph_audit, validate_retrieval)
 
@@ -97,7 +99,8 @@ def _tables(db):
 
 def _empty_graph():
     return {"nodes": [], "edges": [], "active_record_count": 0,
-            "total_nodes": 0, "total_edges": 0, "truncated": False}
+            "total_nodes": 0, "total_edges": 0, "truncated": False,
+            "diagnostics": None, "diagnostics_status": "uninitialized", "diagnostics_warning": None}
 
 
 _PAIRS = """SELECT a,b FROM memory_support WHERE scope=:scope
@@ -106,7 +109,8 @@ _PAIRS = """SELECT a,b FROM memory_support WHERE scope=:scope
 _NODES = """WITH frequencies AS (
     SELECT CAST(j.value AS TEXT) AS id,COUNT(DISTINCT r.id) AS frequency
     FROM memory_records r,json_each(r.marks_json) j
-    WHERE r.scope=:scope AND r.active=1 GROUP BY j.value),
+    WHERE r.scope=:scope AND r.active=1
+      AND lower(trim(CAST(j.value AS TEXT))) NOT IN (SELECT value FROM json_each(:self_marks)) GROUP BY j.value),
     identities AS (SELECT id FROM frequencies
     UNION SELECT a FROM memory_dynamic WHERE scope=:scope
     UNION SELECT b FROM memory_dynamic WHERE scope=:scope
@@ -118,7 +122,84 @@ _NODES = """WITH frequencies AS (
     FROM identities i LEFT JOIN frequencies f ON f.id=i.id"""
 
 
-def _edge(db, scope, a, b):
+def _self_marks(config):
+    marks = {str(config.name).strip().casefold()}
+    if marks & SELF_NAME_ALIASES:
+        marks.update(SELF_NAME_ALIASES)
+    return json.dumps(sorted(marks))
+
+
+def _npmi_diagnostics(db, scope, self_marks):
+    """Whole-scope counts, independent of the bounded graph display.
+
+    One active labelled fact is the co-occurrence unit, as in MemoryGraph.
+    Counts describe the saved corpus; they are not confidence estimates.
+    """
+    required = {"memory_records", "memory_support", "memory_static", "memory_dynamic"}
+    if not required <= _tables(db):
+        return None
+    row = db.execute("""WITH frequencies AS (
+        SELECT CAST(j.value AS TEXT) AS id,COUNT(DISTINCT r.id) AS frequency
+        FROM memory_records r,json_each(r.marks_json) j
+        WHERE r.scope=:scope AND r.active=1
+          AND lower(trim(CAST(j.value AS TEXT))) NOT IN (SELECT value FROM json_each(:self_marks)) GROUP BY j.value),
+        support_counts AS MATERIALIZED (
+          SELECT s.a,s.b,s.co_count,t.weight,
+            (SELECT COUNT(DISTINCT r.source_id) FROM json_each(s.evidence_json) j
+             CROSS JOIN memory_records r NOT INDEXED
+             WHERE r.id=j.value AND r.scope=s.scope AND r.active=1) AS source_count
+          FROM memory_support s LEFT JOIN memory_static t
+            ON t.scope=s.scope AND t.a=s.a AND t.b=s.b
+          WHERE s.scope=:scope AND s.co_count>0
+            AND s.a NOT IN (SELECT value FROM json_each(:self_marks))
+            AND s.b NOT IN (SELECT value FROM json_each(:self_marks))),
+        supported AS MATERIALIZED (SELECT * FROM support_counts WHERE source_count>0),
+        positive AS MATERIALIZED (SELECT * FROM supported WHERE weight>0),
+        support_marks AS (SELECT a AS id FROM supported UNION SELECT b FROM supported),
+        positive_marks AS (SELECT a AS id FROM positive UNION SELECT b FROM positive)
+        SELECT
+          (SELECT COUNT(*) FROM memory_records WHERE scope=:scope AND active=1) AS active_records,
+          (SELECT COUNT(DISTINCT source_id) FROM memory_records WHERE scope=:scope AND active=1) AS active_source_versions,
+          (SELECT COUNT(*) FROM frequencies) AS active_marks,
+          (SELECT COUNT(*) FROM supported) AS supported_pairs,
+          (SELECT COUNT(*) FROM positive) AS positive_edges,
+          (SELECT COUNT(*) FROM supported WHERE weight IS NULL OR weight<=0) AS supported_without_positive,
+          (SELECT COUNT(*) FROM frequencies WHERE id NOT IN (SELECT id FROM support_marks)) AS isolated_marks,
+          (SELECT COUNT(*) FROM frequencies WHERE id NOT IN (SELECT id FROM positive_marks)) AS marks_without_positive_edges,
+          (SELECT COUNT(*) FROM positive WHERE co_count=1) AS single_support_positive_edges,
+          (SELECT COUNT(*) FROM positive WHERE source_count=1) AS single_source_positive_edges,
+          (SELECT COUNT(*) FROM positive WHERE weight=1) AS unit_weight_edges,
+          (SELECT MIN(weight) FROM positive) AS min_positive_weight,
+          (SELECT MAX(weight) FROM positive) AS max_positive_weight,
+          (SELECT AVG(weight) FROM (SELECT weight FROM positive ORDER BY weight
+            LIMIT 2-(SELECT COUNT(*) FROM positive)%2 OFFSET ((SELECT COUNT(*) FROM positive)-1)/2)) AS median_positive_weight
+        """, {"scope": scope, "self_marks": self_marks}).fetchone()
+    return dict(row)
+
+
+def npmi_diagnostics(config):
+    """A read-only aggregate suitable for Console; never reads scratch text."""
+    result = {"scope": _scope(config), "generated_at": _now().isoformat(),
+              "ranking_mode": "static", "weight_basis": "static_npmi",
+              "statistics_status": "uninitialized", "statistics": None, "warnings": []}
+    try:
+        with _database(config) as db:
+            if db is not None:
+                result["statistics"] = _npmi_diagnostics(db, _scope(config), _self_marks(config))
+                if result["statistics"] is not None:
+                    result["statistics_status"] = "available"
+    except sqlite3.Error as error:
+        result["statistics_status"] = "unavailable"
+        result["warnings"].append("database_snapshot_timeout" if getattr(error, "sqlite_errorcode", None) == sqlite3.SQLITE_INTERRUPT else "database_snapshot_unavailable")
+    except (ValueError, TypeError, KeyError, OverflowError):
+        result["statistics_status"] = "unavailable"
+        result["warnings"].append("database_snapshot_unavailable")
+    if result["statistics"] is None and not result["warnings"]:
+        result["warnings"].append("graph_not_initialized")
+    return result
+
+
+def _edge(db, scope, a, b, *, include_statistics=False):
     a, b = sorted((a, b))
     support = db.execute("SELECT * FROM memory_support WHERE scope=? AND a=? AND b=?", (scope, a, b)).fetchone()
     static = db.execute("SELECT * FROM memory_static WHERE scope=? AND a=? AND b=?", (scope, a, b)).fetchone()
@@ -134,37 +215,66 @@ def _edge(db, scope, a, b):
     sources = []
     if ids:
         sources = [row[0] for row in db.execute(
-            "SELECT DISTINCT source_id FROM memory_records WHERE scope=? AND active=1 AND id IN (SELECT value FROM json_each(?)) ORDER BY source_id",
-            (scope, evidence["evidence_json"]))]
+            "SELECT DISTINCT r.source_id FROM json_each(?) j CROSS JOIN memory_records r NOT INDEXED WHERE r.id=j.value AND r.scope=? AND r.active=1 ORDER BY r.source_id",
+            (evidence["evidence_json"], scope))]
     supported = bool(sources) and bool(evidence) and evidence["co_count"] > 0
     static_weight = float(static["weight"]) if static else None
     dynamic_weight = float(dynamic["weight"]) if dynamic else None
-    effective = (dynamic_weight if dynamic else (static_weight or 0.0)) if supported else None
+    # Dynamic rows are retained observations; current retrieval uses positive
+    # static NPMI only. Mere co-occurrence support is not a positive edge.
+    effective = static_weight if supported and static_weight is not None and static_weight > 0 else None
+    npmi_statistics = None
+    if include_statistics:
+        counts = db.execute("""SELECT
+        COUNT(DISTINCT CASE WHEN j.value=:a THEN r.id END) AS frequency_a,
+        COUNT(DISTINCT CASE WHEN j.value=:b THEN r.id END) AS frequency_b
+        FROM memory_records r LEFT JOIN json_each(r.marks_json) j
+        WHERE r.scope=:scope AND r.active=1""", {"scope": scope, "a": a, "b": b}).fetchone()
+        n = db.execute("SELECT COUNT(*) FROM memory_records WHERE scope=? AND active=1", (scope,)).fetchone()[0]
+        co_count = evidence["co_count"] if evidence else 0
+        raw_npmi = None
+        if supported and n and counts["frequency_a"] and counts["frequency_b"] and 0 < co_count <= n:
+            p_ab = co_count / n
+            raw_npmi = (1.0 if p_ab == 1.0 else
+                        math.log(p_ab / ((counts["frequency_a"] / n) * (counts["frequency_b"] / n))) / -math.log(p_ab))
+        npmi_statistics = {"active_records": n, "frequency_a": counts["frequency_a"],
+                           "frequency_b": counts["frequency_b"], "co_count": co_count,
+                           "recomputed_npmi": raw_npmi}
     context = _json(evidence["context_json"] if evidence else dynamic["context_json"], [])
     if not isinstance(context, list) or not all(isinstance(item, str) for item in context):
         raise ValueError("invalid edge context")
     return {"a": a, "b": b, "static_weight": static_weight,
             "dynamic_weight": dynamic_weight, "effective_weight": effective,
+            "ranking_mode": "static", "weight_basis": "static_npmi",
+            "npmi_statistics": npmi_statistics,
             "active_source_support": supported, "source_ids": sources[:MAX_EDGE_SOURCES], "source_count": len(sources),
             "context": context[:MAX_EDGE_CONTEXT], "context_count": len(context), "co_count": evidence["co_count"] if evidence else 0,
             "last_event_id": dynamic["last_event_id"] if dynamic else None,
             "truncated": len(sources) > MAX_EDGE_SOURCES or len(context) > MAX_EDGE_CONTEXT}
 
 
-def _graph(db, scope):
+def _graph(db, scope, self_marks):
     graph = _empty_graph()
     required = {"memory_records", "memory_support", "memory_static", "memory_dynamic"}
     if not required <= _tables(db):
         return graph
     graph["active_record_count"] = db.execute(
         "SELECT COUNT(*) FROM memory_records WHERE scope=? AND active=1", (scope,)).fetchone()[0]
-    graph["total_nodes"] = db.execute("SELECT COUNT(*) FROM (" + _NODES + ")", {"scope": scope}).fetchone()[0]
+    graph["total_nodes"] = db.execute("SELECT COUNT(*) FROM (" + _NODES + ")", {"scope": scope, "self_marks": self_marks}).fetchone()[0]
     graph["total_edges"] = db.execute("SELECT COUNT(*) FROM (" + _PAIRS + ")", {"scope": scope}).fetchone()[0]
     graph["nodes"] = [dict(row) for row in db.execute(
-        _NODES + " ORDER BY frequency DESC,id LIMIT :limit", {"scope": scope, "limit": MAX_NODES})]
+        _NODES + " ORDER BY frequency DESC,id LIMIT :limit", {"scope": scope, "self_marks": self_marks, "limit": MAX_NODES})]
     known = {node["id"] for node in graph["nodes"]}
-    pairs = db.execute("SELECT * FROM (" + _PAIRS + ") ORDER BY a,b LIMIT :limit",
-                       {"scope": scope, "limit": MAX_EDGES + 1}).fetchall()
+    # Select display edges only after selecting their visible endpoints.
+    # Otherwise early alphabetic pairs can consume the cap without drawing
+    # anything. This is a display ordering, never a retrieval-policy change.
+    pairs = db.execute("SELECT p.a,p.b FROM (" + _PAIRS + """ ) p
+        LEFT JOIN memory_static s ON s.scope=:scope AND s.a=p.a AND s.b=p.b
+        LEFT JOIN memory_dynamic d ON d.scope=:scope AND d.a=p.a AND d.b=p.b
+        WHERE p.a IN (SELECT value FROM json_each(:known))
+          AND p.b IN (SELECT value FROM json_each(:known))
+        ORDER BY (s.weight>0) DESC,s.weight DESC,d.weight DESC,p.a,p.b LIMIT :limit""",
+        {"scope": scope, "known": json.dumps(sorted(known)), "limit": MAX_EDGES + 1}).fetchall()
     graph_bytes = len(scratch.canonical(graph["nodes"]))
     for pair in pairs[:MAX_EDGES]:
         if pair["a"] in known and pair["b"] in known:
@@ -175,6 +285,17 @@ def _graph(db, scope):
             graph["edges"].append(edge)
             graph_bytes += amount
     graph["truncated"] = graph["total_nodes"] > len(graph["nodes"]) or graph["total_edges"] > len(graph["edges"])
+    # Diagnostics are an optional read-only view. Preserve a completed graph
+    # if their query is interrupted; no more DB work follows in this view.
+    try:
+        graph["diagnostics"] = _npmi_diagnostics(db, scope, self_marks)
+        graph["diagnostics_status"] = "available" if graph["diagnostics"] is not None else "uninitialized"
+    except sqlite3.Error as error:
+        graph["diagnostics_status"] = "unavailable"
+        graph["diagnostics_warning"] = "npmi_diagnostics_timeout" if getattr(error, "sqlite_errorcode", None) == sqlite3.SQLITE_INTERRUPT else "npmi_diagnostics_unavailable"
+    except (ValueError, TypeError, KeyError, OverflowError):
+        graph["diagnostics_status"] = "unavailable"
+        graph["diagnostics_warning"] = "npmi_diagnostics_unavailable"
     return graph
 
 
@@ -299,14 +420,19 @@ def _scratch_view(config, now):
 def snapshot(config):
     now = _now()
     result = {"schema_version": 1, "generated_at": now.isoformat(), "knowledge_scope": _scope(config),
-              "mode": "literal_hits", "graph": _empty_graph(),
+              "mode": "static_npmi", "ranking_mode": "static", "weight_basis": "static_npmi",
+              "service_status": "gateway_not_verified", "graph": _empty_graph(),
               "knowledge": {"published": [], "pending": [], "counts": {"published": 0, "pending": 0, "versions": 0}, "truncated": False}, "warnings": []}
     try:
         with _database(config) as db:
             if db is not None:
-                result["graph"] = _graph(db, _scope(config))
                 result["knowledge"] = _knowledge(db, _scope(config))
-    except (sqlite3.Error, ValueError, TypeError, KeyError, OverflowError):
+                result["graph"] = _graph(db, _scope(config), _self_marks(config))
+                if result["graph"]["diagnostics_warning"]:
+                    result["warnings"].append(result["graph"]["diagnostics_warning"])
+    except sqlite3.Error as error:
+        result["warnings"].append("database_snapshot_timeout" if getattr(error, "sqlite_errorcode", None) == sqlite3.SQLITE_INTERRUPT else "database_snapshot_unavailable")
+    except (ValueError, TypeError, KeyError, OverflowError):
         result["warnings"].append("database_snapshot_unavailable")
     result["scratch"], _, _, warnings = _scratch_view(config, now)
     result["warnings"].extend(warnings)
@@ -321,7 +447,7 @@ def edge_details(config, a, b):
         with _database(config) as db:
             if db is None or not {"memory_records", "memory_support", "memory_static", "memory_dynamic"} <= _tables(db):
                 return result
-            result["edge"] = _edge(db, _scope(config), a, b)
+            result["edge"] = _edge(db, _scope(config), a, b, include_statistics=True)
             if not {"memory_event_audits", "memory_events"} <= _tables(db):
                 return result
             audits = db.execute("""SELECT e.observed_at,e.event_id,e.query,

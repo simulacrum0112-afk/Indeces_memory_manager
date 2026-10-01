@@ -1,6 +1,8 @@
 # Indeces_memory_manager
 
-一个名为 **Indeces** 的小型 Python 无头智能体：一个 Discord Bot 连接、一个串行消息 worker、GPT-6-Luna adaptor、本地知识库、动态 Hebbian 标注词网络，以及可检查的输入输出 scratch log。项目仓库名保留 `Indeces_memory_manager`。
+一个名为 **Indeces** 的小型 Python 无头智能体：一个 Discord Bot 连接、一个串行消息 worker、GPT-6-Luna adaptor、本地知识库、静态 NPMI 检索与动态观察历史，以及可检查的输入输出 scratch log。项目仓库名保留 `Indeces_memory_manager`。
+
+0.10.0 修复旧代码仍用动态权重排序的接线偏差；新增 `npmi` 只读全范围诊断、静态图解释和 worker 故障监督。职责、状态归属与当前未验收项见 [架构合同](docs/ARCHITECTURE.md)。新代码在新进程加载后生效，不自动停止或重启已有服务。
 
 项目使用 [MIT 许可证](LICENSE)，上游策略归属见 [第三方说明](THIRD_PARTY_NOTICES.md)。仓库只发布源码、空配置示例和合成离线验证记录；本地 API key、Bot token、加密凭据、原始材料、数据库和 scratch 不上传。提交前请按 [公开仓库与本地数据说明](docs/REPOSITORY_PRIVACY.md) 核验，`.gitignore` 不会移除已提交的历史。
 
@@ -11,7 +13,7 @@
 ```mermaid
 flowchart LR
     D[Discord 显式 at] --> Q[有界队列 / 单 worker]
-    Q --> R[只读知识检索]
+    Q --> R[静态知识检索 / shadow 观察]
     R --> C[原文水位 / 必要时摘要]
     C --> A[回复模型调用]
     A --> O[Discord 引用回复]
@@ -61,7 +63,7 @@ Guild/频道设置写入 `config.local.toml`，名称同步为 `Indeces`；Bot t
 .\.venv\Scripts\python.exe -m indeces
 ```
 
-Console 命令：`discord`、`apikey`、`knowledge`、`start`、`status`、`scratch`、`observe`、`logs`、`quit`。Windows Console 的 `start`、`observe`、`knowledge` 分别打开独立窗口，主 Console 立即继续接收命令；其他平台提示在另一终端运行对应命令。`start` 只打开服务入口，实际启动结果和隐藏凭据输入在服务窗口；同一 state 的实例锁从凭据读取前持续持有至服务结束，阻止重复启动和设置向导竞争。启动错误或正常结束的窗口保留回执，按 Enter 关闭。主 Console 的 `quit` 或 Ctrl+C 只退出命令窗口，服务窗口内 Ctrl+C 正常停止服务；点击服务窗口的 X 属于强制关闭，不能保证清理回执完整。直接运行 `python -m indeces start` 或 `observe` 仍在当前终端前台运行。`knowledge` 同时按实际配置打开原材料目录，查看退出不影响服务。`status` 只显示凭据文件是否存在，不解密，不保证密钥有效或服务当前在线。
+Console 命令：`discord`、`apikey`、`knowledge`、`start`、`status`、`npmi`、`scratch`、`observe`、`logs`、`quit`。Windows Console 的 `start`、`observe`、`knowledge` 分别打开独立窗口，主 Console 立即继续接收命令；其他平台提示在另一终端运行对应命令。`start` 只打开服务入口，实际启动结果和隐藏凭据输入在服务窗口；同一 state 的实例锁从凭据读取前持续持有至服务结束，阻止重复启动和设置向导竞争。启动错误或正常结束的窗口保留回执，按 Enter 关闭。主 Console 的 `quit` 或 Ctrl+C 只退出命令窗口，服务窗口内 Ctrl+C 正常停止服务；点击服务窗口的 X 属于强制关闭，不能保证清理回执完整。直接运行 `python -m indeces start` 或 `observe` 仍在当前终端前台运行。`knowledge` 同时按实际配置打开原材料目录，查看退出不影响服务。`status` 只显示凭据文件是否存在，不解密，不保证密钥有效或服务当前在线。
 
 如果旧版窗口已经在 `start` 中运行，可再打开 `Indeces-Console.cmd` 恢复命令输入，并在新窗口执行 `knowledge`；保留旧服务窗口继续运行。新 Console 不自动启动第二个 Bot；入口修复在新进程生效。
 
@@ -104,7 +106,9 @@ Bot 需提前通过 Discord 的服务器安装流程加入目标服务器；向�
 
 0.3.0 启动时迁移已有状态：仍属于旧当前 head、归属明确、`ready` 且已有完整 active 来源的版本可直接登记为已发布版本，不重复标词；已经归档或已脱离旧 head 的证据不会重新激活。范围归属或用量无法确认的旧待处理记录会隔离并打印回执，需要用户编辑文件内容形成新 digest 后再触发。未知用量的中断版本也不自动重试，避免重启掩盖预算或重付费风险。
 
-网络采用用户指定的参考仓库策略，并接入经批准的动态在线排序。完整的“参考基线 → 实现”表见 [docs/BASELINE.md](docs/BASELINE.md)。动态公式保留 `η=1`、`λ=.99`；本版把一次有直接命中的实际检索定义为一个衰减周期，因此衰减速度取决于检索次数，不是按日。来源支持、单跳门控、旧版本归档与事件幂等均有离线回归测试；检索相关性尚未做真实数据评估。
+网络采用用户指定的参考仓库策略；当前回复只用静态 NPMI，动态权重作为 shadow 观察历史保留。完整的“参考基线 → 实现”表见 [docs/BASELINE.md](docs/BASELINE.md)。动态公式保留 `η=1`、`λ=.99`；本版把一次有直接命中的实际检索定义为一个衰减周期，因此衰减速度取决于检索次数，不是按日。来源支持、单跳门控、旧版本归档与事件幂等均有离线回归测试；检索相关性尚未做真实数据评估。
+
+Console `npmi` 或 `python -m indeces npmi` 只读当前知识范围的完整静态统计，包括单块/单来源支持比例。NPMI 是共现关联，不是置信度；页面绘图截断不影响这些完整统计。查询失败会明确标为不可用，不当作空库。不启动 Bot 或模型。
 
 ## 调用预算
 
@@ -154,7 +158,7 @@ hash 链可以检测局部损坏，没有外部锚点，不能证明整条日志
 
 `state/memory.sqlite3` 保留原文、版本、标签、静态边、独立动态权重、检索事件、周期、消息与 checkpoint。单实例内核锁阻止同一 state 目录被两个服务使用。重启将未完成聊天标为不可自动重放；发送超时不自动重发，因为 Discord 可能已经接收。
 
-本地知识、数据库、scratch、秘密和私有配置均由 `.gitignore` 排除。代码更新上传到私有 [GitHub 仓库](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。
+本地知识、数据库、scratch、秘密和私有配置均排除于提交；发布前另查已跟踪内容与可达历史。代码更新上传到公开的 MIT [GitHub 仓库](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。
 
 ## 验证
 

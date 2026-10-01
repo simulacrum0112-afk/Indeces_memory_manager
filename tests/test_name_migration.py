@@ -208,7 +208,8 @@ class NameMigrationTests(unittest.TestCase):
         self.assertEqual(self.durable_rows(db, "memory_records"), records)
         audit = {}
         result = migrated.retrieve("scope", [], "alpha beta", 2, event_id="context-rebuilt", audit=audit)
-        self.assertEqual(result[0]["ranking_score"], 1.99)
+        self.assertEqual(result[0]["ranking_score"], 1.0)
+        self.assertEqual(result[0]["dynamic_score"], 1.99)
         validate_graph_audit(audit)
 
     def test_saved_credentials_are_name_neutral_and_do_not_need_reencryption(self):

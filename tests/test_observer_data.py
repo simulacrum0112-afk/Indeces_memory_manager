@@ -92,12 +92,14 @@ class ObserverDataTests(unittest.TestCase):
         before = "\n".join(db.iterdump())
         files_before = {path.name: path.read_bytes() for path in self.config.state_dir.iterdir()}
         result = observer_data.snapshot(self.config)
-        self.assertEqual(result["mode"], "literal_hits")
+        self.assertEqual(result["mode"], "static_npmi")
+        self.assertEqual(result["ranking_mode"], "static")
         self.assertEqual(result["graph"]["active_record_count"], 1)
         self.assertEqual({node["id"] for node in result["graph"]["nodes"]}, {"alpha", "beta"})
         self.assertEqual(result["graph"]["edges"][0]["source_ids"], ["one"])
         self.assertEqual(result["graph"]["edges"][0]["dynamic_weight"], 1.99)
-        self.assertEqual(result["graph"]["edges"][0]["effective_weight"], 1.99)
+        self.assertEqual(result["graph"]["edges"][0]["effective_weight"], 1.0)
+        self.assertIsNone(result["graph"]["edges"][0]["npmi_statistics"])
         self.assertEqual(result["warnings"], [])
         self.assertEqual("\n".join(db.iterdump()), before)
         self.assertEqual({path.name: path.read_bytes() for path in self.config.state_dir.iterdir()}, files_before)
@@ -338,13 +340,134 @@ class ObserverDataTests(unittest.TestCase):
         edge = observer_data.edge_details(self.config, "alpha", "beta")["edge"]
         self.assertIsNone(edge["static_weight"])
         self.assertIsNone(edge["dynamic_weight"])
-        self.assertEqual(edge["effective_weight"], 0.0)
+        self.assertIsNone(edge["effective_weight"])
+        self.assertLess(edge["npmi_statistics"]["recomputed_npmi"], 0)
         self.assertTrue(edge["active_source_support"])
         self.graph.retrieve("10:knowledge", [], "alpha beta", 1, event_id="event")
         edge = observer_data.edge_details(self.config, "alpha", "beta")["edge"]
         self.assertIsNone(edge["static_weight"])
         self.assertEqual(edge["dynamic_weight"], 1.0)
-        self.assertEqual(edge["effective_weight"], 1.0)
+        self.assertIsNone(edge["effective_weight"])
+
+    def test_npmi_counts_cover_whole_scope_despite_graph_truncation(self):
+        db = self.database()
+        self.source("ab", "first alpha beta", ["alpha", "beta"], path="ab.md")
+        self.graph.add("10:knowledge", "ab", "fixture",
+            [{"text": "second alpha beta", "quote": "second alpha beta", "marks": ["alpha", "beta"]}], 2)
+        self.source("gd", "gamma delta", ["gamma", "delta"], path="gd.md")
+        self.source("solo", "epsilon", ["epsilon"], path="solo.md")
+        self.source("foreign", "foreign pair", ["other", "hidden"], scope="20:knowledge", path="foreign.md")
+        before = "\n".join(db.iterdump())
+        with patch.object(observer_data, "MAX_NODES", 1), patch.object(observer_data, "MAX_EDGES", 1):
+            result = observer_data.snapshot(self.config)
+        stats = result["graph"]["diagnostics"]
+        self.assertTrue(result["graph"]["truncated"])
+        self.assertEqual(stats["active_records"], 4)
+        self.assertEqual(stats["active_source_versions"], 3)
+        self.assertEqual(stats["active_marks"], 5)
+        self.assertEqual(stats["supported_pairs"], 2)
+        self.assertEqual(stats["positive_edges"], 2)
+        self.assertEqual(stats["single_support_positive_edges"], 1)
+        self.assertEqual(stats["single_source_positive_edges"], 2)
+        self.assertEqual(stats["unit_weight_edges"], 2)
+        self.assertEqual(stats["isolated_marks"], 1)
+        self.assertEqual(stats["marks_without_positive_edges"], 1)
+        self.assertEqual(stats["median_positive_weight"], 1)
+        aggregate = observer_data.npmi_diagnostics(self.config)
+        self.assertEqual(aggregate["statistics"], stats)
+        self.assertEqual(aggregate["statistics_status"], "available")
+        self.assertEqual("\n".join(db.iterdump()), before)
+        self.assertNotIn("foreign", json.dumps(aggregate))
+        self.assertNotIn("first alpha beta", json.dumps(aggregate))
+
+    def test_npmi_no_positive_pairs_and_uninitialized_are_distinct(self):
+        aggregate = observer_data.npmi_diagnostics(self.config)
+        self.assertIsNone(aggregate["statistics"])
+        self.assertEqual(aggregate["statistics_status"], "uninitialized")
+        self.assertFalse(self.config.state_dir.exists())
+        self.database()
+        for source_id, marks in (("ab", ["alpha", "beta"]), ("ac", ["alpha", "gamma"]), ("bc", ["beta", "gamma"])):
+            self.source(source_id, " ".join(marks), marks, path=source_id+".md")
+        stats = observer_data.npmi_diagnostics(self.config)["statistics"]
+        self.assertEqual(stats["supported_pairs"], 3)
+        self.assertEqual(stats["supported_without_positive"], 3)
+        self.assertEqual(stats["positive_edges"], 0)
+        self.assertEqual(stats["isolated_marks"], 0)
+        self.assertEqual(stats["marks_without_positive_edges"], 3)
+        self.assertIsNone(stats["median_positive_weight"])
+
+    def test_npmi_diagnostics_exclude_self_aliases_and_custom_name(self):
+        self.database()
+        self.config.name = "Keeper"
+        self.graph.add("10:knowledge", "legacy", "fixture",
+            [{"text": "synthetic self marks", "quote": "synthetic self marks", "marks": ["keeper", "alpha"]}], 1)
+        stats = observer_data.npmi_diagnostics(self.config)["statistics"]
+        self.assertEqual(stats["active_marks"], 1)
+        self.assertEqual(stats["supported_pairs"], 0)
+        self.assertEqual(stats["isolated_marks"], 1)
+
+    def test_custom_name_diagnostics_preserve_product_aliases_as_normal_marks(self):
+        self.database()
+        self.config.name = "Keeper"
+        self.graph = MemoryGraph(self.store.db, self_marks=("Keeper",))
+        self.source("aliases", "indeces indices alpha keeper", ["indeces", "indices", "alpha", "keeper"])
+        graph = observer_data.snapshot(self.config)["graph"]
+        self.assertEqual(graph["diagnostics"]["active_marks"], 3)
+        self.assertEqual(graph["diagnostics"]["positive_edges"], 3)
+        self.assertEqual({node["id"] for node in graph["nodes"]}, {"alpha", "indeces", "indices"})
+
+    def test_npmi_diagnostics_disclose_timeout_without_private_error(self):
+        self.database()
+        error = sqlite3.OperationalError("synthetic private diagnostic failure")
+        error.sqlite_errorcode = sqlite3.SQLITE_INTERRUPT
+        with patch.object(observer_data, "_npmi_diagnostics", side_effect=error):
+            aggregate = observer_data.npmi_diagnostics(self.config)
+        self.assertIsNone(aggregate["statistics"])
+        self.assertEqual(aggregate["statistics_status"], "unavailable")
+        self.assertEqual(aggregate["warnings"], ["database_snapshot_timeout"])
+        self.assertNotIn("private", json.dumps(aggregate))
+
+    def test_npmi_diagnostics_failure_preserves_completed_graph(self):
+        self.database()
+        self.source("ab", "alpha beta", ["alpha", "beta"], path="ab.md")
+        error = sqlite3.OperationalError("synthetic interrupted diagnostic")
+        error.sqlite_errorcode = sqlite3.SQLITE_INTERRUPT
+        with patch.object(observer_data, "_npmi_diagnostics", side_effect=error):
+            result = observer_data.snapshot(self.config)
+        self.assertEqual(len(result["graph"]["nodes"]), 2)
+        self.assertEqual(len(result["graph"]["edges"]), 1)
+        self.assertEqual(result["graph"]["diagnostics_status"], "unavailable")
+        self.assertIsNone(result["graph"]["diagnostics"])
+        self.assertEqual(result["warnings"], ["npmi_diagnostics_timeout"])
+
+    def test_display_edge_limit_is_applied_after_visible_endpoints(self):
+        self.database()
+        self.source("early", "a b", ["a", "b"], path="early.md")
+        self.source("late", "y z", ["y", "z"], path="late.md")
+        self.graph.add("10:knowledge", "late", "fixture",
+            [{"text": "y z twice", "quote": "y z twice", "marks": ["y", "z"]}], 2)
+        with patch.object(observer_data, "MAX_NODES", 2), patch.object(observer_data, "MAX_EDGES", 1):
+            graph = observer_data.snapshot(self.config)["graph"]
+        self.assertEqual({node["id"] for node in graph["nodes"]}, {"y", "z"})
+        self.assertEqual([(edge["a"], edge["b"]) for edge in graph["edges"]], [("y", "z")])
+        self.assertTrue(graph["truncated"])
+        self.assertEqual(graph["diagnostics"]["positive_edges"], 2)
+
+    def test_npmi_edge_sample_uses_fact_count_and_retains_shadow_separately(self):
+        self.database()
+        self.source("ab", "alpha beta", ["alpha", "beta"], path="ab.md")
+        self.source("ag", "alpha gamma", ["alpha", "gamma"], path="ag.md")
+        self.source("solo", "delta", ["delta"], path="solo.md")
+        self.graph.retrieve("10:knowledge", [], "alpha beta", 1, event_id="event")
+        edge = observer_data.edge_details(self.config, "alpha", "beta")["edge"]
+        stats = edge["npmi_statistics"]
+        self.assertEqual(stats["active_records"], 3)
+        self.assertEqual(stats["frequency_a"], 2)
+        self.assertEqual(stats["frequency_b"], 1)
+        self.assertEqual(stats["co_count"], 1)
+        self.assertAlmostEqual(edge["static_weight"], round(stats["recomputed_npmi"], 4))
+        self.assertEqual(edge["effective_weight"], edge["static_weight"])
+        self.assertGreater(edge["dynamic_weight"], edge["effective_weight"])
 
     def test_invalid_calendar_log_names_are_not_read(self):
         self.config.scratch_dir.mkdir()

@@ -255,6 +255,21 @@ class RuntimeConversationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.store.history(current.scope)), 2)
         self.assertTrue(any(event == "duplicate_ignored" for event, _ in self.scratch.events))
 
+    async def test_runtime_explicitly_selects_static_ranking_and_records_basis(self):
+        adapter = SummaryAdapter(["a final reply"])
+        runtime = Runtime(self.config, self.store, adapter, self.scratch)
+        runtime.graph.add(runtime.knowledge_scope, "synthetic-source", "synthetic-author", [
+            {"text": "alpha beta", "quote": "alpha beta", "marks": ["alpha", "beta"]}], 1)
+        current = message("static-runtime", text="alpha beta")
+        with patch.object(runtime.graph, "retrieve", wraps=runtime.graph.retrieve) as retrieve:
+            await runtime.process(current, self.deliver)
+        self.assertEqual(retrieve.call_args.kwargs["ranking_mode"], "static")
+        observations = [fields["audit"] for event, fields in self.scratch.events if event == "memory_observation"]
+        self.assertEqual(observations[0]["selection"]["weight_basis"], "static_npmi")
+        self.assertEqual(observations[0]["selection"]["edge_statistics"][0]["effective_score"], 1.0)
+        self.assertEqual(observations[0]["selection"]["edge_statistics"][0]["dynamic_score"], 1.99)
+        self.assertEqual(self.deliveries, ["a final reply"])
+
     async def test_failed_reply_notice_does_not_enter_assistant_history(self):
         adapter = SummaryAdapter([GovernedError("stage_timeout")])
         runtime = Runtime(self.config, self.store, adapter, self.scratch)

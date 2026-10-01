@@ -14,7 +14,7 @@ import re
 import time
 from typing import Any
 
-from .contracts import DeliveryReceipt, IncomingMessage
+from .contracts import DeliveryReceipt, GovernedError, IncomingMessage
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -114,6 +114,10 @@ class DiscordBridge:
         self._running = False
         self._shutdown_requested = False
         self._shutdown_lock = asyncio.Lock()
+        self._shutdown_task: asyncio.Task[None] | None = None
+        self._worker_failed = asyncio.Event()
+        self._worker_error: BaseException | None = None
+        self._delivery_audit_error: Exception | None = None
 
     def enqueue(self, message: Any, bot_id: str) -> bool:
         """Admit one selected message without blocking the Gateway event loop."""
@@ -146,11 +150,27 @@ class DiscordBridge:
         if self._worker is not None and not self._worker.done():
             raise RuntimeError("Discord worker is already running")
         self._shutdown_requested = False
+        self._shutdown_task = None
+        self._worker_failed.clear()
+        self._worker_error = None
+        self._delivery_audit_error = None
         self._accepting = True
         self._worker = asyncio.create_task(self._consume(), name="indeces-discord-worker")
+        self._worker.add_done_callback(self._worker_done)
+
+    def _worker_done(self, worker: asyncio.Task[None]) -> None:
+        if worker is not self._worker or self._shutdown_requested:
+            return
+        self._accepting = False
+        error = None if worker.cancelled() else worker.exception()
+        self._worker_error = error or RuntimeError("Discord worker stopped unexpectedly")
+        self._worker_failed.set()
+        # The sink that caused the worker to stop may itself be unavailable.
+        _LOGGER.error("Discord worker stopped unexpectedly (%s); message intake closed",
+                      type(self._worker_error).__name__)
 
     async def _consume(self) -> None:
-        while True:
+        while not self._shutdown_requested:
             envelope = await self._queue.get()
             incoming = envelope.incoming
             try:
@@ -184,8 +204,14 @@ class DiscordBridge:
                 _LOGGER.exception("Discord runtime failed for message %s", incoming.message_id)
             finally:
                 self._queue.task_done()
+            if self._delivery_audit_error is not None:
+                # Return the confirmed receipt to Runtime before stopping the
+                # transport. A local audit failure cannot undo remote delivery.
+                raise RuntimeError("Discord confirmed-delivery audit failed") from self._delivery_audit_error
 
     async def _deliver(self, envelope: _Envelope, text: str) -> DeliveryReceipt:
+        if self._shutdown_requested:
+            raise GovernedError("discord_stopping")
         sent_text = discord_reply_text(text)
         incoming = envelope.incoming
         self.scratch.write(
@@ -225,30 +251,62 @@ class DiscordBridge:
             )
             raise
         receipt = DeliveryReceipt(message_ids=(str(sent.id),), text=sent_text)
-        self.scratch.write(
-            "discord_delivery_finished", message_id=incoming.message_id,
-            channel_id=incoming.channel_id, sent_message_ids=list(receipt.message_ids),
-            sent_text=sent_text,
-        )
+        try:
+            self.scratch.write(
+                "discord_delivery_finished", message_id=incoming.message_id,
+                channel_id=incoming.channel_id, sent_message_ids=list(receipt.message_ids),
+                sent_text=sent_text,
+            )
+        except Exception as error:
+            self._delivery_audit_error = error
+            self._accepting = False
+            _LOGGER.error("Discord delivery confirmed; audit failed (%s); message intake closed",
+                          type(error).__name__)
         return receipt
 
     async def _shutdown_worker(self) -> None:
+        # All callers share one physical cleanup. Cancelling a caller must not
+        # release the service's resources while the consumer still owns them.
+        if self._shutdown_task is None:
+            self._shutdown_task = asyncio.create_task(self._shutdown_worker_impl(), name="indeces-discord-shutdown")
+        interrupted = False
+        while not self._shutdown_task.done():
+            try:
+                await asyncio.shield(self._shutdown_task)
+            except asyncio.CancelledError:
+                interrupted = True
+            except Exception:
+                break
+        try:
+            self._shutdown_task.result()
+        finally:
+            if interrupted:
+                raise asyncio.CancelledError
+
+    async def _shutdown_worker_impl(self) -> None:
         async with self._shutdown_lock:
             if self._shutdown_requested:
                 return
             self._shutdown_requested = True
             self._accepting = False
+            audit_errors = []
             while True:
                 try:
                     envelope = self._queue.get_nowait()
                 except asyncio.QueueEmpty:
                     break
-                self.scratch.write(
-                    "discord_message_dropped", message_id=envelope.incoming.message_id,
-                    channel_id=envelope.incoming.channel_id, reason="shutdown_before_processing",
-                )
-                self._queue.task_done()
+                try:
+                    self.scratch.write(
+                        "discord_message_dropped", message_id=envelope.incoming.message_id,
+                        channel_id=envelope.incoming.channel_id, reason="shutdown_before_processing",
+                    )
+                except Exception as error:
+                    audit_errors.append(error)
+                finally:
+                    self._queue.task_done()
             if self._worker is None:
+                if audit_errors:
+                    raise audit_errors[0]
                 return
             worker = self._worker
             if not worker.done():
@@ -256,14 +314,25 @@ class DiscordBridge:
                 timeout = min(5.0, self.config.delivery_seconds)
                 _, pending = await asyncio.wait({worker}, timeout=timeout)
                 if pending:
-                    self.scratch.write("discord_shutdown_incomplete", reason="worker_ignored_cancellation", timeout_seconds=timeout)
-                    _LOGGER.error("Discord worker did not stop within %.3f seconds", timeout)
-                    return
+                    try:
+                        self.scratch.write("discord_shutdown_incomplete", reason="worker_ignored_cancellation", timeout_seconds=timeout)
+                    except Exception as error:
+                        audit_errors.append(error)
+                    _LOGGER.error("Discord worker did not stop within %.3f seconds; waiting for physical exit before releasing resources", timeout)
+                    # This is a diagnostic checkpoint, not a hard preemption.
+                    # Retain the storage lock and underlying resources until
+                    # the actual worker exits, even if it ignores cancellation.
+                    await asyncio.wait({worker})
             # Retrieve exceptions to avoid silently losing a crashed worker.
             if not worker.cancelled() and worker.exception() is not None:
                 error = worker.exception()
-                self.scratch.write("discord_worker_failed", error_type=type(error).__name__, error=str(error))
+                try:
+                    self.scratch.write("discord_worker_failed", error_type=type(error).__name__, error=str(error))
+                except Exception as audit_error:
+                    audit_errors.append(audit_error)
             self._worker = None
+            if audit_errors:
+                raise audit_errors[0]
 
     async def close(self) -> None:
         """Stop intake and audit pending work before closing the connection."""
@@ -311,11 +380,27 @@ class DiscordBridge:
         self._discord = discord
         self._client = client
         self._running = True
-        self.scratch.write("discord_connecting", guild_id=self.config.guild_id)
+        self._worker_failed.clear()
+        self._worker_error = None
+        gateway_task = failure_task = None
         try:
             async with client:
-                await client.start(token)
+                self.scratch.write("discord_connecting", guild_id=self.config.guild_id)
+                gateway_task = asyncio.create_task(client.start(token), name="indeces-discord-client")
+                failure_task = asyncio.create_task(self._worker_failed.wait(), name="indeces-discord-worker-monitor")
+                try:
+                    done, _ = await asyncio.wait({gateway_task, failure_task}, return_when=asyncio.FIRST_COMPLETED)
+                    if failure_task in done:
+                        raise RuntimeError("Discord worker stopped unexpectedly") from self._worker_error
+                    await gateway_task
+                finally:
+                    for task in (gateway_task, failure_task):
+                        if not task.done():
+                            task.cancel()
+                    await asyncio.gather(gateway_task, failure_task, return_exceptions=True)
         finally:
-            await self._shutdown_worker()
-            self._client = None
-            self._running = False
+            try:
+                await self._shutdown_worker()
+            finally:
+                self._client = None
+                self._running = False

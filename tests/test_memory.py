@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from indeces.memory import DECAY, MemoryGraph
+from indeces.run_records import digest, validate_graph_audit
 
 
 class MemoryGraphTests(unittest.TestCase):
@@ -95,13 +96,109 @@ class MemoryGraphTests(unittest.TestCase):
         self.fact("ac", ["alpha", "gamma"])
         self.fact("other", ["other"])
         static_before = list(self.db.execute("SELECT * FROM memory_static ORDER BY a,b"))
-        before = self.graph.retrieve("guild/channel", ["alpha"], "alpha", 2, event_id="first")
+        before = self.graph.retrieve("guild/channel", ["alpha"], "alpha", 2, event_id="first", ranking_mode="dynamic")
         self.assertEqual(before[0]["source_id"], "ac")  # equal weights: newest source first
-        self.graph.retrieve("guild/channel", ["alpha", "beta"], "alpha beta", 3, event_id="cofire")
-        after = self.graph.retrieve("guild/channel", ["alpha"], "alpha", 4, event_id="next")
+        self.graph.retrieve("guild/channel", ["alpha", "beta"], "alpha beta", 3, event_id="cofire", ranking_mode="dynamic")
+        after = self.graph.retrieve("guild/channel", ["alpha"], "alpha", 4, event_id="next", ranking_mode="dynamic")
         self.assertEqual(after[0]["source_id"], "ab")
         self.assertGreater(after[0]["dynamic_score"], after[1]["dynamic_score"])
         self.assertEqual(static_before, list(self.db.execute("SELECT * FROM memory_static ORDER BY a,b")))
+
+    def test_default_static_ranking_is_unchanged_by_shadow_learning(self):
+        self.fact("ab", ["alpha", "beta"])
+        self.fact("ac", ["alpha", "gamma"])
+        self.fact("other", ["other"])
+        before = self.graph.retrieve("guild/channel", [], "alpha", 2, event_id="static-first")
+        self.graph.retrieve("guild/channel", [], "alpha beta", 3, event_id="shadow-cofire")
+        audit = {}
+        after = self.graph.retrieve("guild/channel", [], "alpha", 4, event_id="static-next", audit=audit)
+        self.assertEqual([r["source_id"] for r in before], ["ac", "ab"])
+        self.assertEqual([r["source_id"] for r in after], ["ac", "ab"])
+        self.assertEqual([r["ranking_score"] for r in before], [r["ranking_score"] for r in after])
+        self.assertGreater(self.weight("alpha", "beta"), self.weight("alpha", "gamma"))
+        selection = audit["selection"]
+        self.assertEqual((selection["ranking_mode"], selection["weight_basis"]), ("static", "static_npmi"))
+        self.assertTrue(all(e["effective_score"] == e["static_score"] for e in selection["edge_statistics"]))
+        validate_graph_audit(audit)
+
+    def test_shadow_supported_pair_without_positive_npmi_cannot_expand_static(self):
+        self.fact("ab", ["alpha", "beta"])
+        self.fact("a", ["alpha"])
+        self.fact("b", ["beta"])
+        self.assertIsNone(self.db.execute("SELECT weight FROM memory_static WHERE a='alpha' AND b='beta'").fetchone())
+        reinforced = {}
+        self.graph.retrieve("guild/channel", [], "alpha beta", 2, event_id="shadow-pair", audit=reinforced)
+        self.assertGreater(self.weight("alpha", "beta"), 0)
+        self.assertEqual(reinforced["selection"]["edge_statistics"], [])
+        validate_graph_audit(reinforced)
+        audit = {}
+        selected = self.graph.retrieve("guild/channel", [], "alpha", 3, event_id="static-only", audit=audit)
+        self.assertNotIn("b", [r["source_id"] for r in selected])
+        self.assertTrue(all(not r["expanded_marks"] for r in selected))
+        self.assertEqual(audit["selection"]["edge_statistics"], [])
+        validate_graph_audit(audit)
+
+    def test_invalid_ranking_mode_fails_before_graph_changes(self):
+        self.fact("ab", ["alpha", "beta"])
+        with self.assertRaisesRegex(ValueError, "ranking_mode"):
+            self.graph.retrieve("guild/channel", [], "alpha beta", 2, ranking_mode="unknown")
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM memory_events").fetchone()[0], 0)
+
+    def test_legacy_dynamic_audit_without_mode_remains_verifiable(self):
+        self.fact("ab", ["alpha", "beta"])
+        audit = {}
+        self.graph.retrieve("guild/channel", [], "alpha beta", 2, event_id="legacy-contract",
+                            ranking_mode="dynamic", audit=audit)
+        del audit["selection"]["ranking_mode"]
+        del audit["selection"]["weight_basis"]
+        audit["durable_payload_sha256"] = digest({k: v for k, v in audit.items() if k != "durable_payload_sha256"})
+        validate_graph_audit(audit)
+
+    def test_explicit_mode_and_basis_must_agree(self):
+        self.fact("ab", ["alpha", "beta"])
+        audit = {}
+        self.graph.retrieve("guild/channel", [], "alpha beta", 2, event_id="mode-contract", audit=audit)
+        audit["selection"]["weight_basis"] = "dynamic_or_static"
+        audit["durable_payload_sha256"] = digest({k: v for k, v in audit.items() if k != "durable_payload_sha256"})
+        with self.assertRaisesRegex(ValueError, "weight basis"):
+            validate_graph_audit(audit)
+
+    def test_replay_cannot_change_ranking_mode_or_rewrite_stored_evidence(self):
+        self.fact("ab", ["alpha", "beta"])
+        tables = ("memory_static", "memory_support", "memory_dynamic", "memory_events",
+                  "memory_cycles", "memory_scopes", "memory_event_audits")
+        for original_mode, requested_mode in (("dynamic", "static"), ("static", "dynamic")):
+            event_id = "mode-replay-" + original_mode
+            self.graph.retrieve("guild/channel", [], "alpha beta", 2, event_id=event_id,
+                                ranking_mode=original_mode)
+            before = {table: list(self.db.execute("SELECT * FROM " + table)) for table in tables}
+            audit = {"untouched": True}
+            with self.assertRaisesRegex(ValueError, "different ranking mode"):
+                self.graph.retrieve("guild/channel", [], "alpha beta", 3, event_id=event_id,
+                                    ranking_mode=requested_mode, audit=audit)
+            self.assertEqual(audit, {"untouched": True})
+            self.assertEqual({table: list(self.db.execute("SELECT * FROM " + table)) for table in tables}, before)
+            self.assertFalse(self.db.in_transaction)
+
+    def test_original_dynamic_audit_without_mode_cannot_be_replayed_as_static(self):
+        self.fact("ab", ["alpha", "beta"])
+        audit = {}
+        self.graph.retrieve("guild/channel", [], "alpha beta", 2, event_id="legacy-mode-source",
+                            ranking_mode="dynamic", audit=audit)
+        original = json.loads(self.stored_audit("legacy-mode-source"))
+        del original["selection"]["ranking_mode"]
+        del original["selection"]["weight_basis"]
+        original["event_id"] = "legacy-without-mode"
+        # A synthetic immutable old receipt; no production migration writes.
+        serialized = json.dumps(original, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        with self.db:
+            self.db.execute("INSERT INTO memory_event_audits VALUES(?,?,?)",
+                            ("guild/channel", original["event_id"], serialized))
+        before_changes = self.db.total_changes
+        with self.assertRaisesRegex(ValueError, "different ranking mode"):
+            self.graph.retrieve("guild/channel", [], "alpha beta", 3, event_id=original["event_id"])
+        self.assertEqual(self.stored_audit(original["event_id"]), serialized)
+        self.assertEqual(self.db.total_changes, before_changes)
 
     def test_event_retry_is_idempotent_and_each_new_event_decays_once(self):
         self.fact("ab", ["alpha", "beta"])
@@ -337,6 +434,11 @@ class MemoryGraphTests(unittest.TestCase):
         self.assertEqual(json.loads(original)["selection"]["selected_record_ids"], [old["id"]])
         self.assertEqual(self.stored_audit("replayed"), original)
         self.assertEqual(audit["original_event"]["payload_sha256"], hashlib.sha256(original.encode()).hexdigest())
+        self.assertEqual(audit["original_event"]["ranking_mode"], "static")
+        validate_graph_audit(audit)
+        audit["original_event"]["ranking_mode"] = "dynamic"
+        with self.assertRaisesRegex(ValueError, "replayed graph ranking mode"):
+            validate_graph_audit(audit)
         for statement in ("UPDATE memory_event_audits SET payload_json='{}'", "DELETE FROM memory_event_audits"):
             with self.assertRaisesRegex(sqlite3.IntegrityError, "immutable"):
                 with self.db:
@@ -390,7 +492,13 @@ class MemoryGraphTests(unittest.TestCase):
             self.db.execute("INSERT INTO memory_events VALUES(?,?,?,?,?)",
                             ("guild/channel", "legacy", 1.0, "alpha beta", '["alpha","beta"]'))
         audit = {}
-        self.graph.retrieve("guild/channel", [], "alpha beta", 2, event_id="legacy", audit=audit)
+        before_changes = self.db.total_changes
+        with self.assertRaisesRegex(ValueError, "different ranking mode"):
+            self.graph.retrieve("guild/channel", [], "alpha beta", 2, event_id="legacy")
+        self.assertEqual(self.db.total_changes, before_changes)
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM memory_event_audits").fetchone()[0], 0)
+        self.graph.retrieve("guild/channel", [], "alpha beta", 2, event_id="legacy", audit=audit,
+                            ranking_mode="dynamic")
         self.assertEqual(audit["observation"]["status"], "legacy_replay")
         self.assertFalse(audit["observation"]["original_changes_known"])
         self.assertFalse(audit["observation"]["applied"])

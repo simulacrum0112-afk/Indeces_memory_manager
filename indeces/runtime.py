@@ -112,7 +112,8 @@ class Runtime:
                     try:
                         graph_audit = {}
                         records = self.graph.retrieve(self.knowledge_scope, [], message.text, time.time(),
-                                                      event_id=message.message_id, audit=graph_audit)
+                                                      event_id=message.message_id, audit=graph_audit,
+                                                      ranking_mode="static")
                         self.scratch.write("memory_observation", trace_id=trace_id, audit=graph_audit,
                                            audit_sha256=digest(graph_audit))
                         retrieval = freeze_retrieval(self.store.db, self.knowledge_scope, message.message_id,
