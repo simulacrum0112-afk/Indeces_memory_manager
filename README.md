@@ -51,13 +51,15 @@ Linux 使用 `.venv/bin/python`。Windows 首次桥接可在 Console 输入 `dis
 
 Guild/频道设置写入 `config.local.toml`，名称同步为 `Indeces`；Bot token 只在 Windows 以当前用户 DPAPI 加密，保存到相邻的 `config.local.discord.secret`，并绑定该 Guild ID。它不能作为明文配置迁移到其他 Windows 用户或系统。密钥不进入配置、scratch 或仓库。终端无法保证隐藏输入时拒绝回显输入；损坏或不匹配的旧凭据可在向导里提供新 token 修复。其他平台没有持久化明文回退，可手动设置配置中的 Guild/频道 ID，并使用环境变量或启动时的隐藏输入。
 
-**向导只做本地设置，不连接 Discord、不验证 token 是否被 Discord 接受，也不启动服务。** 保存后在 Console 明确执行 `start`。启动时 Discord token 来源按 `DISCORD_BOT_TOKEN` 环境变量 → 与配置 Guild 匹配的已保存 token → 本次会话隐藏输入的顺序选择。OpenAI API key 仍由 `OPENAI_API_KEY` 环境变量或每次启动的隐藏输入提供，不持久化。不读取 Yuki 的秘密配置。`.env.example` 只说明变量名，不自动加载 `.env`。
+在 Console 输入 `apikey`，或运行 `python -m indeces apikey`，进入 OpenAI API key 向导。隐藏输入 key，预览后输入 `y` 保存；留空可保留原来可解密的 key，损坏的旧 key 可替换修复。Windows 使用当前用户 DPAPI，独立保存到 `config.local.openai.secret`，不写进 TOML、scratch 或仓库。此凭据与 Discord token 分开保存，不绑定 Guild；两个向导都在同一 state 实例停止时配置。其他平台继续使用环境变量或启动时的会话隐藏输入，暂不支持持久保存。
+
+**两个向导只做本地设置，不验证远端密钥是否有效，也不启动服务。** 完成后在 Console 明确执行 `start`。Discord token 来源按 `DISCORD_BOT_TOKEN` → 与配置 Guild 匹配的已保存 token → 本次会话隐藏输入选择；OpenAI key 按 `OPENAI_API_KEY` → 已保存 OpenAI key → 会话隐藏输入选择。环境变量存在时优先使用，向导会提示这一点；损坏的保存文件需要用相应向导修复，不静默换用会话 key。不读取 Yuki 的秘密配置。`.env.example` 只说明变量名，不自动加载 `.env`。密钥按 [OpenAI 认证文档](https://developers.openai.com/api/reference/overview) 的服务端秘密处理。
 
 ```powershell
 .\.venv\Scripts\python.exe -m indeces
 ```
 
-Console 命令：`discord`、`start`、`status`、`scratch`、`observe`、`logs`、`quit`。`start` 在前台运行；Ctrl+C 停机并返回 Console。无头启动也可用 `python -m indeces start`。`status` 是配置和持久状态快照，不保证服务当前在线。
+Console 命令：`discord`、`apikey`、`start`、`status`、`scratch`、`observe`、`logs`、`quit`。`start` 在前台运行；Ctrl+C 停机并返回 Console。无头启动也可用 `python -m indeces start`。`status` 只显示凭据文件是否存在，不解密，不保证密钥有效或服务当前在线。
 
 Bot 需提前通过 Discord 的服务器安装流程加入目标服务器；向导不创建或邀请 Bot。Token 来自 Developer Portal 的 Bot 页面，安装步骤见 [Discord 官方入门](https://docs.discord.com/developers/quick-start/getting-started)。Bot 需接收服务器消息事件，并具有 View Channel、Send Messages、Read Message History [频道权限](https://docs.discord.com/developers/topics/permissions#permissions-bitwise-permission-flags)；在线程中回复还需 Send Messages in Threads。显式提及应用的消息正文可使用 Message Content intent 的例外；本实现不申请该特权 intent。[Discord Gateway](https://docs.discord.com/developers/events/gateway#message-content-intent)
 
@@ -102,9 +104,11 @@ Bot 需提前通过 Discord 的服务器安装流程加入目标服务器；向�
 
 | 独立阶段 | 最大输入 token | 最大输出 token | 时间上限 | reasoning |
 |---|---:|---:|---:|---|
-| 后台 label | 4096 | 512 | 15 秒 | none |
-| 条件式 summary | 16384 | 2048 | 20 秒 | none |
+| 后台 label | 4096 | 512 | 15 秒 | low |
+| 条件式 summary | 16384 | 2048 | 20 秒 | low |
 | reply | 16384 | 2048 | 45 秒 | low |
+
+三个阶段均使用 `reasoning = "low"`，`adapter.verbosity = "high"` 控制输出话量；详细度仍受各阶段输出 token 和时间上限约束，不增加额度。Scratch 的 `call_start` 和实际请求记录该参数，并检查两者一致。旧 TOML 中显式配置的值仍按文件读取，旧日志没有该字段时按旧合同核验。
 
 各阶段先串行调用 `/responses/input_tokens`，超限不发生成请求；然后最多一次 `/responses`。计量请求与生成共享该阶段时间上限。输出上限包含模型不可见的生成 token，返回 usage 再次校验。具体接口见 [输入计量](https://developers.openai.com/api/reference/resources/responses/subresources/input_tokens/methods/count) 和 [Responses](https://developers.openai.com/api/reference/python/resources/responses/methods/create)。
 

@@ -1,0 +1,100 @@
+{
+  "version": "0.8.0",
+  "recorded_at_utc": "2026-10-01T02:11:43.920908+00:00",
+  "python": "3.12.14",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "checks": [
+    {
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-q"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 52.391,
+      "output": "[indeces.discord_bridge] Discord connected as namespace(id=99)\n[indeces.discord_bridge] Discord connected as namespace(id=99)\n[asyncio] Executing <Task pending name='Task-313' coro=<KnowledgeTests.test_fatal_worker_receipt_failure_pauses_watcher_and_preserves_old_publication() running at D:\\Indeces\\tests\\test_knowledge.py:979> wait_for=<Future pending cb=[Task.task_wakeup()] created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\base_events.py:448> cb=[_run_until_complete_cb() at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\base_events.py:181] created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.140 seconds\n[asyncio] Executing <Task finished name='Task-563' coro=<PdfKnowledgeTests.test_invalid_conversion_metadata_and_output_bounds_keep_old_publication() done, defined at D:\\Indeces\\tests\\test_knowledge_pdf.py:462> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.109 seconds\n[asyncio] Executing <Task finished name='Task-579' coro=<PdfKnowledgeTests.test_ocr_encryption_timeout_and_invalid_input_fail_once_without_replacing_old() done, defined at D:\\Indeces\\tests\\test_knowledge_pdf.py:258> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.422 seconds\n[asyncio] Executing <Task finished name='Task-595' coro=<PdfKnowledgeTests.test_pdf_and_derived_markdown_do_not_use_legacy_eight_kib_text_bound() done, defined at D:\\Indeces\\tests\\test_knowledge_pdf.py:151> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.218 seconds\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=63896 running>\n[asyncio] <_WindowsSubprocessTransport pid=63896 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=2900 running>\n[asyncio] <_WindowsSubprocessTransport pid=2900 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=62640 running>\n[asyncio] <_WindowsSubprocessTransport pid=62640 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=62208 running>\n[asyncio] <_WindowsSubprocessTransport pid=62208 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=51584 running>\n[asyncio] <_WindowsSubprocessTransport pid=51584 running> exited with return code 1\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=48064 running>\n[asyncio] <_WindowsSubprocessTransport pid=48064 running> exited with return code 1\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=57708 running>\n[asyncio] <_WindowsSubprocessTransport pid=57708 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=63324 running>\n[asyncio] <_WindowsSubprocessTransport pid=63324 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=5640 running>\n[asyncio] <_WindowsSubprocessTransport pid=5640 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=63876 running>\n[asyncio] <_WindowsSubprocessTransport pid=63876 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=24340 running>\n[asyncio] <_WindowsSubprocessTransport pid=24340 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=5992 running>\n[asyncio] <_WindowsSubprocessTransport pid=5992 running> exited with return code 0\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=57304 running>\n[asyncio] <_WindowsSubprocessTransport pid=57304 running> exited with return code 1\n[asyncio] execute program 'D:\\\\Indeces\\\\.venv\\\\Scripts\\\\python.exe': <_WindowsSubprocessTransport pid=55988 running>\n[asyncio] <_WindowsSubprocessTransport pid=55988 running> exited with return code 0\n[asyncio] Executing <Task finished name='Task-808' coro=<RetentionRecordTests.asyncSetUp() done, defined at D:\\Indeces\\tests\\test_retention_records.py:49> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.109 seconds\n[asyncio] Executing <Task finished name='Task-809' coro=<RetentionRecordTests.test_checkpoint_exposes_utc_window_and_only_live_partial_identifiers() done, defined at D:\\Indeces\\tests\\test_retention_records.py:259> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.110 seconds\n[asyncio] Executing <Task finished name='Task-813' coro=<RetentionRecordTests.asyncSetUp() done, defined at D:\\Indeces\\tests\\test_retention_records.py:49> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.109 seconds\n[asyncio] Executing <Task finished name='Task-814' coro=<RetentionRecordTests.test_deleted_previous_daily_file_declares_partial_tail_in_surviving_file() done, defined at D:\\Indeces\\tests\\test_retention_records.py:302> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.125 seconds\n[asyncio] Executing <Task finished name='Task-818' coro=<RetentionRecordTests.asyncSetUp() done, defined at D:\\Indeces\\tests\\test_retention_records.py:49> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.109 seconds\n[asyncio] Executing <Task finished name='Task-823' coro=<RetentionRecordTests.asyncSetUp() done, defined at D:\\Indeces\\tests\\test_retention_records.py:49> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.125 seconds\n[asyncio] Executing <Task finished name='Task-828' coro=<RetentionRecordTests.asyncSetUp() done, defined at D:\\Indeces\\tests\\test_retention_records.py:49> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.109 seconds\n[asyncio] Executing <Task finished name='Task-833' coro=<RetentionRecordTests.asyncSetUp() done, defined at D:\\Indeces\\tests\\test_retention_records.py:49> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.110 seconds\n[asyncio] Executing <Task finished name='Task-834' coro=<RetentionRecordTests.test_partial_call_completed_despite_retained_rejected_input_gate_is_invalid() done, defined at D:\\Indeces\\tests\\test_retention_records.py:233> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.156 seconds\n[asyncio] Executing <Task finished name='Task-838' coro=<RetentionRecordTests.asyncSetUp() done, defined at D:\\Indeces\\tests\\test_retention_records.py:49> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.125 seconds\n[asyncio] Executing <Task finished name='Task-843' coro=<RetentionRecordTests.asyncSetUp() done, defined at D:\\Indeces\\tests\\test_retention_records.py:49> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.110 seconds\n[asyncio] Executing <Task finished name='Task-848' coro=<RetentionRecordTests.asyncSetUp() done, defined at D:\\Indeces\\tests\\test_retention_records.py:49> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.110 seconds\n[asyncio] Executing <Task finished name='Task-853' coro=<RetentionRecordTests.asyncSetUp() done, defined at D:\\Indeces\\tests\\test_retention_records.py:49> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.125 seconds\n[asyncio] Executing <Task finished name='Task-858' coro=<RetentionRecordTests.asyncSetUp() done, defined at D:\\Indeces\\tests\\test_retention_records.py:49> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.109 seconds\n[asyncio] Executing <Task finished name='Task-863' coro=<RetentionRecordTests.asyncSetUp() done, defined at D:\\Indeces\\tests\\test_retention_records.py:49> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.125 seconds\n[asyncio] Executing <Task finished name='Task-868' coro=<RetentionRecordTests.asyncSetUp() done, defined at D:\\Indeces\\tests\\test_retention_records.py:49> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.125 seconds\n[asyncio] Executing <Task finished name='Task-873' coro=<RetentionRecordTests.asyncSetUp() done, defined at D:\\Indeces\\tests\\test_retention_records.py:49> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.125 seconds\n[asyncio] Executing <Task finished name='Task-878' coro=<RetentionRecordTests.asyncSetUp() done, defined at D:\\Indeces\\tests\\test_retention_records.py:49> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.109 seconds\n[asyncio] Executing <Task finished name='Task-972' coro=<RuntimeRecordTests.test_call_provider_response_id_must_match_transport_response() done, defined at D:\\Indeces\\tests\\test_run_records.py:503> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.109 seconds\n[asyncio] Executing <Task finished name='Task-977' coro=<RuntimeRecordTests.test_failed_turn_remains_failed_without_claiming_delivered_evidence() done, defined at D:\\Indeces\\tests\\test_run_records.py:577> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.109 seconds\n[asyncio] Executing <Task finished name='Task-1002' coro=<RuntimeRecordTests.test_hash_valid_wrong_or_missing_verbosity_binding_is_invalid() done, defined at D:\\Indeces\\tests\\test_run_records.py:384> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.172 seconds\n[asyncio] Executing <Task finished name='Task-1017' coro=<RuntimeRecordTests.test_missing_turn_end_is_incomplete_and_prior_schema_is_legacy() done, defined at D:\\Indeces\\tests\\test_run_records.py:518> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.140 seconds\n[asyncio] Executing <Task finished name='Task-1022' coro=<RuntimeRecordTests.test_one_turn_split_across_daily_files_still_verifies() done, defined at D:\\Indeces\\tests\\test_run_records.py:566> result=None created at C:\\Users\\wuyuk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\Lib\\asyncio\\runners.py:100> took 0.125 seconds\n----------------------------------------------------------------------\nRan 543 tests in 51.336s\n\nOK (skipped=11)"
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "check",
+        "--config",
+        "config.example.toml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 3.063,
+      "output": "Offline configuration/import check OK; Indeces 0.8.0; discord.py 2.7.1; pypdf 6.19.0.\nLive Discord and model calls were not made."
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "pip",
+        "check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.547,
+      "output": "No broken requirements found."
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "console",
+        "--config",
+        "config.example.toml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.703,
+      "output": "Indeces 0.8.0 console: discord | apikey | start | status | scratch | observe | logs | quit\nIndeces>"
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "--help"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.672,
+      "output": "usage: __main__.py [-h] [--config CONFIG]\n                   [{console,init,discord,apikey,start,status,check,scratch,observe,logs}]\n\nIndeces: minimal Discord runtime console\n\npositional arguments:\n  {console,init,discord,apikey,start,status,check,scratch,observe,logs}\n\noptions:\n  -h, --help            show this help message and exit\n  --config CONFIG"
+    }
+  ],
+  "live_model_calls": false,
+  "live_discord_connection": false,
+  "data": "Temporary synthetic credentials/configuration and injected model transports only for tests. Existing local TOML had only authorized verbosity/effort fields updated under InstanceLock; no existing credential files, knowledge, databases or scratch inspected.",
+  "scope": "Console API key wizard, independent current-user Windows DPAPI persistence, env/saved/session precedence, fixed authentication errors and high verbosity/low reasoning bindings. Token/time caps, model concurrency and Hebbian formulas unchanged.",
+  "local_settings": {
+    "verbosity": "high",
+    "reasoning": {
+      "reply": "low",
+      "summary": "low",
+      "label": "low"
+    },
+    "token_time_limits_preserved": true
+  },
+  "wheel_assets": {
+    "wheel": "indeces_memory_manager-0.8.0-py3-none-any.whl",
+    "included": [
+      "indeces/api_key_wizard.py",
+      "indeces/credentials.py",
+      "indeces/web/observer.html",
+      "indeces/web/observer.css",
+      "indeces/web/observer.js",
+      "indeces/pdf_import.py"
+    ],
+    "no_runtime_data": true,
+    "isolated_wizard_startup": {
+      "exit_code": 0,
+      "output": "Final non-editable wheel API wizard, DPAPI and canonical saved-key startup passed; service transport mocked."
+    }
+  },
+  "setup_note": "Editable install succeeded with standard pip build isolation; this venv has no setuptools.build_meta for no-build-isolation mode."
+}

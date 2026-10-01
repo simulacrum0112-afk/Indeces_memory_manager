@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import redirect_stdout
 from dataclasses import replace
 import io
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -10,7 +11,7 @@ from unittest.mock import AsyncMock, patch
 
 from indeces import console, discord_wizard
 from indeces.config import load_config
-from indeces.credentials import CredentialError, secret_path
+from indeces.credentials import CredentialError, openai_secret_path, secret_path
 
 
 GUILD = "123456789012345678"
@@ -22,7 +23,7 @@ class ConsoleTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
-        self.path = Path(self.directory.name) / "config.local.toml"
+        self.path = Path(self.directory.name).resolve() / "config.local.toml"
         example = Path(__file__).resolve().parents[1] / "config.example.toml"
         self.path.write_bytes(discord_wizard.patch_config(example.read_bytes(), GUILD, ()))
         self.config = load_config(self.path)
@@ -55,7 +56,32 @@ class ConsoleTests(unittest.TestCase):
             output = self.main()
         wizard.assert_called_once_with(self.path)
         run.assert_not_called()
-        self.assertIn("discord | start | status", output)
+        self.assertIn("discord | apikey | start | status", output)
+
+    def test_cli_apikey_routes_to_local_wizard_without_loading_runtime(self):
+        with patch.object(console, "configure_api_key", return_value=True) as wizard, \
+                patch.object(console, "run") as run, patch.object(console, "serve") as serve, \
+                patch.object(console, "load_config") as loader:
+            self.main("apikey")
+        wizard.assert_called_once_with(self.path)
+        run.assert_not_called()
+        serve.assert_not_called()
+        loader.assert_not_called()
+
+    def test_cli_cancelled_api_key_setup_returns_failure_code(self):
+        with patch.object(console, "configure_api_key", return_value=False), \
+                self.assertRaises(SystemExit) as error:
+            self.main("apikey")
+        self.assertEqual(error.exception.code, 2)
+
+    def test_interactive_apikey_returns_to_console_without_starting_service(self):
+        with patch("builtins.input", side_effect=["apikey", "quit"]), \
+                patch.object(console, "configure_api_key", return_value=True) as wizard, \
+                patch.object(console, "run") as run:
+            output = self.main()
+        wizard.assert_called_once_with(self.path)
+        run.assert_not_called()
+        self.assertIn("discord | apikey | start | status", output)
 
     def test_console_reloads_configuration_after_wizard_before_start(self):
         old_config = self.config
@@ -77,10 +103,12 @@ class ConsoleTests(unittest.TestCase):
     def test_start_uses_environment_before_saved_credentials(self):
         with patch.dict(console.os.environ, {"DISCORD_BOT_TOKEN": TOKEN, "OPENAI_API_KEY": KEY}, clear=True), \
                 patch.object(console, "load_discord_token") as loader, \
+                patch.object(console, "load_openai_key") as key_loader, \
                 patch.object(console, "prompt_secret") as prompt, \
                 patch.object(console, "serve", new_callable=AsyncMock) as serve:
             console.run(self.config, self.path)
         loader.assert_not_called()
+        key_loader.assert_not_called()
         prompt.assert_not_called()
         serve.assert_awaited_once_with(self.config, KEY, TOKEN)
 
@@ -108,6 +136,64 @@ class ConsoleTests(unittest.TestCase):
         self.assertNotIn(TOKEN, output.getvalue())
         self.assertNotIn(KEY, output.getvalue())
         self.assertFalse(secret_path(self.path).exists())
+        self.assertFalse(openai_secret_path(self.path).exists())
+
+    def test_start_uses_saved_api_key_before_session_prompt(self):
+        with patch.dict(console.os.environ, {"DISCORD_BOT_TOKEN": TOKEN}, clear=True), \
+                patch.object(console, "load_openai_key", return_value=KEY) as loader, \
+                patch.object(console, "prompt_secret") as prompt, \
+                patch.object(console, "serve", new_callable=AsyncMock) as serve:
+            console.run(self.config, self.path)
+        loader.assert_called_once_with(self.path)
+        prompt.assert_not_called()
+        serve.assert_awaited_once_with(self.config, KEY, TOKEN)
+
+    def test_start_resolves_config_alias_to_same_credential_location_as_wizard(self):
+        child = self.path.parent / "synthetic-parent-alias"
+        child.mkdir()
+        alias = child / ".." / self.path.name
+        with patch.dict(console.os.environ, {}, clear=True), \
+                patch.object(console, "load_discord_token", return_value=TOKEN) as token_loader, \
+                patch.object(console, "load_openai_key", return_value=KEY) as key_loader, \
+                patch.object(console, "prompt_secret") as prompt, \
+                patch.object(console, "serve", new_callable=AsyncMock) as serve:
+            console.run(self.config, alias)
+        token_loader.assert_called_once_with(self.path, GUILD)
+        key_loader.assert_called_once_with(self.path)
+        prompt.assert_not_called()
+        serve.assert_awaited_once_with(self.config, KEY, TOKEN)
+
+    def test_invalid_saved_api_key_requires_repair_without_fallback_or_connection(self):
+        with patch.dict(console.os.environ, {"DISCORD_BOT_TOKEN": TOKEN}, clear=True), \
+                patch.object(console, "load_openai_key", side_effect=CredentialError("credential_corrupt")), \
+                patch.object(console, "prompt_secret") as prompt, \
+                patch.object(console, "serve", new_callable=AsyncMock) as serve, \
+                self.assertRaises(CredentialError):
+            console.run(self.config, self.path)
+        prompt.assert_not_called()
+        serve.assert_not_awaited()
+
+    def test_invalid_api_key_environment_is_rejected_without_saved_key_fallback(self):
+        with patch.dict(console.os.environ, {"DISCORD_BOT_TOKEN": TOKEN, "OPENAI_API_KEY": "invalid\nkey"}, clear=True), \
+                patch.object(console, "load_openai_key") as loader, \
+                patch.object(console, "prompt_secret") as prompt, \
+                patch.object(console, "serve", new_callable=AsyncMock) as serve, \
+                self.assertRaises(CredentialError) as error:
+            console.run(self.config, self.path)
+        self.assertEqual(error.exception.code, "invalid_api_key")
+        loader.assert_not_called()
+        prompt.assert_not_called()
+        serve.assert_not_awaited()
+
+    def test_start_without_config_path_uses_session_key_and_does_not_load_vault(self):
+        with patch.dict(console.os.environ, {"DISCORD_BOT_TOKEN": TOKEN}, clear=True), \
+                patch.object(console, "load_openai_key") as loader, \
+                patch.object(console, "prompt_secret", return_value=KEY) as prompt, \
+                patch.object(console, "serve", new_callable=AsyncMock) as serve:
+            console.run(self.config)
+        loader.assert_not_called()
+        prompt.assert_called_once()
+        serve.assert_awaited_once_with(self.config, KEY, TOKEN)
 
     def test_start_missing_guild_rejects_before_requesting_credentials(self):
         config = replace(self.config, discord=replace(self.config.discord, guild_id=""))
@@ -155,13 +241,17 @@ class ConsoleTests(unittest.TestCase):
 
     def test_status_looks_only_for_file_presence_and_never_decrypts_credentials(self):
         secret_path(self.path).write_bytes(TOKEN.encode())
+        openai_secret_path(self.path).write_bytes(KEY.encode())
         with patch.object(console, "load_discord_token", side_effect=AssertionError("must not decrypt")) as loader, \
+                patch.object(console, "load_openai_key", side_effect=AssertionError("must not decrypt")) as key_loader, \
                 patch.object(console, "prompt_secret") as prompt, redirect_stdout(io.StringIO()) as output:
             console.status(self.config, self.path)
         self.assertIn("present (checked at start)", output.getvalue())
         self.assertIn("not proof of a live Gateway connection", output.getvalue())
         self.assertNotIn(TOKEN, output.getvalue())
+        self.assertNotIn(KEY, output.getvalue())
         loader.assert_not_called()
+        key_loader.assert_not_called()
         prompt.assert_not_called()
 
     def test_interactive_credential_error_reports_only_fixed_code(self):
@@ -177,6 +267,34 @@ class ConsoleTests(unittest.TestCase):
             output = self.main()
         self.assertIn("Command failed: RuntimeError", output)
         self.assertNotIn(TOKEN, output)
+
+    def test_direct_start_never_exposes_arbitrary_authentication_exception(self):
+        output = io.StringIO()
+        with patch("sys.argv", ["indeces", "start", "--config", str(self.path)]), \
+                patch.object(console, "run", side_effect=Exception(KEY)), \
+                redirect_stdout(output), self.assertRaises(SystemExit) as error:
+            console.main()
+        self.assertEqual(error.exception.code, 2)
+        self.assertIn("Startup failed: Exception", output.getvalue())
+        self.assertNotIn(KEY, output.getvalue())
+
+    @unittest.skipUnless(os.name == "nt", "current-user DPAPI is Windows only")
+    def test_native_wizard_saved_key_is_used_by_next_start_without_echo_or_prompt(self):
+        original = self.path.read_bytes()
+        with patch.dict(console.os.environ, {}, clear=True), redirect_stdout(io.StringIO()) as output:
+            saved = console.configure_api_key(self.path, input_fn=lambda _: "y", secret_fn=lambda _: KEY)
+        self.assertTrue(saved)
+        ciphertext = openai_secret_path(self.path).read_bytes()
+        self.assertNotIn(KEY.encode(), ciphertext)
+        self.assertNotIn(KEY, output.getvalue())
+        self.assertEqual(self.path.read_bytes(), original)
+        self.assertFalse(secret_path(self.path).exists())
+        with patch.dict(console.os.environ, {"DISCORD_BOT_TOKEN": TOKEN}, clear=True), \
+                patch.object(console, "prompt_secret") as prompt, \
+                patch.object(console, "serve", new_callable=AsyncMock) as serve:
+            console.run(self.config, self.path)
+        prompt.assert_not_called()
+        serve.assert_awaited_once_with(self.config, KEY, TOKEN)
 
 
 if __name__ == "__main__":

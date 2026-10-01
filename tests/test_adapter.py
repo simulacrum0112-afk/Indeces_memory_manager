@@ -3,10 +3,13 @@ from __future__ import annotations
 import asyncio
 from copy import deepcopy
 from collections import deque
+from dataclasses import replace
+from pathlib import Path
+import tempfile
 import unittest
 
 from indeces.adapter import OpenAIAdapter, reservation
-from indeces.config import AdapterConfig, Budget
+from indeces.config import AdapterConfig, Budget, load_config
 from indeces.contracts import GovernedError
 
 
@@ -40,11 +43,11 @@ class SequenceTransport:
 
 
 class AdapterTests(unittest.IsolatedAsyncioTestCase):
-    def adapter(self, transport, *, seconds=1.0, threshold=3, input_limit=100, output_limit=20):
+    def adapter(self, transport, *, seconds=1.0, threshold=3, input_limit=100, output_limit=20, verbosity="high"):
         budget = Budget(input_limit, output_limit, seconds)
         config = AdapterConfig("gpt-6-luna", "https://api.openai.com/v1",
                                {stage: budget for stage in ("reply", "summary", "label")},
-                               failure_threshold=threshold, cooldown_seconds=60.0)
+                               failure_threshold=threshold, cooldown_seconds=60.0, verbosity=verbosity)
         scratch = Scratch()
         return OpenAIAdapter(config, scratch, api_key="never-log-this-key", request=transport), scratch
 
@@ -64,6 +67,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([path for path, _ in transport.requests], ["/responses/input_tokens", "/responses"])
         count_payload, payload = [data for _, data in transport.requests]
         self.assertEqual(count_payload["text"], payload["text"])
+        self.assertEqual(payload["text"]["verbosity"], "high")
         self.assertEqual(payload["text"]["format"]["schema"], schema)
         self.assertEqual(payload["max_output_tokens"], 20)
         self.assertEqual(payload["tools"], [])
@@ -77,6 +81,45 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(call_ids), 1)
         self.assertEqual(scratch.select("call_end")[0]["status"], "completed")
         self.assertNotIn("never-log-this-key", repr(scratch.events) + repr(adapter))
+
+    async def test_all_stages_send_low_effort_high_verbosity_with_original_caps(self):
+        config = load_config(Path(__file__).resolve().parents[1] / "config.example.toml").adapter
+        transport = SequenceTransport([{"input_tokens": 10}, completed()] * 3)
+        scratch = Scratch()
+        adapter = OpenAIAdapter(config, scratch, request=transport)
+        schema = {"type": "object", "properties": {"value": {"type": "string"}},
+                  "required": ["value"], "additionalProperties": False}
+        expected = {"label": (4096, 512, 15.0), "summary": (16384, 2048, 20.0),
+                    "reply": (16384, 2048, 45.0)}
+        for stage in expected:
+            await self.invoke(adapter, stage, schema if stage != "reply" else None)
+        for index, (stage, caps) in enumerate(expected.items()):
+            count_request, request = [payload for _, payload in transport.requests[index * 2:index * 2 + 2]]
+            self.assertEqual(count_request["text"], request["text"])
+            self.assertEqual(request["text"]["verbosity"], "high")
+            self.assertEqual(request["reasoning"], {"effort": "low"})
+            self.assertEqual(request["model"], "gpt-6-luna")
+            self.assertEqual(request["max_output_tokens"], caps[1])
+            start = scratch.select("call_start")[index]
+            self.assertEqual((start["stage"], start["verbosity"], start["budget"]["reasoning"]), (stage, "high", "low"))
+            self.assertEqual(tuple(start["budget"][key] for key in ("input_tokens", "output_tokens", "seconds")), caps)
+            self.assertEqual("format" in request["text"], stage != "reply")
+
+    async def test_explicit_verbosity_is_used_for_plain_and_structured_responses(self):
+        schema = {"type": "object", "properties": {"value": {"type": "string"}},
+                  "required": ["value"], "additionalProperties": False}
+        for verbosity in ("low", "medium", "high"):
+            for response_schema in (None, schema):
+                with self.subTest(verbosity=verbosity, structured=response_schema is not None):
+                    transport = SequenceTransport([{"input_tokens": 10}, completed()])
+                    adapter, scratch = self.adapter(transport, verbosity=verbosity)
+                    await self.invoke(adapter, schema=response_schema)
+                    text_options = transport.requests[-1][1]["text"]
+                    self.assertEqual(text_options["verbosity"], verbosity)
+                    self.assertEqual("format" in text_options, response_schema is not None)
+                    if response_schema is not None:
+                        self.assertEqual(text_options["format"]["schema"], schema)
+                    self.assertEqual(scratch.select("call_start")[0]["verbosity"], verbosity)
 
     async def test_count_over_limit_prevents_generation_without_tripping_circuit(self):
         transport = SequenceTransport([{"input_tokens": 101}] * 3)
@@ -251,6 +294,45 @@ class ReservationTests(unittest.TestCase):
         unicode_cost = reservation("instructions", [{"role": "user", "content": "中文文"}])
         self.assertGreater(unicode_cost, ascii_cost)
         self.assertGreater(reservation("instructions", [], {"type": "object"}), reservation("instructions", []))
+
+
+class AdapterConfigTests(unittest.TestCase):
+    def load_template(self, transform=lambda value: value):
+        template = (Path(__file__).resolve().parents[1] / "config.example.toml").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "synthetic.toml"
+            path.write_text(transform(template), encoding="utf-8")
+            return load_config(path).adapter
+
+    def test_omitted_fields_default_to_low_effort_and_high_verbosity(self):
+        config = self.load_template(lambda template: "\n".join(
+            line for line in template.splitlines() if not line.startswith(("reasoning =", "verbosity ="))))
+        self.assertEqual(config.verbosity, "high")
+        self.assertEqual({budget.reasoning for budget in config.budgets.values()}, {"low"})
+
+    def test_verbosity_rejects_invalid_values_when_constructed_or_loaded(self):
+        config = self.load_template()
+        for value in ("none", "HIGH", "", True, 1, 1.5, None, [], {}):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "verbosity"):
+                replace(config, verbosity=value)
+        for literal in ('"none"', '"HIGH"', '""', "true", "1", "1.5", "[]", "{}"):
+            with self.subTest(literal=literal), self.assertRaisesRegex(ValueError, "verbosity"):
+                self.load_template(lambda value: value.replace('verbosity = "high"', "verbosity = " + literal))
+
+    def test_effort_is_validated_and_explicit_old_settings_are_preserved(self):
+        for value in ("minimal", "LOW", "", True, 1, None, [], {}):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "reasoning"):
+                Budget(100, 20, 1, reasoning=value)
+        config = self.load_template(lambda value: value.replace('reasoning = "low"', 'reasoning = "none"'))
+        self.assertEqual({budget.reasoning for budget in config.budgets.values()}, {"none"})
+
+    def test_valid_explicit_verbosity_loads_without_changing_budgets(self):
+        baseline = self.load_template()
+        for verbosity in ("low", "medium", "high"):
+            with self.subTest(verbosity=verbosity):
+                config = self.load_template(lambda value: value.replace('verbosity = "high"', f'verbosity = "{verbosity}"'))
+                self.assertEqual(config.verbosity, verbosity)
+                self.assertEqual(config.budgets, baseline.budgets)
 
 
 if __name__ == "__main__":

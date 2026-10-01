@@ -76,14 +76,15 @@ class OpenAIAdapter:
         started = time.monotonic()
         self.scratch.write("call_start", trace_id=trace_id, call_id=call_id, stage=stage,
                            budget=asdict(budget), model=self.config.model,
+                           verbosity=self.config.verbosity,
                            planning_reservation=reservation(instructions, messages, schema))
         if circuit["until"] > started:
             self.scratch.write("call_rejected", trace_id=trace_id, call_id=call_id, stage=stage, code="circuit_open")
             raise GovernedError("circuit_open")
         common = {"model": self.config.model, "instructions": instructions, "input": messages,
-                  "reasoning": {"effort": budget.reasoning}}
+                  "reasoning": {"effort": budget.reasoning}, "text": {"verbosity": self.config.verbosity}}
         if schema is not None:
-            common["text"] = {"format": {"type": "json_schema", "name": stage, "strict": True, "schema": schema}}
+            common["text"]["format"] = {"type": "json_schema", "name": stage, "strict": True, "schema": schema}
         try:
             async with asyncio.timeout(budget.seconds):
                 async with self._lock:

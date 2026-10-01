@@ -271,6 +271,12 @@ def _validate_call(events):
              and request["reasoning"]["effort"] == budget["reasoning"] and request["tools"] == []
              and request["truncation"] == "disabled" and request["store"] is False and request["stream"] is False,
              "request budget/policy mismatch")
+    # Prior receipts did not declare verbosity; preserve that contract only
+    # when neither the call nor its actual HTTP payload declares this field.
+    text_options = request.get("text", {})
+    if "verbosity" in start or "verbosity" in text_options:
+        _require(isinstance(start.get("verbosity"), str) and start["verbosity"] in {"low", "medium", "high"}
+                 and text_options.get("verbosity") == start["verbosity"], "request verbosity binding mismatch")
     gates = [f for e, f in events if e == "input_gate"]
     counted = responses[0]["payload"]["input_tokens"]
     _require(type(counted) is int and 0 <= counted <= budget["input_tokens"] and len(gates) == 1

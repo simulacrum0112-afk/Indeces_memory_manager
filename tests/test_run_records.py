@@ -369,6 +369,10 @@ class RuntimeRecordTests(RecordFixture, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(retrieval["record_sha256"], digest(retrieval["record"]))
         context = self.events(entries, "reply_context")[0]
         request = next(fields for fields in self.events(entries, "http_request") if fields["path"] == "/responses")
+        start = self.events(entries, "call_start")[0]
+        self.assertEqual(start["verbosity"], "high")
+        self.assertEqual(request["payload"]["text"]["verbosity"], "high")
+        self.assertEqual(request["payload"]["reasoning"]["effort"], "low")
         self.assertEqual(context["messages"], request["payload"]["input"])
         self.assertEqual(context["instructions"], request["payload"]["instructions"])
         generated = self.events(entries, "answer_generated")[0]["record"]
@@ -376,6 +380,39 @@ class RuntimeRecordTests(RecordFixture, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(generated, delivered)
         self.assertEqual(delivered["citations"][0]["source_id"], SOURCE_A)
         self.assertNotIn("Authorization", path.read_text(encoding="utf-8"))
+
+    async def test_hash_valid_wrong_or_missing_verbosity_binding_is_invalid(self):
+        self.seed()
+        _, entries = await self.run_turn()
+        for mutation in ("call", "payloads", "missing"):
+            with self.subTest(mutation=mutation):
+                def change(event, fields):
+                    if event == "call_start" and mutation == "call":
+                        fields["verbosity"] = "low"
+                    elif event == "call_start" and mutation == "missing":
+                        fields.pop("verbosity")
+                    elif event == "http_request" and mutation == "payloads":
+                        fields["payload"]["text"]["verbosity"] = "low"
+                path = self.rewritten(entries, "verbosity-" + mutation, edit=change)
+                result = verify_runs([path])
+                self.assertEqual(result["counts"]["invalid"], 1, result)
+                self.assertEqual(result["call_counts"]["invalid"], 1, result)
+                self.assertTrue(any("verbosity binding" in issue["reason"] for issue in result["issues"]), result)
+
+    async def test_prior_receipts_without_verbosity_remain_compatible(self):
+        self.seed()
+        _, entries = await self.run_turn()
+        def prior_contract(event, fields):
+            if event == "call_start":
+                fields.pop("verbosity")
+            elif event == "http_request":
+                fields["payload"]["text"].pop("verbosity")
+                if not fields["payload"]["text"]:
+                    fields["payload"].pop("text")
+        path = self.rewritten(entries, "prior-no-verbosity", edit=prior_contract)
+        result = verify_runs([path])
+        self.assertEqual(result["counts"]["complete"], 1, result)
+        self.assertEqual(result["issues"], [])
 
     async def test_publication_switch_during_generation_keeps_old_material_binding(self):
         self.seed()

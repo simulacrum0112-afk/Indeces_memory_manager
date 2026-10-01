@@ -8,6 +8,8 @@
 - 一个 Discord Bot/Gateway、一个配置服务器、显式 @Bot 的人类文字消息与一条回复。
 - 无头服务、CLI Console、LLM adaptor、短期水位摘要、Hebbian 标注词知识库、scratch 输入输出审计。
 - 只使用 GPT-6-Luna。官方 Responses API 是当前实现；用户尚未另外指定认证/代理接口。
+- Console `apikey` 向导隐藏输入 OpenAI key；Windows 当前用户 DPAPI 独立保存在相邻 `.openai.secret`，不修改 TOML/Discord token、不联网、不启动服务。启动按非空 `OPENAI_API_KEY` → 保存 key → 会话隐藏输入选择；有环境变量不尝试解密旧文件。两个向导持有同一 state 实例锁，活动实例期间拒绝修改。保留 Discord 旧 magic/entropy 与 Guild 绑定兼容性。
+- 用户指定默认模型输出话量 `adapter.verbosity="high"`，回复/摘要/标词 `reasoning="low"`。只调整这两项，不扩大阶段 token/时间预算；scratch 记录并核验实际 verbosity/effort。旧配置显式值不能被加载器静默覆盖，本地迁移须仅修改已授权字段并跳过活动实例。
 - **随聊天调用标词、从聊天自动提取知识均关闭。** 回复链只检索。`knowledge/` 的本地 PDF/Markdown/文本更新触发后台被动入库。PDF先本机独立进程转换Markdown，再按原切块策略标词；整篇完成版本才入检索。OCR关闭，公式/表格/双栏顺序不能宣称已验证。转换预算独立，不扩大模型预算。
 - 更新监听随服务持续运行，无需聊天触发。合法文件替换的标词期间及失败后，继续使用上一完整发布版本的原文、标词和来源；新版本全部完成后在一个事务中切换，并在 Console/scratch 输出明确版本回执。不得把旧标词套在新原文上。删除/清空撤下来源，非法或超限沿用撤下策略。待更新与发布指针按 Guild scope 隔离，不能重新激活已归档证据。
 - 后台维护与回复任务独立；当前共享一个模型请求槽。用户对允许两个真实模型请求重叠的可选问题尚未选择，不自行扩大并发。

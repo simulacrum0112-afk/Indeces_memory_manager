@@ -1,4 +1,4 @@
-# 交付状态：0.7.0
+# 交付状态：0.8.0
 
 截至用户时区日期 2026-09-30，本体已在 `D:\Indeces` 实现。GitHub 私有仓库为 [Indeces_memory_manager](https://github.com/simulacrum0112-afk/Indeces_memory_manager)。源码提交/推送结果由交付消息及 Git 历史确认；创建仓库本身不代表服务已启动。
 
@@ -6,7 +6,9 @@
 
 0.2 系列已实现 Console `discord` 命令与 `python -m indeces discord` 本地桥接向导：服务器 Guild ID、可选频道 ID、隐藏输入的 Bot token、无 token 预览与 `y` 保存确认。频道输入留空保留现有设置，`*` 允许目标服务器中的全部符合显式 @ 条件的频道。运行实例持有同一 state 锁时拒绝修改。向导不联网；完成后用户另行执行 `start`。
 
-Bot token 在 Windows 使用当前用户 DPAPI 加密，带应用 entropy、版本包络及 Guild 绑定，原子保存到 `config.local.discord.secret`；其他平台拒绝持久化，不降级为明文。启动来源顺序为 `DISCORD_BOT_TOKEN` → 匹配配置 Guild 的已保存 token → 隐藏的单次会话输入。`OPENAI_API_KEY` 仍只来自环境变量或启动时的隐藏输入。配置、审计日志和 Git 不包含认证密钥。
+Bot token 在 Windows 使用当前用户 DPAPI 加密，带应用 entropy、版本包络及 Guild 绑定，原子保存到 `config.local.discord.secret`；其他平台拒绝持久化，不降级为明文。启动来源顺序为 `DISCORD_BOT_TOKEN` → 匹配配置 Guild 的已保存 token → 隐藏的单次会话输入。配置、审计日志和 Git 不包含认证密钥。
+
+0.8.0 增加 Console `apikey` 与 `python -m indeces apikey`：隐藏输入 OpenAI key，展示无密钥预览，确认后以独立当前用户 DPAPI 格式保存到 `config.local.openai.secret`。只更新该凭据文件，不改 TOML 或 Discord token；原 Discord 密文格式保持兼容。活动实例锁、外部修改检查、固定错误与中断恢复防止误覆盖/泄密，保存成功后终端回执失败不误称未保存。启动顺序为 `OPENAI_API_KEY` → 已保存 key → 会话隐藏输入，环境变量优先，损坏的保存文件需先修复；向导没有网络验证或服务启动。用户新指定的 `adapter.verbosity=high` 与三阶段 `reasoning=low` 已写入默认配置和请求，scratch 核验实际参数绑定；输入/输出/时间额度未增加，旧日志仍按旧合同核验。
 
 默认智能体称呼为 **Indeces**，项目/包名保留原名。新增人设用于长期记忆测试：自然简短对话，区分短期上下文、摘要与有来源的长期召回，引用实际提供的来源，不编造记忆、图指标或有效性结论。没有引入模型并发、额外工具或自动评测能力；图公式、阶段预算、聊天标词关闭和本地知识更新的被动标词策略保持既有基线。
 
@@ -28,6 +30,7 @@ Console `scratch` 校验外层结构/hash 与新每轮记录合同，分别报�
 
 ## 验证证据
 
+- 0.8.0 本机完整离线测试：Windows/CPython 3.12.14，**543 tests / 0 failures / 11 skips**，51.336 秒。新增凭据、向导、Console 与 verbosity 合同测试；真实当前用户 DPAPI 仅使用临时合成 key，旧 Discord 格式往返仍通过。配置/依赖导入、`pip check`、Console退出、命令帮助及非editable wheel中的向导→DPAPI保存→路径规范化后的启动读取（service transport mock）均通过，见 [verification/OFFLINE_080.json](../verification/OFFLINE_080.json)。复审修复回执持续中断、snapshot句柄与路径身份竞态、锁关闭错误覆盖提交状态、直接CLI异常文本逃逸，以及向导与启动的配置路径别名不一致；保留Windows/Ubuntu适用的平台测试跳过。仅现有本地TOML中的已授权话量/推理字段在停服锁下同步，未读取已有凭据、知识、数据库或scratch，没有真实模型/Discord调用；远端CI以精确提交交付消息为准。
 - 0.6.0 本机完整离线测试：Windows/CPython 3.12.14，**387 tests / 0 failures / 7 skips**，20.850 秒。新增数据读取 28、服务 10、HTTP 路由 14、独立 HTTP 复审 6、scratch 并发 18、前端 Node 合约包装 1 项；7 项跳过为平台/本机符号链接权限相关。配置/导入、`pip check`、Console 退出与非 editable wheel 三个网页资源打包检查通过，记录见 [verification/OFFLINE_060.json](../verification/OFFLINE_060.json)。浏览器用临时合成图/版本/trace 确认搜索、分层、缩放、拖动、来源与逐步权重曲线、引用记录和安全文本渲染，390px 窄屏容器/SVG 边界复查通过，无页面错误。真实 Windows 线程/子进程/大小写路径别名/观察进程中断与超时测试确认读取不会阻碍原清理替换。没有读取或裁剪实际运行记录，没有模型或 Discord 连接；精确提交远端 CI 由交付消息核对。
 - 0.6.1 本机完整离线测试：Windows/CPython 3.12.14，**404 tests / 0 failures / 7 skips**，23.906 秒。新增 12 项名称/旧缓存/凭据/跨版本 mutex 兼容测试和 5 项固定说明模板迁移测试。配置/导入、`pip check`、Console 新名称与正常退出、wheel 新名称和网页/identity 资源打包检查通过，记录见 [verification/OFFLINE_061.json](../verification/OFFLINE_061.json)。仅本机固定 scratch 说明页迁移，没有读取或裁剪真实 JSONL/数据库，没有真实模型或 Discord 调用。
 - 0.7.0 本机完整离线测试：Windows/CPython 3.12.14，**463 tests / 0 failures / 7 skips**，27.733 秒。新增 PDF 解析/限额/进程回收 15、知识生命周期 26、来源与观察核验 18 项。配置/依赖导入、`pip check`、Console退出和非editable wheel独立进程转换均通过，见 [verification/OFFLINE_070.json](../verification/OFFLINE_070.json)。原创合成双栏/表格两页PDF经Poppler渲染逐页查看，提取保留字面值、页边界及hash；没有重建表格结构。复审修复了重复取消打断子进程回收、错误worker字段类型/过深JSON逃逸固定错误分类两处问题。没有读取真实论文、运行状态或scratch，没有真实模型/Discord调用；精确提交CI以交付消息链接为准。

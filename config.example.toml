@@ -1,5 +1,5 @@
-# Copy to config.local.toml, or use the console's discord wizard.
-# Bot credentials are outside TOML; wizard storage uses Windows user DPAPI.
+# Copy to config.local.toml, or use the console's discord and apikey wizards.
+# Credentials are outside TOML; wizard storage uses Windows user DPAPI.
 name = "Indeces"
 state_dir = "state"
 scratch_dir = "scratch"
@@ -40,6 +40,7 @@ model = "gpt-6-luna"
 base_url = "https://api.openai.com/v1"
 failure_threshold = 3
 cooldown_seconds = 30.0
+verbosity = "high" # Responses text.verbosity; visible detail stays within each output cap.
 
 # Each stage owns these limits; unused allowance cannot be borrowed.
 # Time includes a sequential input-count request and one generation request.
@@ -47,13 +48,13 @@ cooldown_seconds = 30.0
 input_tokens = 4096
 output_tokens = 512
 seconds = 15.0
-reasoning = "none"
+reasoning = "low"
 
 [adapter.budgets.summary]
 input_tokens = 16384
 output_tokens = 2048
 seconds = 20.0
-reasoning = "none"
+reasoning = "low"
 
 [adapter.budgets.reply]
 input_tokens = 16384

@@ -13,7 +13,7 @@ class Budget:
     input_tokens: int
     output_tokens: int
     seconds: float
-    reasoning: str = "none"
+    reasoning: str = "low"
 
     def __post_init__(self):
         if type(self.input_tokens) is not int or not 1 <= self.input_tokens <= 1_050_000:
@@ -24,7 +24,7 @@ class Budget:
             raise ValueError("input plus output exceeds model context")
         if type(self.seconds) not in (float, int) or not math.isfinite(self.seconds) or not 0 < self.seconds <= 300:
             raise ValueError("invalid stage deadline")
-        if self.reasoning not in {"none", "low", "medium", "high", "xhigh", "max"}:
+        if not isinstance(self.reasoning, str) or self.reasoning not in {"none", "low", "medium", "high", "xhigh", "max"}:
             raise ValueError("invalid reasoning effort")
 
 
@@ -52,6 +52,11 @@ class AdapterConfig:
     budgets: dict[str, Budget]
     failure_threshold: int = 3
     cooldown_seconds: float = 30.0
+    verbosity: str = "high"
+
+    def __post_init__(self):
+        if not isinstance(self.verbosity, str) or self.verbosity not in {"low", "medium", "high"}:
+            raise ValueError("invalid output verbosity")
 
 
 @dataclass(frozen=True)

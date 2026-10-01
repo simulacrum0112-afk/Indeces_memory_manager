@@ -247,7 +247,7 @@ def configure_discord(config_path: Path, input_fn=None, secret_fn=None, output=N
                 raise CredentialError(error.code) from None
             raise WizardError("configuration_save_failed") from None
         committed = True
-        output("Saved. Use start to connect; OpenAI API key is requested separately if absent from the environment.")
+        output("Saved. Use apikey to save OpenAI credentials, then start when ready.")
         return True
     except (EOFError, KeyboardInterrupt):
         if committed:

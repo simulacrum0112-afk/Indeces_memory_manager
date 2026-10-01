@@ -13,8 +13,11 @@ import sys
 
 from . import __version__
 from .adapter import OpenAIAdapter
+from .api_key_wizard import configure_api_key
 from .config import PdfConfig, load_config
-from .credentials import CredentialError, load_discord_token, prompt_secret, secret_path, validate_token
+from .credentials import (CredentialError, load_discord_token, load_openai_key,
+                          openai_secret_path, prompt_secret, secret_path,
+                          validate_api_key, validate_token)
 from .discord_bridge import DiscordBridge
 from .discord_wizard import configure_discord
 from .knowledge import KnowledgeService
@@ -165,10 +168,12 @@ def initialize(path):
     if not example.exists():
         raise FileNotFoundError("use config.example.toml from the repository checkout")
     shutil.copyfile(example, path)
-    print(f"Created {path}. Use discord to configure the bridge, then start.")
+    print(f"Created {path}. Use discord for the bridge and apikey for OpenAI credentials, then start.")
 
 
 def status(config, config_path=None):
+    if config_path is not None:
+        config_path = Path(config_path).resolve()
     print(f"{config.name} {__version__}; model {config.adapter.model}; one model request slot")
     print(f"Discord guild={config.discord.guild_id or '<not configured>'}; channels={config.discord.channel_ids or 'all explicitly mentioned channels'}")
     print(f"Knowledge: {config.knowledge_dir}; scratch: {config.scratch_dir}")
@@ -176,6 +181,8 @@ def status(config, config_path=None):
     print("Scratch retention: rolling 24 hours; startup cleanup and every 60 seconds while the service runs. Stopped services do not clean logs.")
     if config_path is not None:
         print(f"Saved Discord credential file: {'present (checked at start)' if secret_path(config_path).exists() else 'absent'}")
+        print(f"Saved OpenAI credential file: {'present (checked at start)' if openai_secret_path(config_path).exists() else 'absent'}")
+    print(f"Model output verbosity: {config.adapter.verbosity}")
     print("Chat labelling: CLOSED; passive knowledge-update labelling: ENABLED while service runs")
     pdf = getattr(config, "pdf", PdfConfig())
     print(f"PDF -> Markdown: local worker; bytes={pdf.max_file_bytes}; pages={pdf.max_pages}; "
@@ -197,17 +204,22 @@ def status(config, config_path=None):
 def run(config, config_path=None):
     if not config.discord.guild_id:
         raise ValueError("use discord setup to configure the Guild ID first")
+    if config_path is not None:
+        # Match the canonical location used by both setup wizards, including
+        # when --config names a symlink or a parent path alias.
+        config_path = Path(config_path).resolve()
     try:
         token = os.environ.get("DISCORD_BOT_TOKEN")
         if not token and config_path is not None:
             token = load_discord_token(config_path, config.discord.guild_id)
         token = validate_token(token or prompt_secret("Discord bot token (session only, not saved): "))
-        key = os.environ.get("OPENAI_API_KEY") or prompt_secret("OpenAI API key (not saved): ")
+        key = os.environ.get("OPENAI_API_KEY")
+        if not key and config_path is not None:
+            key = load_openai_key(config_path)
+        key = validate_api_key(key or prompt_secret("OpenAI API key (session only, not saved; use apikey to save): "))
     except (EOFError, KeyboardInterrupt):
         print("Startup cancelled; no connection was made.")
         return
-    if not key.strip() or not token.strip():
-        raise ValueError("both credentials are required")
     try:
         asyncio.run(serve(config, key, token))
     except KeyboardInterrupt:
@@ -246,7 +258,7 @@ def check_scratch(config):
 
 def main():
     parser = argparse.ArgumentParser(description="Indeces: minimal Discord runtime console")
-    parser.add_argument("command", nargs="?", choices=["console", "init", "discord", "start", "status", "check", "scratch", "observe", "logs"], default="console")
+    parser.add_argument("command", nargs="?", choices=["console", "init", "discord", "apikey", "start", "status", "check", "scratch", "observe", "logs"], default="console")
     parser.add_argument("--config", type=Path, default=Path("config.local.toml"))
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
@@ -268,8 +280,8 @@ def main():
             return
         if not args.config.exists():
             initialize(args.config)
-        if args.command == "discord":
-            if not configure_discord(args.config):
+        if args.command in {"discord", "apikey"}:
+            if not {"discord": configure_discord, "apikey": configure_api_key}[args.command](args.config):
                 raise SystemExit(2)
             return
         if args.command != "console":
@@ -281,7 +293,7 @@ def main():
             else:
                 check_scratch(config)
             return
-        print(f"Indeces {__version__} console: discord | start | status | scratch | observe | logs | quit")
+        print(f"Indeces {__version__} console: discord | apikey | start | status | scratch | observe | logs | quit")
         while True:
             try:
                 command = input("Indeces> ").strip().lower()
@@ -292,8 +304,8 @@ def main():
             if not command:
                 continue
             try:
-                if command == "discord":
-                    configure_discord(args.config)
+                if command in {"discord", "apikey"}:
+                    {"discord": configure_discord, "apikey": configure_api_key}[command](args.config)
                     continue
                 config = load_config(args.config)
                 action = {"start": run, "status": status, "scratch": check_scratch,
@@ -304,15 +316,15 @@ def main():
                     else:
                         action(config)
                 else:
-                    print("Commands: discord | start | status | scratch | observe | logs | quit")
+                    print("Commands: discord | apikey | start | status | scratch | observe | logs | quit")
             except CredentialError as error:
-                print(f"Credential error: {error.code}. Use discord setup to replace the saved token.")
+                print(f"Credential error: {error.code}. Use discord setup for the Bot token, or apikey for the OpenAI key.")
             except Exception as error:
                 # Never print arbitrary authentication transport exceptions.
                 print(f"Command failed: {type(error).__name__}. Check configuration and scratch records.")
     except CredentialError as error:
-        print(f"Credential error: {error.code}. Use discord setup before starting.")
+        print(f"Credential error: {error.code}. Use discord setup for the Bot token, or apikey for the OpenAI key, before starting.")
         raise SystemExit(2) from None
-    except (ValueError, OSError, RuntimeError) as error:
+    except Exception as error:
         print(f"Startup failed: {type(error).__name__}. Check configuration and local file permissions.")
         raise SystemExit(2) from None
