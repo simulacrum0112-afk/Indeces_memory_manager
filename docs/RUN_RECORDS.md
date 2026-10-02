@@ -1,4 +1,8 @@
-# 可核验运行记录：0.11.0
+# 可核验运行记录：0.12.0
+
+0.12.0 的机器人输入在 `turn_start.input` 标识 `author_is_bot=true`，`reply_context.response_schema` 绑定实际 Responses 请求的结构化决策合同。`bot_reply_decision` 保存 `action=reply|skip`、解码文字、原始模型 JSON、计量与召回关联。选择 `skip` 时只出现 `turn_end.status=skipped`，没有生成答案、assistant 历史或送达记录；校验器单独统计 skipped，并核验决策、实际请求/响应及用量，不能把静默等同于未发生模型费用或已发送空回复。选择 reply 则冻结解码答案与实际 Discord 文字，受控 @ 和截断属于传输差异，仍分别核验引用。模型失败保持 failed，机器人不发送固定错误提示。
+
+传输准入记录另保存机器人轮次与最近人类重置 epoch；持久预占最多五次，跳过/失败不退款。完整历史已有旧人类记录继续按旧合同检查；机器人决策或起始记录超出滚动窗口时仍显示 `retention_partial`，不能恢复或伪造过期证据。此记录合同证明可观察关联，不证明模型正确理解所有收尾消息。
 
 0.11.0的`call_start`成对记录`requested_input_limit`与`effective_input_limit`；有效门禁是原阶段input cap与调用者剩余额度中的较小值。`input_gate.limit`绑定有效门禁，`stage_limit`绑定原阶段额度；实际计量和完成usage须满足有效门禁。失败仍保存供应商确认的真实用量，不丢弃或双计。旧记录缺新字段时按原阶段核验，部分保留窗口只校验存留门禁。累计知识额度的批准迁移见[KNOWLEDGE_DIRECTORY.md](KNOWLEDGE_DIRECTORY.md)，不重置历史计量。
 

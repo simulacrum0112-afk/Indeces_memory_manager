@@ -1,8 +1,12 @@
 # Indeces 架构与调试合同
 
-文档基线：0.11.0；2026-10-01 核对。远端提交、CI 与验证范围见 [CHECKPOINT.md](CHECKPOINT.md)。
+文档基线：0.12.0；2026-10-01 核对。远端提交、CI 与验证范围见 [CHECKPOINT.md](CHECKPOINT.md)。
 
-本页描述 0.11.0 的实际职责、状态归属和验证边界。Indeces 是一个有检索增强的固定对话工作流；模型负责标词、必要的连续性摘要与回答，代码决定准入、证据版本、预算和交付。
+本页描述 0.12.0 的实际职责、状态归属和验证边界。Indeces 是一个有检索增强的固定对话工作流；模型负责标词、必要的连续性摘要与回答，以及是否回复当前机器人消息；代码决定准入、证据版本、预算和交付。
+
+机器人准入使用 `BotConversationGate` 的 SQLite 事务：先只读检查，写入 scratch 排队记录成功后，在无 await 的路径内持久预占，再交给单 worker。每个频道/机器人最多五次机会，跳过、失败、排队过期或停止也占次；新接受的人类显式 @ 输入重置同频道全部机器人，重复输入不重置。首次迁移先备份旧 SQLite，重连/重启保留去重与额度。数据库或排队审计失败关闭准入并触发服务故障，不继续消耗模型。scratch 与 SQLite 不属于同一事务，进程崩溃可留下排队记录缺少后续处理；已有预占不自动重放。
+
+机器人回复使用既有 reply 阶段的单次 JSON schema 输出（`action=reply|skip`、`text`），同一次请求完成是否回复的判断，未增加预算或请求槽。静默跳过仅保存输入、决策、模型用量和 `skipped` 结束记录，不保存 assistant 回答或伪造送达；输入可继续用于频道短期上下文。模型格式/网络失败仍为 failed，机器人不发送固定错误提示。前四次交付由传输层插入唯一对方提及，第五次剔除对方字面提及并关闭所有通知；实际文字与模型原输出分别记录。完整审计独立绑定原始模型 JSON 与已解码答案/静默结果，跨 24 小时仍适用原有 partial 合同。模型能选择跳过不证明实际收尾判断质量已验收。
 
 行业参考采用 [Anthropic 的简单可组合工作流原则](https://www.anthropic.com/engineering/building-effective-agents) 与 [OpenTelemetry 对指标、日志和 trace 的区分](https://opentelemetry.io/docs/concepts/observability-primer/)。这是设计取舍，不是已证明提高真实召回效果的实验结论。本版不引入新的框架或遥测依赖。
 
@@ -34,7 +38,7 @@ flowchart TD
 | `ConsoleInstance` / `ConsoleSession` | Console 内核租约、固定指令通信、导航、后台线程和输出面板 | 竞争入口复用同一 owner；退出清理通信，异常退出后的新 owner 恢复端点；不按 PID 停止其他进程 |
 | `console.serve` | 实例租约、装配与清理；一个 Gateway | 先停止任务使用者，再关闭资源；退出后释放租约 |
 | `ingest.retry_ingestion` | 显式选中的失败/未完成知识续跑；不连接 Discord、不新增发现范围 | 保留块 checkpoint 与已知计量；未知 usage、预算耗尽或原文件改变时阻止续跑 |
-| `DiscordBridge` | 人类显式提及门禁、有界队列、worker、远端交付回执 | worker 故障关闭准入并终止 Gateway；未知交付不自动重发 |
+| `DiscordBridge` / `BotConversationGate` | 显式提及门禁、机器人五次持久准入、有界队列、worker、远端交付回执 | 忽略自身/webhook；重复不占次；人类新准入重置同频道；未知交付不自动重发 |
 | `Runtime` | 每轮 scope、证据冻结、上下文、生成与交付的状态关联 | 已确认回执不能被后续审计失败改成未知；失败提示不调用模型 |
 | `KnowledgeService` | 目标版本、逐块标词、已发布指针 | 有效更新失败保留上一完整版本；删除/非法输入遵循撤下合同 |
 | `OpenAIAdapter` | label/summary/reply 三阶段准入与计量；一个请求槽 | 各阶段独立熔断，不换模型、不借预算、不隐式重试 |

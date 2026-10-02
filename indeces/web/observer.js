@@ -93,7 +93,7 @@
     button.addEventListener("click",() => selectDetail("source",id)); return button;
   }
   const statusLabels = {ready:"标词完成",pending:"待标词",labelling:"标词中",labeling:"标词中",failed:"失败",delivered:"已送达",
-    incomplete:"未完成",passive:"后台任务",retention_partial:"跨保留窗口",archived:"已归档",cancelled:"已取消",
+    incomplete:"未完成",passive:"后台任务",retention_partial:"跨保留窗口",archived:"已归档",cancelled:"已取消",skipped:"选择不回复",
     retained_checks_passed:"保留部分检查通过",invalid:"核验异常",no_retained_records:"没有保留记录"};
   function statusBadge(status) {
     const badge = el("span","status-chip quiet",statusLabels[status] || status || "未知");

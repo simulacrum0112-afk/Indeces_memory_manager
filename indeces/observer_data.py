@@ -411,7 +411,8 @@ def _scratch_view(config, now):
         if trace in partial:
             status = "retention_partial"
         elif ends:
-            status = "delivered" if ends[-1].get("status") == "delivered" else "failed"
+            terminal = ends[-1].get("status")
+            status = terminal if terminal in {"delivered", "skipped"} else "failed"
         result["traces"].append({"trace_id": trace, "timestamp": events[-1]["timestamp"],
                                  "event_count": len(events), "events": names, "status": status})
     result["traces"].sort(key=lambda trace: trace["timestamp"], reverse=True)

@@ -14,6 +14,7 @@ import re
 import time
 from typing import Any
 
+from .bot_conversations import BotConversationGate, ROUND_LIMIT
 from .contracts import DeliveryReceipt, GovernedError, IncomingMessage
 
 
@@ -23,7 +24,7 @@ _TRUNCATION_NOTICE = "\n[回复已截断；完整输出保存在 scratch log。]
 
 
 def select_messages(message: Any, bot_id: str, config: Any) -> IncomingMessage | None:
-    """Select an explicit textual @mention from a human in the configured guild.
+    """Select a human or other bot's explicit textual @mention in the guild.
 
     ``Message.mentions`` also contains information associated with replies, and
     ``mentioned_in`` can accept @everyone. The literal bot token is the trigger.
@@ -33,7 +34,7 @@ def select_messages(message: Any, bot_id: str, config: Any) -> IncomingMessage |
     guild = getattr(message, "guild", None)
     if author is None or guild is None:
         return None
-    if getattr(author, "bot", False) or getattr(message, "webhook_id", None) is not None:
+    if str(author.id) == str(bot_id) or getattr(message, "webhook_id", None) is not None:
         return None
     guild_id = str(guild.id)
     channel_id = str(message.channel.id)
@@ -62,6 +63,7 @@ def select_messages(message: Any, bot_id: str, config: Any) -> IncomingMessage |
         text=text,
         created_at=str(created_at),
         raw_text=raw_text,
+        author_is_bot=bool(getattr(author, "bot", False)),
     )
 
 
@@ -90,6 +92,7 @@ class _Envelope:
     incoming: IncomingMessage
     source: Any
     queued_at: float = field(default_factory=time.monotonic)
+    bot_round: int | None = None
 
 
 class DiscordBridge:
@@ -100,11 +103,12 @@ class DiscordBridge:
     retry; a timeout remains uncertain because Discord may have accepted it.
     """
 
-    def __init__(self, config: Any, runtime: Any, scratch: Any) -> None:
+    def __init__(self, config: Any, runtime: Any, scratch: Any, *, bot_gate: BotConversationGate | None = None) -> None:
         self.config = config.discord
         self._queue_wait_seconds = config.runtime.queue_wait_seconds
         self.runtime = runtime
         self.scratch = scratch
+        self._bot_gate = bot_gate if bot_gate is not None else BotConversationGate(runtime.store.db)
         self._queue: asyncio.Queue[_Envelope] = asyncio.Queue(maxsize=self.config.queue_capacity)
         self._worker: asyncio.Task[None] | None = None
         self._client: Any = None
@@ -135,16 +139,50 @@ class DiscordBridge:
             )
             _LOGGER.warning("Discord queue full; rejected message %s", incoming.message_id)
             return False
+        try:
+            admission = self._bot_gate.prepare(incoming)
+        except Exception as error:
+            self._fail_intake(error, incoming.message_id)
+            raise
+        if not admission.allowed:
+            self.scratch.write(
+                "discord_message_rejected", message_id=incoming.message_id,
+                channel_id=incoming.channel_id, author_id=incoming.author_id,
+                author_is_bot=incoming.author_is_bot, reason=admission.reason,
+                bot_round_limit=ROUND_LIMIT,
+            )
+            return False
         # Write the accepted input before it becomes available to the consumer.
         # There is no await between capacity checking and enqueueing.
-        self.scratch.write(
-            "discord_message_queued", message_id=incoming.message_id,
-            guild_id=incoming.guild_id, channel_id=incoming.channel_id,
-            author_id=incoming.author_id, raw_text=incoming.raw_text,
-            text=incoming.text, queue_depth=self._queue.qsize() + 1,
-        )
-        self._queue.put_nowait(_Envelope(incoming, message))
+        try:
+            self.scratch.write(
+                "discord_message_queued", message_id=incoming.message_id,
+                guild_id=incoming.guild_id, channel_id=incoming.channel_id,
+                author_id=incoming.author_id, raw_text=incoming.raw_text,
+                text=incoming.text, queue_depth=self._queue.qsize() + 1,
+                author_is_bot=incoming.author_is_bot, bot_round=admission.round,
+                bot_epoch=admission.epoch,
+            )
+            # Persist before exposing work. Skips, failures and uncertain sends
+            # never refund a round or restart an automated loop.
+            self._bot_gate.commit(incoming, admission)
+        except Exception as error:
+            self._fail_intake(error, incoming.message_id)
+            raise
+        self._queue.put_nowait(_Envelope(incoming, message, bot_round=admission.round))
         return True
+
+    def _fail_intake(self, error: Exception, message_id: str) -> None:
+        self._accepting = False
+        self._worker_error = error
+        self._worker_failed.set()
+        _LOGGER.error("Discord intake failed (%s); message intake closed", type(error).__name__)
+        try:
+            self.scratch.write("discord_admission_failed", message_id=message_id,
+                               error_type=type(error).__name__, intake_closed=True)
+        except Exception:
+            # Preserve the original storage/audit failure when the sink failed.
+            pass
 
     def _start_worker(self) -> None:
         if self._worker is not None and not self._worker.done():
@@ -212,17 +250,37 @@ class DiscordBridge:
     async def _deliver(self, envelope: _Envelope, text: str) -> DeliveryReceipt:
         if self._shutdown_requested:
             raise GovernedError("discord_stopping")
-        sent_text = discord_reply_text(text)
         incoming = envelope.incoming
+        allowed_mentions = self._allowed_mentions
+        mention_peer = False
+        transport_text = text
+        if incoming.author_is_bot:
+            if type(envelope.bot_round) is not int or not 1 <= envelope.bot_round <= ROUND_LIMIT:
+                raise GovernedError("bot_round_missing")
+            mention_peer = envelope.bot_round < ROUND_LIMIT
+            # A disallowed literal mention can still trigger a raw-text peer.
+            # Keep the continuation token under transport control.
+            transport_text = re.sub(r"<@!?" + re.escape(incoming.author_id) + r">", "", text).strip()
+            if not transport_text:
+                raise GovernedError("empty_bot_reply")
+            if mention_peer:
+                transport_text = f"<@{incoming.author_id}> {transport_text}"
+                allowed_mentions = self._discord.AllowedMentions(
+                    users=[self._discord.Object(id=int(incoming.author_id))],
+                    roles=False, everyone=False, replied_user=False,
+                )
+        sent_text = discord_reply_text(transport_text)
         self.scratch.write(
             "discord_delivery_started", message_id=incoming.message_id,
             channel_id=incoming.channel_id, model_output=text, sent_text=sent_text,
-            truncated=sent_text != text, timeout_seconds=self.config.delivery_seconds,
+            truncated=sent_text != transport_text, timeout_seconds=self.config.delivery_seconds,
+            author_is_bot=incoming.author_is_bot, bot_round=envelope.bot_round,
+            mentioned_peer_id=incoming.author_id if mention_peer else None,
         )
         try:
             async with asyncio.timeout(self.config.delivery_seconds):
                 sent = await envelope.source.reply(
-                    sent_text, allowed_mentions=self._allowed_mentions, mention_author=False,
+                    sent_text, allowed_mentions=allowed_mentions, mention_author=False,
                 )
         except TimeoutError:
             self.scratch.write(

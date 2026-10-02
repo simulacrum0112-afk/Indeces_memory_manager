@@ -250,6 +250,61 @@ def validate_answer(record, retrieval):
     _require(record == answer_record(record["text"], retrieval), "answer citation receipt mismatch")
 
 
+def _bot_reply_data(text):
+    """Decode the provider output independently of the runtime decision receipt."""
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            _require(key not in result, "duplicate bot decision JSON key")
+            result[key] = value
+        return result
+    _require(isinstance(text, str), "bot decision provider text invalid")
+    try:
+        data = json.loads(text, object_pairs_hook=pairs,
+                          parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite bot decision JSON")))
+    except (ValueError, RecursionError):
+        raise ValueError("bot decision provider JSON invalid") from None
+    _require(isinstance(data, dict) and set(data) == {"action", "text"}
+             and data["action"] in {"reply", "skip"} and isinstance(data["text"], str),
+             "bot decision provider schema invalid")
+    _require((data["action"] == "reply" and bool(data["text"].strip()))
+             or (data["action"] == "skip" and data["text"] == ""), "bot decision action/text invalid")
+    return data
+
+
+def _validate_reply_request(context, request, *, bot=False, partial=False):
+    label = "retained actual reply context mismatch" if partial else "actual adaptor input mismatch"
+    _require(request["input"] == context["messages"] and request["instructions"] == context["instructions"], label)
+    if bot:
+        from .prompts import BOT_REPLY_SCHEMA
+        _require(context.get("response_schema") == BOT_REPLY_SCHEMA, "bot reply context schema mismatch")
+        _require(request.get("text", {}).get("format")
+                 == {"type": "json_schema", "name": "reply", "strict": True, "schema": BOT_REPLY_SCHEMA},
+                 "actual bot reply schema mismatch")
+
+
+def _validate_bot_decision(decision, events, *, retrieval=None, context=None, partial=False):
+    data = _bot_reply_data(decision["model_result"]["text"])
+    _require(decision["action"] == data["action"] and decision["text"] == data["text"],
+             "bot decision/provider output mismatch")
+    if retrieval is not None:
+        _require(decision["retrieval_sha256"] == digest(retrieval), "bot decision retrieval link mismatch")
+    calls = [f for e, f in events if e == "call_end" and f.get("stage") == "reply" and f.get("status") == "completed"]
+    _require(len(calls) <= 1 and (partial or len(calls) == 1), "bot decision call evidence missing")
+    if calls:
+        _require(calls[0]["result"] == decision["model_result"], "bot decision model receipt mismatch")
+    _require(partial or context is not None, "bot decision reply context missing")
+    if context is not None:
+        from .prompts import BOT_REPLY_SCHEMA
+        _require(context.get("response_schema") == BOT_REPLY_SCHEMA, "bot reply context schema mismatch")
+        requests = [f for e, f in events if e == "http_request" and f.get("path") == "/responses"
+                    and (not calls or f["call_id"] == calls[0]["call_id"])]
+        _require(len(requests) <= 1 and (partial or len(requests) == 1), "bot decision request evidence missing")
+        if requests:
+            _validate_reply_request(context, requests[0]["payload"], bot=True, partial=partial)
+    return data
+
+
 def _validate_known_usage(events, end, *, partial=False):
     # Older call receipts did not carry usage separately from a successful
     # result. Preserve them; new receipts bind failed/cancelled usage as well.
@@ -466,7 +521,8 @@ def _validate_unbound_answer(record):
 
 def _validate_partial_turn(events, report):
     stages = {"memory_observation": 1, "retrieval_record": 2, "reply_context": 3,
-              "answer_generated": 4, "delivery_start": 5, "answer_delivered": 6, "turn_end": 7}
+              "bot_reply_decision": 4, "answer_generated": 5, "delivery_start": 6,
+              "answer_delivered": 7, "turn_end": 8}
     present = [stages[e] for e, _ in events if e in stages]
     _require(present == sorted(present) and len(present) == len(set(present)), "retained turn stage ordering mismatch")
     by_event = {e: f for e, f in events if e in stages}
@@ -499,22 +555,46 @@ def _validate_partial_turn(events, report):
             if response["record"]["unresolved_markers"]:
                 report["warnings"].append("unresolved_citation")
     generated, delivered, end = (by_event.get(e) for e in ("answer_generated", "answer_delivered", "turn_end"))
+    decision, context = (by_event.get(e) for e in ("bot_reply_decision", "reply_context"))
+    bot_data = _validate_bot_decision(decision, events, retrieval=retrieval, context=context, partial=True) if decision else None
+    if bot_data and bot_data["action"] == "skip":
+        _require(not any(e in {"answer_generated", "delivery_start", "answer_delivered", "failure_notice_delivered",
+                              "failure_notice_unknown"} for e, _ in events), "skipped bot turn has generation/delivery evidence")
+        if end:
+            _require(end["status"] == "skipped" and end.get("reason") == "bot_reply_skipped", "bot skip terminal receipt mismatch")
+    if end and end.get("status") == "skipped":
+        _require(end.get("reason") == "bot_reply_skipped", "bot skip terminal receipt mismatch")
+        _require(not any(e in {"answer_generated", "delivery_start", "answer_delivered", "failure_notice_delivered",
+                              "failure_notice_unknown"} for e, _ in events), "skipped bot turn has generation/delivery evidence")
+        _require(not bot_data or bot_data["action"] == "skip", "bot skip conflicts with reply decision")
+        if not decision:
+            report["warnings"].append("expired_bot_reply_decision")
     if generated:
-        _require(generated["model_result"]["text"] == generated["record"]["text"], "retained generated output mismatch")
+        if bot_data:
+            _require(bot_data["action"] == "reply" and generated["record"]["text"] == bot_data["text"]
+                     and generated["model_result"] == decision["model_result"], "retained bot generated output mismatch")
+        elif generated["model_result"]["text"] != generated["record"]["text"]:
+            # An expired prefix can include the decision. Validate the remaining
+            # raw/decoded binding, without claiming that its missing receipt or
+            # author identity has been recovered.
+            bot_data = _bot_reply_data(generated["model_result"]["text"])
+            _require(bot_data["action"] == "reply" and bot_data["text"] == generated["record"]["text"],
+                     "retained generated output mismatch")
+            report["warnings"].append("expired_bot_reply_decision")
         calls = [f for e, f in events if e == "call_end" and f.get("stage") == "reply" and f.get("status") == "completed"]
         if calls:
             _require(len(calls) == 1 and calls[0]["result"] == generated["model_result"], "retained generated receipt mismatch")
     if end and delivered:
         _require(end["status"] == "delivered" and end["receipt"]["text"] == delivered["record"]["text"]
                  and end["receipt"]["ids"] == delivered["receipt_ids"], "retained delivery receipt mismatch")
-    context = by_event.get("reply_context")
+    if by_event.get("delivery_start") and generated:
+        _require(by_event["delivery_start"]["text"] == generated["record"]["text"], "retained delivery start output mismatch")
     if context:
         requests = [f for e, f in events if e == "http_request" and f["path"] == "/responses"]
         reply_call_ids = {f["call_id"] for e, f in events if e == "call_end" and f.get("stage") == "reply"}
         for request in requests:
             if request["call_id"] in reply_call_ids:
-                _require(request["payload"]["input"] == context["messages"] and request["payload"]["instructions"] == context["instructions"],
-                         "retained actual reply context mismatch")
+                _validate_reply_request(context, request["payload"], bot=bot_data is not None, partial=True)
 
 
 def verify_runs(paths: list[Path]):
@@ -561,7 +641,7 @@ def verify_runs(paths: list[Path]):
         if not starts:
             # Passive label traces do not have conversation stages.
             is_turn = any(e in {"memory_observation", "retrieval_record", "knowledge_retrieved", "reply_context",
-                                 "answer_generated", "delivery_start", "answer_delivered", "turn_end"}
+                                 "bot_reply_decision", "answer_generated", "delivery_start", "answer_delivered", "turn_end"}
                           or f.get("stage") in {"reply", "summary"} for e, f in events)
             if not is_turn:
                 continue
@@ -588,12 +668,18 @@ def verify_runs(paths: list[Path]):
             generated = [f for e, f in events if e == "answer_generated"]
             delivered = [f for e, f in events if e == "answer_delivered"]
             observations = [f for e, f in events if e == "memory_observation"]
-            _require(len(ends) <= 1 and len(retrievals) <= 1 and len(generated) <= 1 and len(delivered) <= 1,
+            decisions = [f for e, f in events if e == "bot_reply_decision"]
+            model_inputs = [f for e, f in events if e == "reply_context"]
+            delivery_starts = [f for e, f in events if e == "delivery_start"]
+            _require(all(len(stage) <= 1 for stage in (ends, retrievals, generated, delivered, decisions, model_inputs, delivery_starts)),
                      "duplicate run stage")
             _require(len(observations) <= 1, "duplicate graph observation")
+            is_bot = starts[0]["input"].get("author_is_bot", False)
+            _require(type(is_bot) is bool, "turn bot author flag invalid")
+            _require(not decisions or is_bot, "bot decision has no bot author declaration")
             stage_order = {"turn_start": 0, "memory_observation": 1, "retrieval_record": 2,
-                           "reply_context": 3, "answer_generated": 4, "delivery_start": 5,
-                           "answer_delivered": 6, "turn_end": 7}
+                           "reply_context": 3, "bot_reply_decision": 4, "answer_generated": 5,
+                           "delivery_start": 6, "answer_delivered": 7, "turn_end": 8}
             stages = [stage_order[e] for e, _ in events if e in stage_order]
             _require(stages == sorted(stages), "run stage ordering mismatch")
             if observations:
@@ -623,7 +709,30 @@ def verify_runs(paths: list[Path]):
                 if not generated and delivered:
                     raise ValueError("delivery without generated answer")
             else:
-                _require(not generated and not delivered, "answer without retrieval")
+                _require(not generated and not delivered and not decisions, "answer/decision without retrieval")
+            bot_data = None
+            if decisions:
+                _require(len(retrievals) == len(model_inputs) == 1, "bot decision missing input evidence")
+                bot_data = _validate_bot_decision(decisions[0], events, retrieval=retrieval,
+                                                 context=model_inputs[0])
+                context = json.loads(model_inputs[0]["messages"][0]["content"].split("\n", 1)[1])
+                _require(context["memory_citations"] == retrieval["model_materials"], "actual reply context mismatch")
+                _require(model_inputs[0]["retrieval_sha256"] == digest(retrieval), "reply context retrieval mismatch")
+                _require(not any(c["status"] != "complete" for c in call_reports if c["trace_id"] == trace),
+                         "bot decision has incomplete/failed call evidence")
+                if bot_data["action"] == "skip":
+                    _require(not generated and not delivered and not delivery_starts
+                             and not any(e in {"failure_notice_delivered", "failure_notice_unknown"} for e, _ in events),
+                             "skipped bot turn has generation/delivery evidence")
+                    _require(not ends or (ends[0]["status"] == "skipped" and ends[0].get("reason") == "bot_reply_skipped"),
+                             "bot skip terminal receipt mismatch")
+                if generated:
+                    _require(bot_data["action"] == "reply" and generated[0]["record"]["text"] == bot_data["text"]
+                             and generated[0]["model_result"] == decisions[0]["model_result"], "bot generated output mismatch")
+            elif is_bot:
+                _require(not generated and not delivered and not delivery_starts, "bot answer without decision")
+            if generated and delivery_starts:
+                _require(delivery_starts[0]["text"] == generated[0]["record"]["text"], "delivery start output mismatch")
             if not ends:
                 report["warnings"].append("missing_turn_end")
                 continue
@@ -631,20 +740,24 @@ def verify_runs(paths: list[Path]):
                 _require(len(retrievals) == len(generated) == len(delivered) == 1, "delivered turn missing evidence")
                 _require(delivered[0]["record"]["text"] == ends[0]["receipt"]["text"]
                          and delivered[0]["receipt_ids"] == ends[0]["receipt"]["ids"], "delivery receipt mismatch")
-                model_inputs = [f for e, f in events if e == "reply_context"]
                 _require(len(model_inputs) == 1, "reply input evidence missing")
                 context = json.loads(model_inputs[0]["messages"][0]["content"].split("\n", 1)[1])
                 _require(context["memory_citations"] == retrieval["model_materials"], "actual reply context mismatch")
                 _require(model_inputs[0]["retrieval_sha256"] == digest(retrieval), "reply context retrieval mismatch")
                 calls = [f for e, f in events if e == "call_end" and f.get("stage") == "reply" and f.get("status") == "completed"]
-                _require(len(calls) == 1 and calls[0]["result"]["text"] == generated[0]["record"]["text"], "reply call evidence missing or mismatched")
+                _require(len(calls) == 1 and (bot_data is not None or calls[0]["result"]["text"] == generated[0]["record"]["text"]),
+                         "reply call evidence missing or mismatched")
                 _require(generated[0]["model_result"] == calls[0]["result"], "generated model receipt mismatch")
                 _require(not any(c["status"] != "complete" for c in call_reports if c["trace_id"] == trace),
                          "delivered turn has incomplete/failed call evidence")
                 requests = [f for e, f in events if e == "http_request" and f["call_id"] == calls[0]["call_id"] and f["path"] == "/responses"]
-                _require(len(requests) == 1 and requests[0]["payload"]["input"] == model_inputs[0]["messages"]
-                         and requests[0]["payload"]["instructions"] == model_inputs[0]["instructions"], "actual adaptor input mismatch")
+                _require(len(requests) == 1, "actual adaptor input mismatch")
+                _validate_reply_request(model_inputs[0], requests[0]["payload"], bot=is_bot)
                 report["status"] = "complete"
+            elif ends[0]["status"] == "skipped":
+                _require(is_bot and bot_data is not None and bot_data["action"] == "skip"
+                         and ends[0].get("reason") == "bot_reply_skipped", "skipped turn missing bot decision evidence")
+                report["status"] = "skipped"
             else:
                 _require(not delivered, "confirmed receipt conflicts with failed turn")
                 report["status"] = "failed"
@@ -653,7 +766,7 @@ def verify_runs(paths: list[Path]):
             # Fixed diagnostic messages; never echo private source/reply text.
             issues.append({"trace_id": trace, "reason": str(error) if type(error) is ValueError else "record schema invalid"})
     return {"turns": reports, "counts": {s: sum(r["status"] == s for r in reports)
-            for s in ("complete", "failed", "incomplete", "invalid", "legacy", "retention_partial")}, "issues": issues,
+            for s in ("complete", "skipped", "failed", "incomplete", "invalid", "legacy", "retention_partial")}, "issues": issues,
             "calls": call_reports, "call_counts": {s: sum(c["status"] == s for c in call_reports)
             for s in ("complete", "failed", "incomplete", "invalid", "retention_partial")}, "retention_checkpoints": checkpoints}
 

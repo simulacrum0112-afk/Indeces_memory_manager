@@ -42,6 +42,23 @@ def label_data(text):
         raise GovernedError("invalid_labels") from None
 
 
+def bot_reply_data(text):
+    """Validate the decision as data; silence is never a transport placeholder."""
+    try:
+        data = strict_json(text)
+        if not isinstance(data, dict) or set(data) != {"action", "text"}:
+            raise ValueError()
+        if not isinstance(data["text"], str):
+            raise ValueError()
+        if data["action"] == "skip" and data["text"] == "":
+            return data
+        if data["action"] == "reply" and data["text"].strip():
+            return data
+        raise ValueError()
+    except (ValueError, TypeError, KeyError):
+        raise GovernedError("invalid_bot_reply_decision") from None
+
+
 class Runtime:
     def __init__(self, config, store, adapter, scratch):
         self.config, self.store, self.adapter, self.scratch = config, store, adapter, scratch
@@ -52,8 +69,10 @@ class Runtime:
     async def _summary(self, message, knowledge, trace_id):
         checkpoint = self.store.checkpoint(message.scope)
         rows = self.store.history(message.scope, checkpoint["through_seq"], exclude_turn=message.message_id)
-        instructions = prompts.reply_instructions(self.config.name)
-        capacity = raw_capacity(self.config, instructions, message, knowledge)
+        instructions = (prompts.bot_reply_instructions(self.config.name) if message.author_is_bot
+                        else prompts.reply_instructions(self.config.name))
+        schema = prompts.BOT_REPLY_SCHEMA if message.author_is_bot else None
+        capacity = raw_capacity(self.config, instructions, message, knowledge, schema)
         prefix = compaction_prefix(rows, capacity, self.config.runtime.low_watermark)
         self.scratch.write("context_watermark", trace_id=trace_id, raw_reservation=history_cost(rows),
                            raw_capacity=capacity, low_watermark=self.config.runtime.low_watermark,
@@ -97,8 +116,11 @@ class Runtime:
             if not self.store.begin(message):
                 self.scratch.write("duplicate_ignored", trace_id=trace_id, message_id=message.message_id)
                 return
+            input_record = {"text": message.text, "raw_text": message.raw_text, "author_id": message.author_id}
+            if message.author_is_bot:
+                input_record["author_is_bot"] = True
             self.scratch.write("turn_start", trace_id=trace_id, message_id=message.message_id, scope=message.scope,
-                               input={"text": message.text, "raw_text": message.raw_text, "author_id": message.author_id},
+                               input=input_record,
                                deadline_seconds=self.config.runtime.turn_seconds, run_record_version=1,
                                knowledge_scope=self.knowledge_scope)
             delivered = False
@@ -129,19 +151,33 @@ class Runtime:
                                        query=message.text, records=knowledge, retrieval_sha256=retrieval_hash,
                                        elapsed_seconds=time.monotonic() - started)
                     messages = await self._summary(message, knowledge, trace_id)
-                    instructions = prompts.reply_instructions(self.config.name)
+                    instructions = (prompts.bot_reply_instructions(self.config.name) if message.author_is_bot
+                                    else prompts.reply_instructions(self.config.name))
+                    schema_fields = {"response_schema": prompts.BOT_REPLY_SCHEMA} if message.author_is_bot else {}
                     self.scratch.write("reply_context", trace_id=trace_id, retrieval_sha256=retrieval_hash,
-                                       instructions=instructions, messages=messages)
-                    result = await self.adapter.call("reply", instructions, messages, trace_id)
+                                       instructions=instructions, messages=messages, **schema_fields)
+                    if message.author_is_bot:
+                        result = await self.adapter.call("reply", instructions, messages, trace_id, prompts.BOT_REPLY_SCHEMA)
+                        decision = bot_reply_data(result.text)
+                        self.scratch.write("bot_reply_decision", trace_id=trace_id, retrieval_sha256=retrieval_hash,
+                                           **decision, model_result=asdict(result))
+                        if decision["action"] == "skip":
+                            self.store.fail(message.message_id, "skipped")
+                            self.scratch.write("turn_end", trace_id=trace_id, status="skipped", reason="bot_reply_skipped")
+                            return
+                        answer = decision["text"]
+                    else:
+                        result = await self.adapter.call("reply", instructions, messages, trace_id)
+                        answer = result.text
                     self.scratch.write("answer_generated", trace_id=trace_id, retrieval_sha256=retrieval_hash,
-                                       record=answer_record(result.text, retrieval), model_result=asdict(result))
-                    self.store.generated(message.message_id, result.text)
-                    self.scratch.write("delivery_start", trace_id=trace_id, message_id=message.message_id, text=result.text)
+                                       record=answer_record(answer, retrieval), model_result=asdict(result))
+                    self.store.generated(message.message_id, answer)
+                    self.scratch.write("delivery_start", trace_id=trace_id, message_id=message.message_id, text=answer)
                     # Mark attempt before crossing Discord boundary. A timeout
                     # can mean delivered remotely; never automatically retry.
                     delivered = True
                     async with asyncio.timeout(self.config.discord.delivery_seconds):
-                        receipt = await deliver(result.text)
+                        receipt = await deliver(answer)
                     confirmed = True
                     self.store.finish(message, receipt)
                     self.scratch.write("answer_delivered", trace_id=trace_id, retrieval_sha256=retrieval_hash,
@@ -168,6 +204,9 @@ class Runtime:
                 self.store.fail(message.message_id, code)
                 self.scratch.write("turn_end", trace_id=trace_id, status="failed", code=code)
                 print(f"[{self.config.name}] turn failed: {code}; trace={trace_id}", flush=True)
+                if message.author_is_bot and not delivered:
+                    self.scratch.write("failure_notice_skipped", trace_id=trace_id, reason="bot_reply_failed")
+                    return
                 if not delivered:
                     # A fixed failure receipt adds no model request. It is traced
                     # and kept separate from assistant conversational history.

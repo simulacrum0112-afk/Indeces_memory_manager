@@ -5,12 +5,14 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 import sys
+import sqlite3
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 from indeces.discord_bridge import DiscordBridge, _Envelope, discord_reply_text, select_messages
+from indeces.bot_conversations import BotConversationGate
 from indeces.config import AdapterConfig, Budget, DiscordConfig, KnowledgeConfig, RuntimeConfig
 from indeces.contracts import GovernedError, ModelResult
 from indeces.runtime import Runtime as ChatRuntime
@@ -117,6 +119,8 @@ class SelectionTests(unittest.TestCase):
                 self.assertIsNone(select_messages(message, "99", configuration().discord))
         message = Message()
         message.author.bot = True
+        self.assertTrue(select_messages(message, "99", configuration().discord).author_is_bot)
+        message.author.id = 99
         self.assertIsNone(select_messages(message, "99", configuration().discord))
         self.assertIsNone(select_messages(Message(), "99", configuration(channels=("21",)).discord))
         self.assertIsNotNone(select_messages(Message(), "99", configuration(channels=("20",)).discord))
@@ -139,7 +143,10 @@ class SelectionTests(unittest.TestCase):
 class BridgeTests(unittest.IsolatedAsyncioTestCase):
     def make_bridge(self, config=None, runtime=None):
         scratch = Scratch()
-        bridge = DiscordBridge(config or configuration(), runtime or Runtime(), scratch)
+        gate_db = sqlite3.connect(":memory:")
+        self.addCleanup(gate_db.close)
+        bridge = DiscordBridge(config or configuration(), runtime or Runtime(), scratch,
+                               bot_gate=BotConversationGate(gate_db))
         bridge._discord = SimpleNamespace(HTTPException=HTTPError)
         bridge._allowed_mentions = object()
         return bridge, scratch

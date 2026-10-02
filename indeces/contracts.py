@@ -14,6 +14,7 @@ class IncomingMessage:
     text: str
     created_at: str
     raw_text: str = ""
+    author_is_bot: bool = False
 
     @property
     def scope(self) -> str:
