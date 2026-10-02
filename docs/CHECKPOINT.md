@@ -8,6 +8,8 @@
 
 首版运行源码 [`b8de289`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/b8de28993b6233511ed0fdde6d52ac470e6d0e7a) 的 [CI 37076777661](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37076777661) Ubuntu因兼容错误文字断言失败，Windows被取消，见 [CI_0125_INITIAL.json](../verification/CI_0125_INITIAL.json)。兼容提示修正 [`6ff12fa`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/6ff12fa64b542a6709b71cf02010589fa06f4b97) 的 [CI 37077154547](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37077154547) Ubuntu成功、Windows因ANSI通知与8.3短名错误失败，见 [CI_0125_SECOND.json](../verification/CI_0125_SECOND.json)。本机最终验证已包含这些修正，最终CI须绑定随后平台修正提交，历史CI不能代替本版结果。
 
+最终运行源码实现 [`fb3d203`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/fb3d20388a2e6dc574606584f0a07d593bc7e047) 已推送main；精确提交 [CI 37078394744](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37078394744) Ubuntu成功，Windows的6项fixture仍比较短名与canonical文字而失败，见 [CI_0125_THIRD.json](../verification/CI_0125_THIRD.json)。测试预期规范化，不改变生产代码；验收CI须绑定随后测试修正提交。平台修正暂存公开范围见 [REPOSITORY_AUDIT_0125_PLATFORM_FIX.json](../verification/REPOSITORY_AUDIT_0125_PLATFORM_FIX.json)，未知发现/禁止路径均零。
+
 本轮没有启动/停止真实服务，没有对活动真实数据库应用迁移。另chat在本轮施工期间启动的实例不能据0.12.5版本号认定已加载最终修复，须待当前任务自然结束后由用户显式stop、清理、quit、重开/start。
 
 ## 0.12.4 历史检查点

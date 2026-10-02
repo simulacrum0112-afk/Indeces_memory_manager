@@ -6,6 +6,8 @@
 
 平台修正后最终全套939项、0失败/错误、20跳过，隔离安装包通过，源码/editable元数据0.12.5；真实Windows短名回归执行通过，另有ANSI重定向回归。最终证据链接与真实实例加载限制见 [CHECKPOINT.md](CHECKPOINT.md)。
 
+第三轮 [CI 37078394744](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37078394744) Ubuntu成功，Windows没有error但有6项路径预期断言失败，见 [CI_0125_THIRD.json](../verification/CI_0125_THIRD.json)：fixture保留TEMP短名，生产路径已正确返回同一目录的canonical长名。在合成真实8.3 TEMP准确复现同六项失败后，测试预期随该合同规范化；整组25项在短名与正常TEMP分别通过（6项权限跳过）。生产保护规则未改，前述ANSI/PDF/recovery失败在此轮已消失。
+
 修复配置任意知识目录、安全错误后继续入库、根路径链接先解析和旧来源缺少根身份四个已证实缺口。OneDrive与链接在副作用前拒绝，旧来源迁移先备份与完整byte digest核验，来源撤下不删除历史或重置未知usage。普通PDF文件缺失的具体原因尚未证实；已审计主要施工命令成功断言项目路径，没有被报告外目录的移动/删除证据。详见 [PATH_BOUNDARY.md](PATH_BOUNDARY.md)。本轮不启停服务、不对活动真实数据库应用迁移。准确测试/推送状态见 [CHECKPOINT.md](CHECKPOINT.md)。
 
 首次全套等待测试因旧维护清理夹具缺少 knowledge_dir 而在创建资源前失败，夹具的无超时 Event 等待掩盖了异常；仅中断本轮自建的离线测试进程，并补齐路径及有界等待。首次保存的 [OFFLINE_0125.json](../verification/OFFLINE_0125.json) 为928项、7错误、20跳过：清理与观察等待夹具也缺完整目录；修正夹具，保留原失败记录，没有放宽生产路径门禁。后续独立复查另补备份/转换稿/扫描子树与数据库只读入口检查；目录检查失败仍按不完整清单保护旧发布。

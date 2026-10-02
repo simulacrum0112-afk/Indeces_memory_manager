@@ -18,7 +18,8 @@ class PathPolicyTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        # Windows TEMP may contain an 8.3 alias; expected paths are canonical.
+        self.root = Path(self.temporary.name).resolve()
         self.example = (Path(__file__).resolve().parents[1] / "config.example.toml").read_text(encoding="utf-8")
         self.path = self.root / "config.toml"
         self.path.write_text(self.example, encoding="utf-8")

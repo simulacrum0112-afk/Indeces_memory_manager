@@ -1,0 +1,52 @@
+{
+  "version": "0.12.5",
+  "recorded_at_utc": "2026-10-02T23:41:47.992931+00:00",
+  "implementation_commit": "fb3d20388a2e6dc574606584f0a07d593bc7e047",
+  "run_id": 37078394744,
+  "url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37078394744",
+  "status": "completed",
+  "conclusion": "failure",
+  "jobs": [
+    {
+      "id": 111073300948,
+      "name": "check (ubuntu-latest, ./.venv/bin/python)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 111073301183,
+      "name": "check (windows-latest, ./.venv/Scripts/python.exe)",
+      "status": "completed",
+      "conclusion": "failure"
+    }
+  ],
+  "failed_test_diagnostics": [
+    {
+      "case": "FAIL: test_defaults_anchor_knowledge_without_creating_managed_directories (test_path_policy.PathPolicyTests.test_defaults_anchor_knowledge_without_creating_managed_directories)",
+      "exception": "AssertionError: WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/tmpjpgq1rzy/knowledge') != WindowsPath('C:/Users/RUNNER~1/AppData/Local/Temp/tmpjpgq1rzy/knowledge')"
+    },
+    {
+      "case": "FAIL: test_direct_construction_checks_dedicated_name_without_io (test_path_policy.PathPolicyTests.test_direct_construction_checks_dedicated_name_without_io)",
+      "exception": "AssertionError: WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/tmpytcuscxx/knowledge') != WindowsPath('C:/Users/RUNNER~1/AppData/Local/Temp/tmpytcuscxx/knowledge')"
+    },
+    {
+      "case": "FAIL: test_loader_accepts_same_exact_knowledge_root_with_dot_segments (test_path_policy.PathPolicyTests.test_loader_accepts_same_exact_knowledge_root_with_dot_segments)",
+      "exception": "AssertionError: WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/tmp84hx9zpv/knowledge') != WindowsPath('C:/Users/RUNNER~1/AppData/Local/Temp/tmp84hx9zpv/knowledge')"
+    },
+    {
+      "case": "FAIL: test_loader_rejects_external_directory_even_when_named_knowledge (test_path_policy.PathPolicyTests.test_loader_rejects_external_directory_even_when_named_knowledge)",
+      "exception": "AssertionError: WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/tmph1ea0tgf/knowledge') != WindowsPath('C:/Users/RUNNER~1/AppData/Local/Temp/tmph1ea0tgf/knowledge')"
+    },
+    {
+      "case": "FAIL: test_loader_rejects_unrelated_directory_and_reports_expected (test_path_policy.PathPolicyTests.test_loader_rejects_unrelated_directory_and_reports_expected)",
+      "exception": "AssertionError: WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/tmp3ep5yl35/knowledge') != WindowsPath('C:/Users/RUNNER~1/AppData/Local/Temp/tmp3ep5yl35/knowledge')"
+    },
+    {
+      "case": "FAIL: test_onedrive_environment_root_uses_components_not_string_prefix (test_path_policy.PathPolicyTests.test_onedrive_environment_root_uses_components_not_string_prefix)",
+      "exception": "AssertionError: WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/tmpnxpx19z[24 chars]dge') != WindowsPath('C:/Users/RUNNER~1/AppData/Local/Temp/tmpnxpx19z9/c[21 chars]dge')"
+    }
+  ],
+  "raw_logs_saved": false,
+  "public_job_log_read_for_failure_diagnostics": true,
+  "passed": false
+}
