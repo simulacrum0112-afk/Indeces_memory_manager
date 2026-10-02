@@ -2,9 +2,11 @@
 
 一个名为 **Indeces** 的小型 Python 无头智能体：一个 Discord Bot 连接、一个串行消息 worker、GPT-6-Luna adaptor、本地知识库、静态 NPMI 检索与动态观察历史，以及可检查的输入输出 scratch log。项目仓库名保留 `Indeces_memory_manager`。
 
+0.12.1 修复长提问在检索阶段耗尽本地预算而静默失败：消除重复全边扫描及 JSON 编码/解码，保持排序、完整审计与 5 秒预算；数据库中断现在记录明确失败阶段。
+
 0.12.0 增加与其他 Discord 机器人的有限对话：同一频道、同一个机器人最多 5 次回应机会；模型可对收尾消息选择静默跳过。次数跨重启保留，人类在该频道再次显式 `@Indeces` 后重置。0.11.0 的单 Console、摄入审计与续跑功能保持。职责、状态归属与验证边界见 [架构合同](docs/ARCHITECTURE.md)。新代码在新进程加载后生效，不自动停止或重启已有服务。
 
-当前交付、远端提交、CI 与未验收项目见 [检查点](docs/CHECKPOINT.md) 和 [交付状态](docs/STATUS.md)。历史 CI 通过不代表 0.12.0 已加载，也不能代替真实模型、Discord 或召回质量验收。
+当前交付、远端提交、CI 与未验收项目见 [检查点](docs/CHECKPOINT.md) 和 [交付状态](docs/STATUS.md)。历史 CI 通过不代表 0.12.1 已加载，也不能代替真实模型、Discord 或召回质量验收。
 
 项目使用 [MIT 许可证](LICENSE)，上游策略归属见 [第三方说明](THIRD_PARTY_NOTICES.md)。仓库只发布源码、空配置示例和合成离线验证记录；本地 API key、Bot token、加密凭据、原始材料、数据库和 scratch 不上传。提交前请按 [公开仓库与本地数据说明](docs/REPOSITORY_PRIVACY.md) 核验，`.gitignore` 不会移除已提交的历史。
 

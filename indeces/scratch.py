@@ -545,9 +545,18 @@ class ScratchLog:
         content = canonical(item)
         item = _decode(content.decode("utf-8"))
         _validate(item, sequence, includes_hash=False)
-        content = canonical(item)
-        digest = hashlib.sha256(content).hexdigest()
-        record = canonical({**item, "hash": digest}).decode("utf-8") + "\n"
+        # After strict decoding, fields have their frozen JSON representation
+        # (including stringified object keys). Encode that large payload once
+        # more and reuse it in both the hash input and the appended record.
+        # _validate fixes the top-level key set; canonical sorting puts hash
+        # immediately after fields and before the remaining metadata keys.
+        prefix = canonical({"event": item["event"], "fields": item["fields"]})[:-1]
+        suffix = b"," + canonical({key: item[key] for key in
+                                    ("previous_hash", "sequence", "timestamp", "version")})[1:]
+        digest_builder = hashlib.sha256(prefix)
+        digest_builder.update(suffix)
+        digest = digest_builder.hexdigest()
+        record = (prefix + b',"hash":"' + digest.encode("ascii") + b'"' + suffix).decode("utf-8") + "\n"
         try:
             if self.stream.write(record) != len(record):
                 raise OSError("incomplete scratch write")

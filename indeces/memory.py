@@ -343,16 +343,14 @@ class MemoryGraph:
                                     (scope, event_id, event_id, now, DECAY))
             # Upstream rounds after decay and after each reinforcement.
             transitions = {}
+            decay_updates = []
             for a, b, weight, seed_weight, last_event, context, evidence, co_count, static in list(self.connection.execute(
                     "SELECT d.a,d.b,d.weight,d.seed_weight,d.last_event_id,s.context_json,s.evidence_json,s.co_count,t.weight "
                     "FROM memory_dynamic d LEFT JOIN memory_support s ON s.scope=d.scope AND s.a=d.a AND s.b=d.b "
                     "LEFT JOIN memory_static t ON t.scope=d.scope AND t.a=d.a AND t.b=d.b "
                     "WHERE d.scope=? ORDER BY d.a,d.b", (scope,))):
                 decayed = round(weight * DECAY, 6)
-                self.connection.execute(
-                    "UPDATE memory_dynamic SET weight=?,last_event_id=? "
-                    "WHERE scope=? AND a=? AND b=?",
-                    (decayed, event_id, scope, a, b))
+                decay_updates.append((decayed, event_id, scope, a, b))
                 created = (a, b) in seeded_pairs
                 transitions[(a, b)] = {"a": a, "b": b, "created_by": "static_seed" if created else None,
                     "before_weight": None if created else weight, "after_seed": weight if created else None,
@@ -364,6 +362,12 @@ class MemoryGraph:
                     "source_context": json.loads(context) if context is not None else [],
                     "co_count": co_count if co_count is not None else 0,
                     "static_score": static if static is not None else 0.0}
+            # Keep Python rounding and the same ordered row updates, with
+            # one call across the Python/SQLite boundary. The caller's
+            # transaction still owns decay, reinforcement and audit together.
+            self.connection.executemany(
+                "UPDATE memory_dynamic SET weight=?,last_event_id=? "
+                "WHERE scope=? AND a=? AND b=?", decay_updates)
             for a, b in itertools.combinations(sorted(hits), 2):
                 inserted = self.connection.execute(
                     "INSERT OR IGNORE INTO memory_dynamic "
@@ -406,18 +410,18 @@ class MemoryGraph:
                 "SELECT a,b,context_json,evidence_json,co_count "
                 "FROM memory_support WHERE scope=?", (scope,)):
             edges[(a, b)] = {"static_score": 0.0, "dynamic_score": 0.0,
-                             "effective_score": 0.0, "context": json.loads(context),
-                             "source_record_ids": json.loads(evidence), "co_count": count,
+                             "effective_score": 0.0, "context": context,
+                             "source_record_ids": evidence, "co_count": count,
                              "dynamic_last_event_id": None}
         for a, b, weight, context, evidence, count in self.connection.execute(
                 "SELECT a,b,weight,context_json,evidence_json,co_count "
                 "FROM memory_static WHERE scope=?", (scope,)):
             edges[(a, b)] = {"static_score": weight, "dynamic_score": 0.0,
-                             "effective_score": weight, "context": json.loads(context),
-                             "source_record_ids": json.loads(evidence), "co_count": count,
+                             "effective_score": weight, "context": context,
+                             "source_record_ids": evidence, "co_count": count,
                              "dynamic_last_event_id": None}
-        for a, b, weight, context, event_id in self.connection.execute(
-                "SELECT a,b,weight,context_json,last_event_id "
+        for a, b, weight, event_id in self.connection.execute(
+                "SELECT a,b,weight,last_event_id "
                 "FROM memory_dynamic WHERE scope=?", (scope,)):
             if (a, b) not in edges:
                 continue  # Preserved history is not valid live source support.
@@ -427,7 +431,16 @@ class MemoryGraph:
                 edge["effective_score"] = weight
             # Prefer current static evidence when it exists. The seeded
             # dynamic context remains stored unchanged for audit.
-        return {pair: edge for pair, edge in edges.items() if edge["effective_score"] > 0}
+        # Static rows supersede support metadata; decode the final live
+        # evidence once, instead of decoding and replacing it twice. This
+        # preserves support insertion order and every eligible audit edge.
+        live_edges = {}
+        for pair, edge in edges.items():
+            if edge["effective_score"] > 0:
+                edge["context"] = json.loads(edge["context"])
+                edge["source_record_ids"] = json.loads(edge["source_record_ids"])
+                live_edges[pair] = edge
+        return live_edges
 
     def retrieve(self, scope: str, marks: list[str], query: str,
                  now: float, *, event_id: str | None = None,
@@ -578,6 +591,14 @@ class MemoryGraph:
             candidate["deduplication_winner"] = bool(winner and winner["from_mark"] == candidate["from_mark"])
             candidate["selected_for_expansion"] = candidate["deduplication_winner"] and candidate["mark"] in selection["expanded_marks"]
 
+        # Only pairs of direct hits can supply direct ranking evidence. Keep
+        # their original edge order so floating-point sums and the complete
+        # evidence receipt remain identical, without scanning every live edge
+        # again for each candidate record (at most six direct pairs).
+        hit_set = set(hits)
+        direct_edges = [(a, b, edge) for (a, b), edge in edges.items()
+                        if a in hit_set and b in hit_set
+                        and (not edge["context"] or any(_hit(m, query) for m in edge["context"]))]
         ranked = []
         for record in records:
             present = set(record["marks"]) & allowed
@@ -585,12 +606,9 @@ class MemoryGraph:
                 continue
             direct = sorted(present & set(hits))
             evidence = []
-            for (a, b), edge in edges.items():
-                if not ({a, b} <= set(direct)):
-                    continue
-                if edge["context"] and not any(_hit(m, query) for m in edge["context"]):
-                    continue
-                evidence.append(dict(edge, from_mark=a, mark=b))
+            for a, b, edge in direct_edges:
+                if a in direct and b in direct:
+                    evidence.append(dict(edge, from_mark=a, mark=b))
             # Exactly the strongest permitted edge explains each extra
             # label. Other incident edges must not double-count it.
             for entry in expanded:

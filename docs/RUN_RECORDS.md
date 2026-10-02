@@ -1,5 +1,7 @@
 # 可核验运行记录：0.12.0
 
+0.12.1 的失败 `turn_end` 增加 `error_type`，SQLite 异常记录库提供的整数 `sqlite_errorcode` / `sqlite_errorname`；本地检索失败记录 `phase`（`retrieval`、`memory_observation`、`freeze_retrieval`）及原 `local_seconds`。仅由本轮时间门禁实际触发的 `SQLITE_INTERRUPT` 转为 `local_memory_timeout`；锁、SQL 错误和外部中断仍保持数据库错误类别，不记录任意异常原文。Python 同步工作末尾仍检查累计时间；这是协作式限制，不是硬抢占。scratch 优化保持原规范 JSON 字节、hash 链、严格输入校验和 flush/fsync 合同。
+
 0.12.0 的机器人输入在 `turn_start.input` 标识 `author_is_bot=true`，`reply_context.response_schema` 绑定实际 Responses 请求的结构化决策合同。`bot_reply_decision` 保存 `action=reply|skip`、解码文字、原始模型 JSON、计量与召回关联。选择 `skip` 时只出现 `turn_end.status=skipped`，没有生成答案、assistant 历史或送达记录；校验器单独统计 skipped，并核验决策、实际请求/响应及用量，不能把静默等同于未发生模型费用或已发送空回复。选择 reply 则冻结解码答案与实际 Discord 文字，受控 @ 和截断属于传输差异，仍分别核验引用。模型失败保持 failed，机器人不发送固定错误提示。
 
 传输准入记录另保存机器人轮次与最近人类重置 epoch；持久预占最多五次，跳过/失败不退款。完整历史已有旧人类记录继续按旧合同检查；机器人决策或起始记录超出滚动窗口时仍显示 `retention_partial`，不能恢复或伪造过期证据。此记录合同证明可观察关联，不证明模型正确理解所有收尾消息。

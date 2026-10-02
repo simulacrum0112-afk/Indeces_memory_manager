@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sqlite3
 import time
 import uuid
 from dataclasses import asdict
@@ -125,26 +126,46 @@ class Runtime:
                                knowledge_scope=self.knowledge_scope)
             delivered = False
             confirmed = False
+            local_phase = None
             try:
                 async with asyncio.timeout(self.config.runtime.turn_seconds):
                     started = time.monotonic()
                     # sqlite is cooperatively interrupted during expensive scans;
                     # graph methods also bound their lookup/expansion outputs.
-                    self.store.db.set_progress_handler(lambda: int(time.monotonic() - started > self.config.runtime.local_seconds), 1000)
+                    local_deadline_observed = False
+
+                    def local_progress():
+                        nonlocal local_deadline_observed
+                        local_deadline_observed |= time.monotonic() - started > self.config.runtime.local_seconds
+                        return int(local_deadline_observed)
+
+                    self.store.db.set_progress_handler(local_progress, 1000)
                     try:
+                        local_phase = "retrieval"
                         graph_audit = {}
                         records = self.graph.retrieve(self.knowledge_scope, [], message.text, time.time(),
                                                       event_id=message.message_id, audit=graph_audit,
                                                       ranking_mode="static")
+                        local_phase = "memory_observation"
                         self.scratch.write("memory_observation", trace_id=trace_id, audit=graph_audit,
                                            audit_sha256=digest(graph_audit))
+                        local_phase = "freeze_retrieval"
                         retrieval = freeze_retrieval(self.store.db, self.knowledge_scope, message.message_id,
                                                      message.text, records, graph_audit)
                         knowledge = retrieval["model_materials"]
+                    except sqlite3.OperationalError as error:
+                        # Only this deadline's actual VM interruption is a local
+                        # timeout. Locks, malformed SQL and external interrupts
+                        # must retain their distinct diagnostic code.
+                        sqlite_code = getattr(error, "sqlite_errorcode", None)
+                        if local_deadline_observed and type(sqlite_code) is int and sqlite_code == sqlite3.SQLITE_INTERRUPT:
+                            raise GovernedError("local_memory_timeout") from error
+                        raise
                     finally:
                         self.store.db.set_progress_handler(None, 0)
                     if time.monotonic() - started > self.config.runtime.local_seconds:
                         raise GovernedError("local_memory_timeout")
+                    local_phase = None
                     retrieval_hash = digest(retrieval)
                     self.scratch.write("retrieval_record", trace_id=trace_id, record=retrieval, record_sha256=retrieval_hash)
                     self.scratch.write("knowledge_retrieved", trace_id=trace_id, input_marks=[],
@@ -202,7 +223,18 @@ class Runtime:
                 if delivered:
                     code = "delivery_unknown:" + code
                 self.store.fail(message.message_id, code)
-                self.scratch.write("turn_end", trace_id=trace_id, status="failed", code=code)
+                diagnostic = error.__cause__ if isinstance(error.__cause__, sqlite3.OperationalError) else error
+                failure_fields = {"error_type": type(diagnostic).__name__}
+                if isinstance(diagnostic, sqlite3.Error):
+                    sqlite_code = getattr(diagnostic, "sqlite_errorcode", None)
+                    sqlite_name = getattr(diagnostic, "sqlite_errorname", None)
+                    if type(sqlite_code) is int:
+                        failure_fields["sqlite_errorcode"] = sqlite_code
+                    if isinstance(sqlite_name, str) and sqlite_name.startswith("SQLITE_") and sqlite_name.isascii() and sqlite_name.replace("_", "").isalnum():
+                        failure_fields["sqlite_errorname"] = sqlite_name
+                if local_phase is not None:
+                    failure_fields.update(phase=local_phase, local_seconds=self.config.runtime.local_seconds)
+                self.scratch.write("turn_end", trace_id=trace_id, status="failed", code=code, **failure_fields)
                 print(f"[{self.config.name}] turn failed: {code}; trace={trace_id}", flush=True)
                 if message.author_is_bot and not delivered:
                     self.scratch.write("failure_notice_skipped", trace_id=trace_id, reason="bot_reply_failed")

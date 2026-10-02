@@ -70,6 +70,23 @@ def text_digest(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _native_json_tree(value):
+    """Keep deepcopy semantics for JSON-compatible nonnative caller objects."""
+    pending = [value]
+    while pending:
+        item = pending.pop()
+        item_type = type(item)
+        if item_type is dict:
+            if any(type(key) is not str for key in item):
+                return False
+            pending.extend(item.values())
+        elif item_type is list:
+            pending.extend(item)
+        elif item_type not in (str, int, float, bool, type(None)):
+            return False
+    return True
+
+
 def freeze_retrieval(db, scope, event_id, query, records, graph_audit):
     """Called synchronously immediately after retrieval, before any await.
 
@@ -130,9 +147,11 @@ def freeze_retrieval(db, scope, event_id, query, records, graph_audit):
             material.update(pdf_page_occurrences=occurrences, pdf_page_numbers=_occurrence_pages(occurrences))
             payload["pdf_page_numbers"] = deepcopy(material["pdf_page_numbers"])
         materials.append(material)
+    audit_content = canonical(graph_audit)
+    audit_snapshot = json.loads(audit_content) if _native_json_tree(graph_audit) else deepcopy(graph_audit)
     result = {"version": 1, "scope": scope, "event_id": event_id, "query": query,
               "model_materials": model_materials, "materials": materials, "sources": sources,
-              "graph_audit": deepcopy(graph_audit), "graph_audit_sha256": digest(graph_audit)}
+              "graph_audit": audit_snapshot, "graph_audit_sha256": hashlib.sha256(audit_content).hexdigest()}
     validate_retrieval(result)
     return result
 
