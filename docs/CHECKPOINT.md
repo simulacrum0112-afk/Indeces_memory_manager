@@ -2,7 +2,9 @@
 
 当前代码版本 **0.12.2**；2026-10-02（用户时区）修复已准入机器人失败无提示的问题，并共享不可变完整审计快照减少检索重复处理。失败回执按类型与模型回答区分，关闭提及；模型 skip 仍静默，五次预占/去重、图规则、模型额度与原 5 秒本地预算不变。旧服务已加载与真实失败的诊断证据只在本机，不发布原文、数据库或真实统计。
 
-[WHEEL_0122.json](../verification/WHEEL_0122.json) 的非 editable 隔离构建/安装、静态默认、CLI 与网页资源验证通过；本机源码与安装包均为0.12.2。[OFFLINE_0122.json](../verification/OFFLINE_0122.json)为850项、0失败、0错误、14跳过、65.531秒；新增35项，CLI/Console/依赖/只读npmi检查通过。提交/远端CI当前待发布；下列历史CI不能代替本版本的证据。
+[WHEEL_0122.json](../verification/WHEEL_0122.json) 的非 editable 隔离构建/安装、静态默认、CLI 与网页资源验证通过；本机源码与安装包均为0.12.2。[OFFLINE_0122.json](../verification/OFFLINE_0122.json)为850项、0失败、0错误、14跳过、65.531秒；新增35项，CLI/Console/依赖/只读npmi检查通过。运行源码 [`549fb161a0a9c749f9f534ff0aba9cc5dd0a8247`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/549fb161a0a9c749f9f534ff0aba9cc5dd0a8247) 已推送 main，绑定精确提交的 [CI 37062176475](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37062176475) 整体 success；Windows/Ubuntu job、unittest 与 CLI check 步骤均 success，公共元数据见 [CI_0122.json](../verification/CI_0122.json)。未读取远端job日志，不推断其测试数量。下列历史CI不能代替本版本的证据。公开范围有限审计见 [REPOSITORY_AUDIT_0122.json](../verification/REPOSITORY_AUDIT_0122.json)：main 可达24提交、439个唯一blob（排除空目录哨兵）及160个公开文件；210个有限规则命中按精确历史blob或已声明unittest限定名称分类，未知发现和禁止路径为零，不发布工具引用或真实运行数据。
+
+最终交付文档/公共CI元数据补扫见 [REPOSITORY_AUDIT_0122_DELIVERY.json](../verification/REPOSITORY_AUDIT_0122_DELIVERY.json)；后续交付提交保持运行源码不变，只推送main。
 
 没有自动启动、停止或热加载真实实例，也没有真实模型或Discord请求。旧Console仍保留加载的模块；需要用户明确结束活动任务、退出并重开Console再start。真实Discord送达与对方机器人响应、收尾判断和召回语义质量仍未验收；磁盘I/O、高负载与任意规模本地硬时限不作保证。
 

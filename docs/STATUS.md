@@ -6,7 +6,7 @@
 
 检索现在只创建一份不可变规范 JSON 审计快照，scratch 复用同一份 bytes，材料冻结独立解码并重新计算 hash 校验；未使用 mutable dict 的身份缓存。普通 scratch/字典冻结保持原路径，完整日志字节、hash 链、严格校验、flush/fsync、来源与 PDF 回执不变。上下文词匹配缓存只限当前选择调用，使用原 `_hit` 规则，不跨消息或 scope。图公式、静态排名、shadow 更新、模型与本地 5 秒预算均保持。
 
-[OFFLINE_0122.json](../verification/OFFLINE_0122.json)：850项、0失败、0错误、14跳过、65.531秒；新增35项及原回归、CLI/Console/依赖/只读npmi检查通过。[WHEEL_0122.json](../verification/WHEEL_0122.json) 的隔离构建/安装、资源与入口检查通过，源码与本机 editable 版本均为 0.12.2。机器人失败/静默/传输、快照逐字节兼容与冻结、上下文缓存等针对性合成测试已通过；完整结果及推送/CI 见 [CHECKPOINT.md](CHECKPOINT.md)。
+[OFFLINE_0122.json](../verification/OFFLINE_0122.json)：850项、0失败、0错误、14跳过、65.531秒；新增35项及原回归、CLI/Console/依赖/只读npmi检查通过。[WHEEL_0122.json](../verification/WHEEL_0122.json) 的隔离构建/安装、资源与入口检查通过，源码与本机 editable 版本均为 0.12.2。机器人失败/静默/传输、快照逐字节兼容与冻结、上下文缓存等针对性合成测试已通过；运行源码 [`549fb16`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/549fb161a0a9c749f9f534ff0aba9cc5dd0a8247) 已推送 main，精确绑定的 [CI 37062176475](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37062176475) Windows/Ubuntu job、unittest与CLI check步骤均 success，见 [CI_0122.json](../verification/CI_0122.json)（未读日志/不推断远端测试数量）；[公开范围有限审计](../verification/REPOSITORY_AUDIT_0122.json) 无未知发现或禁止路径。完整结果及推送/CI 见 [CHECKPOINT.md](CHECKPOINT.md)。
 
 诊断只读 Indeces 自身近期记录和配置；对同一输入的试算只写进程内数据库/日志 sink，未导出或上传原文/数据库/真实运行统计。当前输入在内存试算中可进入原预算，但模拟 fsync、资源负载仍有变化，不能作为实际磁盘路径或任意规模时限保证。没有读取 Yuki 私有数据、启动/停止/热加载真实服务、调用真实模型或发送真实 Discord 消息。旧 Console 要退出并重新打开再 start 才加载新版；真实往返与模型收尾判断质量仍待验收。
 

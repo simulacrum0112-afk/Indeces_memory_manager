@@ -1,0 +1,150 @@
+{
+  "version": "0.12.2",
+  "recorded_at_utc": "2026-10-02T20:45:08.027380+00:00",
+  "implementation_commit": "549fb161a0a9c749f9f534ff0aba9cc5dd0a8247",
+  "run_id": 37062176475,
+  "run_attempt": 1,
+  "url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37062176475",
+  "status": "completed",
+  "conclusion": "success",
+  "public_metadata_without_authentication": true,
+  "source_urls": [
+    "https://api.github.com/repos/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37062176475",
+    "https://api.github.com/repos/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37062176475/jobs?per_page=100"
+  ],
+  "jobs": [
+    {
+      "id": 111021187305,
+      "name": "check (ubuntu-latest, ./.venv/bin/python)",
+      "url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37062176475/job/111021187305",
+      "status": "completed",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run python -m venv .venv",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run ./.venv/bin/python -m pip install -r requirements.lock",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run ./.venv/bin/python -m pip install --no-deps -e .",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run ./.venv/bin/python -m unittest discover -s tests -v",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run ./.venv/bin/python -m indeces check",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 111021187417,
+      "name": "check (windows-latest, ./.venv/Scripts/python.exe)",
+      "url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37062176475/job/111021187417",
+      "status": "completed",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run python -m venv .venv",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run ./.venv/Scripts/python.exe -m pip install -r requirements.lock",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run ./.venv/Scripts/python.exe -m pip install --no-deps -e .",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run ./.venv/Scripts/python.exe -m unittest discover -s tests -v",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run ./.venv/Scripts/python.exe -m indeces check",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "live_model_calls": false,
+  "live_discord_connection": false,
+  "job_logs_read": false,
+  "remote_test_counts_inferred": false,
+  "private_runtime_data_included": false
+}
