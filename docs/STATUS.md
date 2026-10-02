@@ -1,5 +1,7 @@
 # 0.12.5 路径边界修复
 
+首轮远端 [CI 37076777661](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37076777661) 的Ubuntu回归因旧scratch测试匹配错误文字而失败：真实链接已被正确拒绝，但新诊断少了旧的 must not be a link 子串。此用例在本机Windows因链接创建权限而跳过，远端暴露了兼容性遗漏。读取失败job的公开测试诊断（未保存原始日志），恢复兼容诊断文字，不放宽拒绝规则；[首次CI失败证据](../verification/CI_0125_INITIAL.json)保留，相关73项重测通过（8跳过）。新版最终CI须绑定后续修正提交；历史主能量/模型/预算/方法参数无变化。
+
 最终全套932项、0失败/错误、20跳过，隔离安装包通过，源码/editable元数据0.12.5。证据链接与真实实例加载限制见 [CHECKPOINT.md](CHECKPOINT.md)。
 
 修复配置任意知识目录、安全错误后继续入库、根路径链接先解析和旧来源缺少根身份四个已证实缺口。OneDrive与链接在副作用前拒绝，旧来源迁移先备份与完整byte digest核验，来源撤下不删除历史或重置未知usage。普通PDF文件缺失的具体原因尚未证实；已审计主要施工命令成功断言项目路径，没有被报告外目录的移动/删除证据。详见 [PATH_BOUNDARY.md](PATH_BOUNDARY.md)。本轮不启停服务、不对活动真实数据库应用迁移。准确测试/推送状态见 [CHECKPOINT.md](CHECKPOINT.md)。

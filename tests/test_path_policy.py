@@ -33,6 +33,8 @@ class PathPolicyTests(unittest.TestCase):
             operation()
         self.assertEqual(caught.exception.code, code)
         self.assertIn(code, str(caught.exception))
+        if code == "linked_path_forbidden":
+            self.assertIn("must not be a link", str(caught.exception))
         return caught.exception
 
     def symlink(self, name, target):

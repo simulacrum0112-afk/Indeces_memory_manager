@@ -1,0 +1,13 @@
+{
+  "version": "0.12.5",
+  "recorded_at_utc": "2026-10-02T23:19:32.771924+00:00",
+  "implementation_commit": "b8de28993b6233511ed0fdde6d52ac470e6d0e7a",
+  "run_id": 37076777661,
+  "url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37076777661",
+  "diagnostic_scope": "Public run/jobs metadata and the failed Ubuntu unittest section only; no raw log saved, no private runtime data or credentials included.",
+  "failed_job_id": 111068343574,
+  "failing_case": "test_scratch.RetentionTests.test_directory_link_is_rejected_without_creating_logs_in_its_target",
+  "cause": "The new PathPolicyError still rejects the symlink before any write, but its diagnostic no longer included the old must not be a link substring required by a Linux-enabled regression. Local Windows skipped real symlink creation for account privileges.",
+  "fix": "Restore the compatible must not be a link diagnostic; unchanged rejection code, policy and filesystem behavior.",
+  "limitations": "Initial CI failure retained; final success requires the later exact commit. No live model/Discord or historical file-deletion attribution is implied."
+}

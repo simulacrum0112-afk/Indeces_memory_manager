@@ -73,7 +73,7 @@ def _reject_link_ancestors(path: Path, role: str) -> None:
         if (stat.S_ISLNK(metadata.st_mode)
                 or getattr(metadata, "st_file_attributes", 0)
                 & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)):
-            raise PathPolicyError("linked_path_forbidden", f"{role} cannot use a symlink, junction or reparse-point ancestor")
+            raise PathPolicyError("linked_path_forbidden", f"{role} must not be a link or have a symlink, junction or reparse-point ancestor")
 
 
 def _validate_path(value, role: str) -> Path:
