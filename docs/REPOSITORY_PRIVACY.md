@@ -26,3 +26,5 @@
 本地原材料、凭据和运行数据保留在原处；公开仓库不会代替它们的备份。服务、模型请求和 Discord 连接仍由用户在 Console 明确启动。
 
 0.10.0 历史文档同步的链接、版本和 `main` 可达历史/当时待提交内容补充检查保存在 [DOCUMENTATION_CHECKPOINT_0100.json](../verification/DOCUMENTATION_CHECKPOINT_0100.json)。旧验证附件保持原版本和原检查范围；不改写它们来冒充新提交的测试结果，不因 CI 通过扩大秘密扫描或真实联网验收的结论。
+
+0.12.3 的 [REPOSITORY_AUDIT_0123.json](../verification/REPOSITORY_AUDIT_0123.json) 核验 main 可达26提交/468唯一blob与170公开文件，有限规则未知发现/禁止路径均零；最终文档及公共CI元数据补扫见 [REPOSITORY_AUDIT_0123_DELIVERY.json](../verification/REPOSITORY_AUDIT_0123_DELIVERY.json)，源码保持 de07bdb。MB合成基线只留本机临时目录，没有实际服务材料进入公开报告。

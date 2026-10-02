@@ -4,7 +4,7 @@
 
 最终合成基准见 [MEMORY_INDEX_0123.json](../verification/MEMORY_INDEX_0123.json)：每组5次，含聊天状态写入，首轮1k/3k由0.199/0.697降至0.061/0.211秒，暖查询0.223/0.759降至0.048/0.171秒；全部完整结果/audit字节与改前一致。完整审计仍约1.8/5.4MB，最终缩放倍数约3.46/3.56；**未证明全链路线性，也不保证任意规模在5秒内完成**。发布开销、方法和局部索引计数证据见 [STATUS.md](STATUS.md)。不发布临时MB合成基线或真实运行数据。
 
-最终 [OFFLINE_0123_20261002T210751360525Z.json](../verification/OFFLINE_0123_20261002T210751360525Z.json) 为872项、0失败、0错误、14跳过、74.559秒，CLI/Console/依赖/只读npmi通过；[WHEEL_0123.json](../verification/WHEEL_0123.json) 隔离构建/安装、版本、静态默认与资源验证通过，本机源码/editable均0.12.3。公开范围审计、源码推送与CI待本轮完成。本机不自动启停真实服务，旧Console须stop、等待清理、quit再重开/start才加载新版。
+最终 [OFFLINE_0123_20261002T210751360525Z.json](../verification/OFFLINE_0123_20261002T210751360525Z.json) 为872项、0失败、0错误、14跳过、74.559秒，CLI/Console/依赖/只读npmi通过；[WHEEL_0123.json](../verification/WHEEL_0123.json) 隔离构建/安装、版本、静态默认与资源验证通过，本机源码/editable均0.12.3。运行源码 [`de07bdb`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/de07bdb7437893e8009d1e74075bea8f92828ddc) 已推送 main；精确提交 [CI 37065149904](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37065149904) 的 Windows/Ubuntu job、unittest 与 CLI check 步骤均 success，见 [CI_0123.json](../verification/CI_0123.json)（仅公开元数据，未读日志/不推断远端测试数量）。[公开范围有限审计](../verification/REPOSITORY_AUDIT_0123.json) 覆盖此前main可达26提交/468唯一blob及170个公开文件，未知发现/禁止路径为零；本次交付补扫见 [REPOSITORY_AUDIT_0123_DELIVERY.json](../verification/REPOSITORY_AUDIT_0123_DELIVERY.json)，不改变已验证运行源码。本机不自动启停真实服务，旧Console须stop、等待清理、quit再重开/start才加载新版。
 
 ## 0.12.2 历史检查点
 

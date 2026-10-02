@@ -15,7 +15,7 @@
 
 **尚未证明全链路线性缩放。** 改前两点倍数约3.50/3.41，最终改后约3.46/3.56，不能将低绝对延迟说成已经消除总耗时超线性。匹配/候选查找的全量扫描已消除，但完整审计仍约1.8→5.4MB，全部shadow边逐轮舍入/更新/审计必须保留；该成本不能在逐字节合同下改成只碰局部。这里计时的是 `MemoryGraph.retrieve`，不含Runtime后续独立冻结、scratch fsync或真实模型/Discord。另3次发布比较：3000marks代表性新增约0.118→0.151秒、撤下0.118→0.161秒，初次add约0.129→0.220秒；TEMP revision跟踪有已测发布开销。
 
-最终 [OFFLINE_0123_20261002T210751360525Z.json](../verification/OFFLINE_0123_20261002T210751360525Z.json)：872项、0失败、0错误、14跳过、74.559秒；新增22项及CLI/Console/依赖/只读npmi通过。[WHEEL_0123.json](../verification/WHEEL_0123.json) 的隔离构建/安装、版本、静态默认和网页资源通过，本机源码/editable均为0.12.3。开发阶段866/870项通过记录保留，不代替最终872项。公开范围审计和源码推送/CI待本轮完成；不将这些离线证据冒充实际加载或真实Discord验收。没有访问真实配置/数据库、启停或热更新真实服务；新Console进程显式start后才加载新版。
+最终 [OFFLINE_0123_20261002T210751360525Z.json](../verification/OFFLINE_0123_20261002T210751360525Z.json)：872项、0失败、0错误、14跳过、74.559秒；新增22项及CLI/Console/依赖/只读npmi通过。[WHEEL_0123.json](../verification/WHEEL_0123.json) 的隔离构建/安装、版本、静态默认和网页资源通过，本机源码/editable均为0.12.3。开发阶段866/870项通过记录保留，不代替最终872项。运行源码 [`de07bdb`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/de07bdb7437893e8009d1e74075bea8f92828ddc) 已推送 main；精确提交 [CI 37065149904](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37065149904) 的 Windows/Ubuntu job、unittest 与 CLI check 步骤均 success，见 [CI_0123.json](../verification/CI_0123.json)（仅公开元数据，未读日志/不推断远端测试数量）。[公开范围有限审计](../verification/REPOSITORY_AUDIT_0123.json) 覆盖此前main可达26提交/468唯一blob及170个公开文件，未知发现/禁止路径为零；本次交付补扫见 [REPOSITORY_AUDIT_0123_DELIVERY.json](../verification/REPOSITORY_AUDIT_0123_DELIVERY.json)，不改变已验证运行源码。 不将这些离线证据冒充实际加载或真实Discord验收。没有访问真实配置/数据库、启停或热更新真实服务；新Console进程显式start后才加载新版。
 
 # 0.12.2 历史交付
 
