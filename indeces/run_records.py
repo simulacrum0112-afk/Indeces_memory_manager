@@ -18,6 +18,12 @@ from .contracts import validated_token_usage
 
 
 MAX_PDF_METADATA_BYTES = 512 * 1024
+MODEL_PROJECTION = "citation_material_v1"
+_MODEL_MATERIAL_FIELDS = (
+    "id", "source_id", "scope", "text", "text_truncated", "quote", "marks",
+    "direct_marks", "expanded_marks", "ranking_mode", "weight_basis",
+    "static_score", "dynamic_score", "ranking_score",
+)
 
 
 def pdf_conversion_metadata(encoded):
@@ -90,8 +96,9 @@ def _native_json_tree(value):
 def freeze_retrieval(db, scope, event_id, query, records, graph_audit):
     """Called synchronously immediately after retrieval, before any await.
 
-    Full source text belongs only in scratch. The exact bounded model payload
-    is kept separately; version metadata is never fetched again after delivery.
+    Full source-version catalogs and graph evidence belong in scratch. The
+    model view retains complete selected quotes, separately from that audit;
+    version metadata is never fetched again after delivery.
     An internal CanonicalSnapshot owns immutable, validated audit bytes; decode
     them into an independent receipt while preserving the fresh digest check.
     """
@@ -99,7 +106,11 @@ def freeze_retrieval(db, scope, event_id, query, records, graph_audit):
     tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     for index, record in enumerate(records, 1):
         citation_id = f"M{index}"
-        payload = {**deepcopy(record), "citation_id": citation_id, "citation_marker": f"[{citation_id}]"}
+        # Graph evidence can contain every supporting record ID and context
+        # mark. It remains frozen in graph_audit, rather than growing the
+        # model request each time the knowledge library grows.
+        payload = {key: deepcopy(record[key]) for key in _MODEL_MATERIAL_FIELDS}
+        payload.update(citation_id=citation_id, citation_marker=f"[{citation_id}]")
         model_materials.append(payload)
         row = db.execute("SELECT text,quote,marks_json,fingerprint,active,scope,source_id "
                          "FROM memory_records WHERE id=?", (record["id"],)).fetchone()
@@ -159,6 +170,7 @@ def freeze_retrieval(db, scope, event_id, query, records, graph_audit):
         audit_snapshot = json.loads(audit_content) if _native_json_tree(graph_audit) else deepcopy(graph_audit)
         audit_sha256 = hashlib.sha256(audit_content).hexdigest()
     result = {"version": 1, "scope": scope, "event_id": event_id, "query": query,
+              "model_projection": MODEL_PROJECTION,
               "model_materials": model_materials, "materials": materials, "sources": sources,
               "graph_audit": audit_snapshot, "graph_audit_sha256": audit_sha256}
     validate_retrieval(result)
@@ -205,8 +217,68 @@ def _require(condition, message):
         raise ValueError(message)
 
 
+def _has_model_projection(record):
+    if "model_projection" not in record:
+        return False
+    _require(record["model_projection"] == MODEL_PROJECTION, "unsupported model material projection")
+    return True
+
+
+def _validate_projection_keys(payload, material):
+    expected = set(_MODEL_MATERIAL_FIELDS) | {"citation_id", "citation_marker"}
+    if "pdf_page_numbers" in material:
+        expected.add("pdf_page_numbers")
+    elif isinstance(payload, dict):
+        _require("pdf_page_numbers" not in payload, "PDF pages have no frozen conversion metadata")
+    _require(isinstance(payload, dict) and set(payload) == expected, "model material projection fields mismatch")
+
+
+def _validate_model_projection(payload, material, candidate, selection):
+    """Reconstruct the exact model view from independent frozen evidence."""
+    _validate_projection_keys(payload, material)
+    _require(candidate["record_id"] == material["record_id"]
+             and candidate["source_id"] == material["source_id"]
+             and candidate["marks"] == material["marks"], "model projection candidate mismatch")
+    full = material["stored_text"]
+    citation_id = material["citation_id"]
+    expected = {
+        "citation_id": citation_id, "citation_marker": f"[{citation_id}]",
+        "id": material["record_id"], "source_id": material["source_id"], "scope": material["scope"],
+        "text": full[:109] + "…" if len(full) > 110 else full,
+        "text_truncated": len(full) > 110, "quote": material["quote"], "marks": material["marks"],
+        "direct_marks": candidate["direct_marks"], "expanded_marks": candidate["expanded_marks"],
+        "ranking_mode": selection.get("ranking_mode", "dynamic"),
+        "weight_basis": selection.get("weight_basis", "dynamic_or_static"),
+        "static_score": round(candidate["static_score"], 6),
+        "dynamic_score": candidate["dynamic_score"],
+        "ranking_score": round(candidate["effective_score"], 6),
+    }
+    if "pdf_page_numbers" in material:
+        expected["pdf_page_numbers"] = material["pdf_page_numbers"]
+    # Exact JSON bytes also distinguish bool/int and signed-zero changes.
+    _require(canonical(payload) == canonical(expected), "model material projection mismatch")
+
+
+def _validate_legacy_model_material(payload, material, candidate, selection):
+    """Keep the complete-evidence contract for already retained receipts."""
+    _require("evidence" in payload, "legacy model evidence missing")
+    _require(candidate["record_id"] == material["record_id"]
+             and candidate["source_id"] == material["source_id"]
+             and candidate["marks"] == material["marks"], "legacy model candidate mismatch")
+    if "ranking_mode" in selection:
+        _require(payload.get("ranking_mode") == selection["ranking_mode"]
+                 and payload.get("weight_basis") == selection["weight_basis"], "model material weight basis mismatch")
+    _require(candidate["evidence"] == payload["evidence"]
+             and candidate["direct_marks"] == payload["direct_marks"]
+             and candidate["expanded_marks"] == payload["expanded_marks"]
+             and round(candidate["static_score"], 6) == payload["static_score"]
+             and candidate["dynamic_score"] == payload["dynamic_score"]
+             and round(candidate["effective_score"], 6) == payload["ranking_score"], "selected evidence mismatch")
+
+
 def validate_retrieval(record):
     _require(record["version"] == 1, "unsupported retrieval record")
+    projected = _has_model_projection(record)
     _require(digest(record["graph_audit"]) == record["graph_audit_sha256"], "graph audit digest mismatch")
     materials = record["materials"]
     _require(len(materials) <= 3, "too many recalled materials")
@@ -214,6 +286,8 @@ def validate_retrieval(record):
     _require(set(record["sources"]) == {m["source_id"] for m in materials}, "source catalog mismatch")
     for index, material in enumerate(materials, 1):
         payload, source = material["model_payload"], record["sources"][material["source_id"]]
+        if projected:
+            _validate_projection_keys(payload, material)
         _require(material["citation_id"] == f"M{index}" and payload["citation_id"] == f"M{index}"
                  and payload["citation_marker"] == f"[M{index}]", "citation binding mismatch")
         _require(material["scope"] == record["scope"] == payload["scope"], "material scope mismatch")
@@ -225,6 +299,14 @@ def validate_retrieval(record):
         preview = full[:109] + "…" if len(full) > 110 else full
         _require(payload["text"] == preview and payload["text_truncated"] == (len(full) > 110), "model preview mismatch")
         _require(digest([material["stored_text"], material["quote"]]) == material["fingerprint"], "material fingerprint mismatch")
+        selection = record["graph_audit"]["selection"]
+        _require(len(selection["ranked_candidates"]) >= index, "model material candidate missing")
+        if projected:
+            _validate_model_projection(payload, material, selection["ranked_candidates"][index - 1], selection)
+        else:
+            # Missing the projection marker cannot downgrade a compact view
+            # to the historical complete-evidence contract.
+            _validate_legacy_model_material(payload, material, selection["ranked_candidates"][index - 1], selection)
         if not source["metadata_available"]:
             _require(not material["source_id"].startswith("kb:"), "knowledge version metadata missing")
             _require(not any(key in material for key in ("pdf_page_occurrences", "pdf_page_numbers"))
@@ -802,6 +884,7 @@ def verify_runs(paths: list[Path]):
 def validate_graph_audit(audit, retrieval=None):
     _require(audit["schema_version"] == 1, "graph audit version mismatch")
     if retrieval is not None:
+        projected = _has_model_projection(retrieval)
         _require(audit["scope"] == retrieval["scope"] and audit["event_id"] == retrieval["event_id"]
                  and audit["request"]["query"] == retrieval["query"], "graph audit input mismatch")
     durable = audit["durable_payload_sha256"]
@@ -926,6 +1009,8 @@ def validate_graph_audit(audit, retrieval=None):
     _require(len(selection["selected"]) == len(materials), "selected receipt mismatch")
     for material, selected, candidate in zip(materials, selection["selected"], ranked):
         payload = material["model_payload"]
+        if projected:
+            _validate_projection_keys(payload, material)
         if "ranking_mode" in selection:
             _require(payload.get("ranking_mode") == ranking_mode
                      and payload.get("weight_basis") == selection["weight_basis"], "model material weight basis mismatch")
@@ -933,5 +1018,7 @@ def validate_graph_audit(audit, retrieval=None):
                  and candidate["text_sha256"] == text_digest(material["stored_text"])
                  and candidate["quote_sha256"] == text_digest(material["quote"])
                  and selected["preview_sha256"] == text_digest(payload["text"]), "selected content digest mismatch")
-        _require(candidate["marks"] == material["marks"] and candidate["evidence"] == payload["evidence"]
-                 and round(candidate["effective_score"], 6) == payload["ranking_score"], "selected evidence mismatch")
+        if projected:
+            _validate_model_projection(payload, material, candidate, selection)
+        else:
+            _validate_legacy_model_material(payload, material, candidate, selection)

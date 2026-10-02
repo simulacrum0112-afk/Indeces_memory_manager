@@ -1,0 +1,32 @@
+{
+  "version": "0.12.4",
+  "recorded_at_utc": "2026-10-02T21:34:53.198346+00:00",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python_version": "3.12.14",
+  "build_requirements": "pip temporary build isolation; runtime venv unchanged",
+  "source_scope": "Current contents of git-tracked public files only",
+  "wheel": "indeces_memory_manager-0.12.4-py3-none-any.whl",
+  "non_editable_install": true,
+  "packaged_assets": [
+    "indeces/web/observer.html",
+    "indeces/web/observer.css",
+    "indeces/web/observer.js"
+  ],
+  "installed_import_check": "Installed import, static retrieval default and diagnostic entry point: passed",
+  "cli_checks": [
+    {
+      "command": "check",
+      "exit_code": 0,
+      "output": "Offline configuration/import check OK; Indeces 0.12.4; discord.py 2.7.1; pypdf 6.19.0.\nLive Discord and model calls were not made."
+    },
+    {
+      "command": "npmi",
+      "exit_code": 0,
+      "output": "静态 NPMI：当前回复按静态边扩展和排序；动态权重仅作观察历史。\n尚无可读取的知识图；材料完成发布后才进入统计。"
+    }
+  ],
+  "live_model_calls": false,
+  "live_discord_connection": false,
+  "private_config_or_runtime_read": false,
+  "passed": true
+}

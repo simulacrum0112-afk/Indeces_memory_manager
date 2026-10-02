@@ -1,4 +1,10 @@
-# 可核验运行记录：0.12.2
+# 可核验运行记录：0.12.4
+
+0.12.4 的检索记录仍为 `version=1`，新增 `model_projection="citation_material_v1"`，声明实际送给模型的固定字段视图。每条保留 `id/source_id/scope`、完整 `quote`、原110字符预览及截断声明、`marks/direct_marks/expanded_marks`、排序模式/依据/三个分数、`citation_id/citation_marker` 和可选 PDF 物理页码。完整支持记录 ID、图 context、权重转换和排序证据继续在 `graph_audit`；完整来源版本目录、原文和物理页位置继续冻结在材料与来源目录，不复制进模型请求。
+
+两个独立校验入口从冻结材料和已选候选重建视图，核验键集合与规范 JSON 字节；未知视图标记拒绝，删除标记不能将精简材料降级为旧合同。旧无标记记录继续要求完整 evidence 与候选绑定，保留旧动态/无模式审计兼容。`reply_context` 与实际模型请求仍严格绑定 `model_materials`，答案/送达的 `[M]` 关联保持。旧记录不重写；完整图审计字节不变，整个 retrieval receipt 和模型输入因视图修复而变化。
+
+固定上下文的原 UTF-8 字节预留、水位摘要策略及供应商实际 input token 门禁保持。视图不是截断原文或扩大额度，不能保证任意长当前消息与完整材料一定可容纳。
 
 0.12.3 仅替换内部材料缓存与查找索引；完整全图 edge_statistics、全部频次/邻居/候选决策与 shadow 转换均保留原规范字节，图审计 schema、来源绑定和独立校验不变。缓存私有对象不进入 scratch，仍输出每轮拥有的独立数据树。
 

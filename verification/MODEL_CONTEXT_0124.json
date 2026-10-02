@@ -1,0 +1,90 @@
+{
+  "version": "0.12.4",
+  "recorded_at_utc": "2026-10-02T21:31:02.755020+00:00",
+  "baseline_public_source_commit": "de07bdb7437893e8009d1e74075bea8f92828ddc",
+  "live_model_calls": false,
+  "live_discord_connection": false,
+  "private_runtime_data_included": false,
+  "private_config_or_runtime_read_in_this_verification": false,
+  "service_started_stopped_or_hotpatched": false,
+  "reply_input_limit": 16384,
+  "summary_reserved_utf8_bytes": 4096,
+  "local_memory_seconds": 5.0,
+  "model_concurrency": 1,
+  "budgets_or_graph_formulas_changed": false,
+  "planning_units": "Conservative UTF-8 byte reservation, not provider-measured tokens.",
+  "scope": "Synthetic four-mark records, unchanged full quote, three citations, bot reply schema and zero raw history.",
+  "samples": [
+    {
+      "active_records": 25,
+      "recalled_materials": 3,
+      "graph_audit_sha256": "5a68e1e0a728a644fdb6fd33d94ff3f3364a3d60695e2c0a10c725e0168ae28c",
+      "selection_sha256": "3a7e48acdf26248dd450a5000d1465bc37f8848915f5d1627c1343dfffde5efe",
+      "memory_database_sha256": "b730985415476a956d5987104bcadad492fc081076a46607fc7b01cb9987061f",
+      "full_graph_audit_bytes_equal": true,
+      "retrieval_results_and_database_unchanged": true,
+      "full_materials_and_sources_unchanged": true,
+      "projected_values_identical_to_original_fields": true,
+      "before": {
+        "model_material_utf8_bytes": 7927,
+        "fixed_byte_reservation": 15206,
+        "raw_history_capacity": null,
+        "planning_failure": "fixed_context_too_large"
+      },
+      "after": {
+        "model_material_utf8_bytes": 2608,
+        "fixed_byte_reservation": 9335,
+        "raw_history_capacity": 2953,
+        "planning_failure": null
+      }
+    },
+    {
+      "active_records": 100,
+      "recalled_materials": 3,
+      "graph_audit_sha256": "54db95ff59829d7b5666d309827dfe8c62ade69b49d498f89406719b7ea46d5c",
+      "selection_sha256": "fb6c4e8faad3cbd29afc53a20b4fa6446c7a1adf88562b7abefe654843b30e79",
+      "memory_database_sha256": "472b6691cc7d1ac9f6a87c17481514f9fcfe1b2f63a7b08822af2bd4c1c44a10",
+      "full_graph_audit_bytes_equal": true,
+      "retrieval_results_and_database_unchanged": true,
+      "full_materials_and_sources_unchanged": true,
+      "projected_values_identical_to_original_fields": true,
+      "before": {
+        "model_material_utf8_bytes": 12014,
+        "fixed_byte_reservation": 19293,
+        "raw_history_capacity": null,
+        "planning_failure": "fixed_context_too_large"
+      },
+      "after": {
+        "model_material_utf8_bytes": 2609,
+        "fixed_byte_reservation": 9336,
+        "raw_history_capacity": 2952,
+        "planning_failure": null
+      }
+    },
+    {
+      "active_records": 200,
+      "recalled_materials": 3,
+      "graph_audit_sha256": "5aff414036e78c37dd4cfa4e484fdd236db1ec080dcfdde2b3b2b323b79cb806",
+      "selection_sha256": "db2cd8d6b66b66cbbaab32f9e9302a8fd960c78b7fbf39ff86165164c372ed1b",
+      "memory_database_sha256": "f0bfcb3889f4f1a1774b0cbccbdfe91127e1cbd1ead78731c9ec8fd2a5863b1e",
+      "full_graph_audit_bytes_equal": true,
+      "retrieval_results_and_database_unchanged": true,
+      "full_materials_and_sources_unchanged": true,
+      "projected_values_identical_to_original_fields": true,
+      "before": {
+        "model_material_utf8_bytes": 19216,
+        "fixed_byte_reservation": 26495,
+        "raw_history_capacity": null,
+        "planning_failure": "fixed_context_too_large"
+      },
+      "after": {
+        "model_material_utf8_bytes": 2611,
+        "fixed_byte_reservation": 9338,
+        "raw_history_capacity": 2950,
+        "planning_failure": null
+      }
+    }
+  ],
+  "passed": true,
+  "limits": "Does not prove live answers, delivery, semantic support or fit for arbitrarily large current messages/material text."
+}

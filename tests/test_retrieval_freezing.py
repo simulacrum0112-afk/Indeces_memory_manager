@@ -126,7 +126,10 @@ class RetrievalFreezingTests(RecordFixture, unittest.TestCase):
                 validate_retrieval(frozen)
 
     def test_nonnative_nested_mutation_does_not_change_compatibility_snapshot(self):
-        nested = {"synthetic_nonnative": ("tuple", [1, {"x": [2, 3]}])}
+        # Model projections require the independently frozen candidate evidence;
+        # retain that real audit while exercising non-native nested copying.
+        nested = deepcopy(self.audit)
+        nested["synthetic_nonnative"] = ("tuple", [1, {"x": [2, 3]}])
         frozen = self.freeze(nested)
         expected = deepcopy(frozen)
         nested["synthetic_nonnative"][1][1]["x"].append(4)

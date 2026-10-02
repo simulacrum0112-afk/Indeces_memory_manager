@@ -1,0 +1,1869 @@
+{
+  "version": "0.12.4",
+  "recorded_at_utc": "2026-10-02T21:37:06.343049+00:00",
+  "baseline_main": "124cea7ca9e7220972ac81c3ec47afbcd6665c75",
+  "main_reachable_commits": 28,
+  "main_reachable_unique_blobs_excluding_empty_sentinel": 492,
+  "current_public_files_scanned": 181,
+  "scope": "Reachable main history and exact staged public files; no local tool refs, untracked assets, service data, release attachments or CI logs. Audit reports are metadata, excluded from recursive own-pattern scanning.",
+  "rule_definitions": {
+    "provider_key_shape": "(?<![A-Za-z0-9_-])sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{16,}",
+    "github_token_shape": "\\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{30,})\\b",
+    "private_key_header": "-----BEGIN(?: RSA| DSA| EC| OPENSSH| ENCRYPTED)? PRIVATE KEY-----",
+    "discord_token_shape": "(?:mfa\\.[A-Za-z0-9_-]{80,}|[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{6,}\\.[A-Za-z0-9_-]{20,})",
+    "private_runtime_path": "Tracked path components assets/state/scratch/knowledge/_staging; config.local.toml/.env; extensions .sqlite3/.sqlite/.db/.secret/.jsonl. knowledge/.gitkeep allowed only as an empty tracked sentinel; its content is not read."
+  },
+  "classification_policy": "Exact prior blob/path/line/rule, verified LF/CRLF equivalent blob, or exact qualified current unittest AST identifier; no broad test-directory exemption.",
+  "scanned_files": [
+    {
+      "blob": "042ff9a9e2f3312dd11bc837c2d40837c0d36c87",
+      "path": ".env.example"
+    },
+    {
+      "blob": "4b887bf0f0d287bea91fabb7e143fe0b4ca46a20",
+      "path": ".gitattributes"
+    },
+    {
+      "blob": "d444df17359d753984f9c77a09983184c7689b52",
+      "path": ".github/workflows/check.yml"
+    },
+    {
+      "blob": "5036707bf05f997175fe66eeb440885576b14dd4",
+      "path": ".gitignore"
+    },
+    {
+      "blob": "1b18f81a55d735fc979bd679ad7e71845719fe96",
+      "path": "AGENTS.md"
+    },
+    {
+      "blob": "e5c32a78a3fee144c80c7b3844c150c13873e5ab",
+      "path": "Indeces-Console.cmd"
+    },
+    {
+      "blob": "c2fa3a591120825acb1079113485d70f52175545",
+      "path": "Indeces-Knowledge.cmd"
+    },
+    {
+      "blob": "eb9ae6170872188ad2eeb491cd4b7d18c6020b52",
+      "path": "LICENSE"
+    },
+    {
+      "blob": "c372325e76b649576f1e841f92d50e38f5012647",
+      "path": "README.md"
+    },
+    {
+      "blob": "8eab33b281115306257dc430f406f632850a69b0",
+      "path": "THIRD_PARTY_NOTICES.md"
+    },
+    {
+      "blob": "b64b430e8c660324cc7c061870ad8a7765c033c7",
+      "path": "config.example.toml"
+    },
+    {
+      "blob": "76ebc6f6f149019560b047635afede8398a33cf7",
+      "path": "docs/ARCHITECTURE.md"
+    },
+    {
+      "blob": "3764a52544a40be75a7c15d11c6fa1f03078cb60",
+      "path": "docs/BASELINE.md"
+    },
+    {
+      "blob": "250d7c9bf869fece29f74bb7594c63c3b8649924",
+      "path": "docs/CHECKPOINT.md"
+    },
+    {
+      "blob": "3f63886dcb702388c76a828b641367570d234645",
+      "path": "docs/KNOWLEDGE_DIRECTORY.md"
+    },
+    {
+      "blob": "626ed9be5175eb26e56d3901baf5440e9e44019d",
+      "path": "docs/OBSERVABILITY.md"
+    },
+    {
+      "blob": "98faf37bd603608a89bfaac34900a41505b8392e",
+      "path": "docs/PDF_IMPORT.md"
+    },
+    {
+      "blob": "9e64c717d052e3ff8f07ed6ac11eabd89f6d2ce5",
+      "path": "docs/REPOSITORY_PRIVACY.md"
+    },
+    {
+      "blob": "92d737830cc7a57eb7cc3c04dec27c068b59f31c",
+      "path": "docs/RUN_RECORDS.md"
+    },
+    {
+      "blob": "23db0475b11ea17231d867fd8c10e92fd91fa3cc",
+      "path": "docs/STATUS.md"
+    },
+    {
+      "blob": "86c75685cd778af2db610d6d51937aab70c38921",
+      "path": "indeces/__init__.py"
+    },
+    {
+      "blob": "abbb9e29fce127e2350e3cc74a2aef8dd735a9fd",
+      "path": "indeces/__main__.py"
+    },
+    {
+      "blob": "c7d6c1dfbea7a749329575e2a8c5584ad9aa3815",
+      "path": "indeces/adapter.py"
+    },
+    {
+      "blob": "88b6d0e02b1d6147244460ddd1fb221d0e5d243e",
+      "path": "indeces/api_key_wizard.py"
+    },
+    {
+      "blob": "56b48375de422c8223f0cabd83d0d4e34fb43bca",
+      "path": "indeces/bot_conversations.py"
+    },
+    {
+      "blob": "d1cf7e233341846e4cbe269b041667dff24c0989",
+      "path": "indeces/config.py"
+    },
+    {
+      "blob": "b432db26f97cd4befde405b631ff27d9590bc96b",
+      "path": "indeces/console.py"
+    },
+    {
+      "blob": "0d8051afb113a6c34a1a3ef833d4997f2c046e29",
+      "path": "indeces/console_instance.py"
+    },
+    {
+      "blob": "00f7b0d2b7a65eb17037733e941df0e146ffeaff",
+      "path": "indeces/console_session.py"
+    },
+    {
+      "blob": "726f8dda1a2ea6a007774eda6fae96a1a666a9d4",
+      "path": "indeces/context.py"
+    },
+    {
+      "blob": "94bbabd74eb2705961005fa2070a0d4d446f0d52",
+      "path": "indeces/contracts.py"
+    },
+    {
+      "blob": "98c40ec1a8382a32a8d2163eaf50c30cb3524bdf",
+      "path": "indeces/credentials.py"
+    },
+    {
+      "blob": "2c74e5ab84e5ea410c84bf533df565cbbce52775",
+      "path": "indeces/discord_bridge.py"
+    },
+    {
+      "blob": "96a4ea79a6087b3c5f3a491edf881ca94bc12ace",
+      "path": "indeces/discord_wizard.py"
+    },
+    {
+      "blob": "3b2e9634d8b25ce1d435a4b198439289a252d1c3",
+      "path": "indeces/identity.py"
+    },
+    {
+      "blob": "87b7eb590d924af1a3dc468c99dae44c6847c818",
+      "path": "indeces/ingest.py"
+    },
+    {
+      "blob": "76baf8639d5e918d0b24b729a757b40965149f78",
+      "path": "indeces/knowledge.py"
+    },
+    {
+      "blob": "ce63a9e5fabcb70a69c2353a8a208fda5ff8da0c",
+      "path": "indeces/knowledge_audit.py"
+    },
+    {
+      "blob": "a8d2265cbc1be16e0853c3ea58b740124994f5a4",
+      "path": "indeces/knowledge_directory.py"
+    },
+    {
+      "blob": "530daef217081a39890ecfe67038bcaf3d0aed25",
+      "path": "indeces/knowledge_progress.py"
+    },
+    {
+      "blob": "062b358d7cc9a438f30a314d49f9bb00b9bee53a",
+      "path": "indeces/lock.py"
+    },
+    {
+      "blob": "7af1763ad69cdb4ddfe2cdabf24d3be88b3345d8",
+      "path": "indeces/memory.py"
+    },
+    {
+      "blob": "dbaa0138b8564d7266c1eadd68d77e475b1e25b9",
+      "path": "indeces/observer.py"
+    },
+    {
+      "blob": "514c5fee200b997882b4c67b07a175f95affe1e8",
+      "path": "indeces/observer_data.py"
+    },
+    {
+      "blob": "42859bf5581b5093c0cbe3457c7a47785a31408a",
+      "path": "indeces/pdf_import.py"
+    },
+    {
+      "blob": "8de5d3c7088c9cef945a8c70a3fe5309bf336de4",
+      "path": "indeces/prompts.py"
+    },
+    {
+      "blob": "523d2ef679fc97da5193a027523443521b1866e6",
+      "path": "indeces/run_records.py"
+    },
+    {
+      "blob": "3efbeb50974ff6f549abc5d15dcaa86126b2b901",
+      "path": "indeces/runtime.py"
+    },
+    {
+      "blob": "313586537c3c6b97dbc60c9e2f7b8cb5efc3f5ee",
+      "path": "indeces/scratch.py"
+    },
+    {
+      "blob": "e7324266b7b05a0c1c88059f984d98d11ae64f5f",
+      "path": "indeces/store.py"
+    },
+    {
+      "blob": "b9aa729f2687f7d901e187d98eb5f0f5d4df0500",
+      "path": "indeces/web/observer.css"
+    },
+    {
+      "blob": "3fc2d497c160dfab74bb6cddfcf93c9f04537730",
+      "path": "indeces/web/observer.html"
+    },
+    {
+      "blob": "8576c484b7e15550c51f2a1a9f5f3c53515cc511",
+      "path": "indeces/web/observer.js"
+    },
+    {
+      "blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "path": "knowledge/.gitkeep"
+    },
+    {
+      "blob": "f86cd191fd73c088810184778d0d06b7b14456b6",
+      "path": "pyproject.toml"
+    },
+    {
+      "blob": "a10fb4446ee97d3e3fac063a33668a3ea8e78386",
+      "path": "requirements.lock"
+    },
+    {
+      "blob": "7bfaa9aedb7b75e0a3fe5224e8da7c69de20a123",
+      "path": "setup.cmd"
+    },
+    {
+      "blob": "282ee2b216e1cbe96f061d832103ac78bf3e1708",
+      "path": "tests/observer_demo.py"
+    },
+    {
+      "blob": "e7789c8c6dd564e149023cebb38ee7c17618f194",
+      "path": "tests/observer_frontend.test.cjs"
+    },
+    {
+      "blob": "cfac35aa111536a917796014eb4e4d461232dc25",
+      "path": "tests/pdf_fixtures.py"
+    },
+    {
+      "blob": "5561edcd7c2e8823cbd467c9b9195dcea915beb0",
+      "path": "tests/test_adapter.py"
+    },
+    {
+      "blob": "a4f0f260767f83c113d8e4d7007938d3eb14beca",
+      "path": "tests/test_api_key_wizard.py"
+    },
+    {
+      "blob": "dca59a396d9968b84fd6214564f96aa1272bb325",
+      "path": "tests/test_audit_failures.py"
+    },
+    {
+      "blob": "e1cc67d6a82bcaa17dee1b3868a7e7d5413feed6",
+      "path": "tests/test_bot_bridge.py"
+    },
+    {
+      "blob": "99efe6c5c52c8ececd759d09b9a570f7f4923977",
+      "path": "tests/test_bot_conversations.py"
+    },
+    {
+      "blob": "ea2c1984198b23c7442591eee5d3687029864cc0",
+      "path": "tests/test_bot_failure_notices.py"
+    },
+    {
+      "blob": "d577b80ec045b6a3ae989e3e8df7f1efd672019e",
+      "path": "tests/test_bot_reply_records.py"
+    },
+    {
+      "blob": "eb2980e3a0471b9adc227176d05ef54d06cc1a80",
+      "path": "tests/test_console.py"
+    },
+    {
+      "blob": "c8a7cc5e3d2921566ae33316442b0cd77f9e1df1",
+      "path": "tests/test_console_instance.py"
+    },
+    {
+      "blob": "dd44215fda4cf2b411bbc28b90f85425c4c70496",
+      "path": "tests/test_console_process.py"
+    },
+    {
+      "blob": "ef45bfa12ec4f3c7478c3f338a350e4deee49799",
+      "path": "tests/test_console_session.py"
+    },
+    {
+      "blob": "9489aae75c595f9da5babcbbb7c5aefecef6cb31",
+      "path": "tests/test_console_start_lock.py"
+    },
+    {
+      "blob": "ef7369a96907b66f3b5c29d018f684c7a7f9b6da",
+      "path": "tests/test_context.py"
+    },
+    {
+      "blob": "7ec17625b040a40024c02db39d92e385280ff1a3",
+      "path": "tests/test_context_projection.py"
+    },
+    {
+      "blob": "ca7aaa4738b80a08068c59eecec7461a06bb492a",
+      "path": "tests/test_credentials.py"
+    },
+    {
+      "blob": "444f0fbf88a0849edb6e83392957c2ee97e5c8f0",
+      "path": "tests/test_discord_bridge.py"
+    },
+    {
+      "blob": "c7637a3d94e97b4743bd897f527c7a70cda052dc",
+      "path": "tests/test_discord_wizard.py"
+    },
+    {
+      "blob": "b2e9ba97f00175ab05a6dbc1460904c1d20d6042",
+      "path": "tests/test_ingest.py"
+    },
+    {
+      "blob": "1d87a27901b0e32991ff4ba72fbe0259dcbf1d8f",
+      "path": "tests/test_knowledge.py"
+    },
+    {
+      "blob": "9f3502d0989920aa4d8c6b3ce26559c813283729",
+      "path": "tests/test_knowledge_audit.py"
+    },
+    {
+      "blob": "034f63526f117cde82645f6c7d30244b4c8dc6be",
+      "path": "tests/test_knowledge_directory.py"
+    },
+    {
+      "blob": "ccd7882c236171b8fb1e7b87c4b2b958cd49863b",
+      "path": "tests/test_knowledge_directory_scan.py"
+    },
+    {
+      "blob": "cf4df6ad37374bb4f40d53fcbdaf1bfa786ec430",
+      "path": "tests/test_knowledge_pdf.py"
+    },
+    {
+      "blob": "4c1c3be599df704119271b69ef7c00340ef2ca0d",
+      "path": "tests/test_knowledge_progress.py"
+    },
+    {
+      "blob": "5609e602bdf6e775543c8679c0470d56fbc8994b",
+      "path": "tests/test_knowledge_recovery.py"
+    },
+    {
+      "blob": "804af4d817857218d24b29be66823004f6243a64",
+      "path": "tests/test_label_contract.py"
+    },
+    {
+      "blob": "fe5d22a043cc4a69f64b883cba2c030490956c28",
+      "path": "tests/test_local_retrieval_deadline.py"
+    },
+    {
+      "blob": "0ed3007c66aa38b3585645d3ff82f394b765e9cc",
+      "path": "tests/test_lock.py"
+    },
+    {
+      "blob": "ecb51a367977931683a0b22376b4a3661dfc501b",
+      "path": "tests/test_memory.py"
+    },
+    {
+      "blob": "cf07a308ddfbcff78a4d3d3f392011e2db1b4587",
+      "path": "tests/test_memory_indexes.py"
+    },
+    {
+      "blob": "42cc9ca170520e80b2a909e3d365f739426101ed",
+      "path": "tests/test_memory_query_match.py"
+    },
+    {
+      "blob": "da5de1807743fced4d546ebf71d4a4add3a98e83",
+      "path": "tests/test_memory_selection_performance.py"
+    },
+    {
+      "blob": "7d3f956e9d45dcd0524d21eba1d4c8d137cd1dca",
+      "path": "tests/test_model_materials.py"
+    },
+    {
+      "blob": "19b5a0a92d22c17c3b93a160b02bb5f0b2b93392",
+      "path": "tests/test_name_migration.py"
+    },
+    {
+      "blob": "40b1bea3cab55a1edbe80214a72c8c9e27934e11",
+      "path": "tests/test_observer_data.py"
+    },
+    {
+      "blob": "7d74f36f061d95cc19ddfd1024336b1be97befeb",
+      "path": "tests/test_observer_frontend.py"
+    },
+    {
+      "blob": "8e31f4b43f6afeac9ae64293c32d9f8565fab030",
+      "path": "tests/test_observer_review.py"
+    },
+    {
+      "blob": "6be16ab3cffc88eb0aaf57f32a6fac39f67fd10e",
+      "path": "tests/test_observer_server.py"
+    },
+    {
+      "blob": "87c43cc497d296f096a3e9ff37db95d5d4243289",
+      "path": "tests/test_observer_service.py"
+    },
+    {
+      "blob": "e9e3eeb7b8bb3a6be2c39e523b78cd8284f232bd",
+      "path": "tests/test_observer_wait.py"
+    },
+    {
+      "blob": "1d0576a879231daf0c490b6d719e9ebf91e64bfd",
+      "path": "tests/test_openai_credentials.py"
+    },
+    {
+      "blob": "4a977215f4a5316f95282df9049e0e27b06b4c1d",
+      "path": "tests/test_pdf_import.py"
+    },
+    {
+      "blob": "d4115682f856ac1f8e920c3beaffa674715fbdf6",
+      "path": "tests/test_pdf_provenance.py"
+    },
+    {
+      "blob": "fc02ce80a5f3fb1610b50e5158be07c407c8d113",
+      "path": "tests/test_persona.py"
+    },
+    {
+      "blob": "79672a230ab904b3b55e75db4f0e74918bab0877",
+      "path": "tests/test_remaining_input_records.py"
+    },
+    {
+      "blob": "8661c002896e06bc8ebe0aff7e53ebeb38eb5f03",
+      "path": "tests/test_retention_records.py"
+    },
+    {
+      "blob": "6fa44f33f5f6db61f45b8deb8ae3fdc6232f84fc",
+      "path": "tests/test_retention_service.py"
+    },
+    {
+      "blob": "0d1f7583867eaa53dd2e3cc6088b2610f9e3dc67",
+      "path": "tests/test_retrieval_freezing.py"
+    },
+    {
+      "blob": "e3696c856d47c745aa61607ea225f815cacdc1b0",
+      "path": "tests/test_retrieval_snapshot.py"
+    },
+    {
+      "blob": "5d15a4797420223d63e1b00b8ab95ca7bee846d7",
+      "path": "tests/test_run_records.py"
+    },
+    {
+      "blob": "8db2271faf3e0a3f83c35033bf4a43309d77e7d6",
+      "path": "tests/test_scratch.py"
+    },
+    {
+      "blob": "2ec06932c09e4188b59866afa9e10fa44c32bd86",
+      "path": "tests/test_scratch_encoding.py"
+    },
+    {
+      "blob": "c66112b775ed9dfe8d2337b82bc963c86b583734",
+      "path": "tests/test_scratch_observer.py"
+    },
+    {
+      "blob": "e1557199b739758114402531cf2d8f6cbaafdd89",
+      "path": "tests/test_scratch_snapshot.py"
+    },
+    {
+      "blob": "c482b7eb8ffd60870f0dc5484ac9a60606304ffe",
+      "path": "verification/CI_0110.json"
+    },
+    {
+      "blob": "410065604103fe6862ca03d6a90a8a3b610b40ee",
+      "path": "verification/CI_0110_INITIAL.json"
+    },
+    {
+      "blob": "96e0848184c6ef0958feca5ab14d222df1bc5925",
+      "path": "verification/CI_0120.json"
+    },
+    {
+      "blob": "eaf6eab00e551a4a8eff2446ed6c03c0aabcabef",
+      "path": "verification/CI_0121.json"
+    },
+    {
+      "blob": "d7e4be47c62aa8c92e8e8d400e348aece9280081",
+      "path": "verification/CI_0122.json"
+    },
+    {
+      "blob": "f07d4f84e0d0e876c173ce30aaf698b23375de8c",
+      "path": "verification/CI_0123.json"
+    },
+    {
+      "blob": "a4f7def73445c6086827d152d41cd558d2177cf2",
+      "path": "verification/DOCUMENTATION_CHECKPOINT_0100.json"
+    },
+    {
+      "blob": "1641d72ab909c2ff7022b77f976d331231f14287",
+      "path": "verification/MEMORY_INDEX_0123.json"
+    },
+    {
+      "blob": "3bb5df239bec10478a2bc4b18a2e576bec8c7da4",
+      "path": "verification/MODEL_CONTEXT_0124.json"
+    },
+    {
+      "blob": "ca56ddf2fee4a8b432e4b3b26371359d46733743",
+      "path": "verification/MODEL_CONTEXT_0124_20261002T213232430876Z.json"
+    },
+    {
+      "blob": "f12ec89e6c3be1781f788e0a39fe228d260ea533",
+      "path": "verification/OFFLINE_010.json"
+    },
+    {
+      "blob": "e2ca25e833a84e2600b37b622cc0722f593ca7f5",
+      "path": "verification/OFFLINE_0100.json"
+    },
+    {
+      "blob": "57b132119041bafbef148f668a0f8268754f6e4d",
+      "path": "verification/OFFLINE_0100_INITIAL.json"
+    },
+    {
+      "blob": "66342f14e1af4197362cd504f3a98d7cfa2eaa68",
+      "path": "verification/OFFLINE_0110.json"
+    },
+    {
+      "blob": "39c6b35c42dab128d09fe76109c9919593acfc48",
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json"
+    },
+    {
+      "blob": "9bbd1332fbe1658697e80c5620076371e929c0a3",
+      "path": "verification/OFFLINE_0110_20261001T220004127125Z.json"
+    },
+    {
+      "blob": "97b553a7bbb43908991c44a27654e33dd0ee20ca",
+      "path": "verification/OFFLINE_0110_INITIAL.json"
+    },
+    {
+      "blob": "2c71bd50a904939da146f39bace5058f38485ee0",
+      "path": "verification/OFFLINE_0120.json"
+    },
+    {
+      "blob": "012140d8dadff73a4d0c33540328cb3e8ef3663c",
+      "path": "verification/OFFLINE_0120_20261002T012123075561Z.json"
+    },
+    {
+      "blob": "4c915694e4a64623acf66098ad2886970c9497ea",
+      "path": "verification/OFFLINE_0121.json"
+    },
+    {
+      "blob": "c988955f11d660a60f22e460e3d86f1c6170fd69",
+      "path": "verification/OFFLINE_0122.json"
+    },
+    {
+      "blob": "f4745a7e0e1f924b6dbcfb0710c37a1f261f2eb6",
+      "path": "verification/OFFLINE_0123.json"
+    },
+    {
+      "blob": "89dc11ace08e947f7c5de5cc5e4f0836224de0be",
+      "path": "verification/OFFLINE_0123_20261002T210204677804Z.json"
+    },
+    {
+      "blob": "1d7990540bc0a642a74c298259a91949429bc799",
+      "path": "verification/OFFLINE_0123_20261002T210751360525Z.json"
+    },
+    {
+      "blob": "7b25305583689944a624db7b26c6341c74ce6265",
+      "path": "verification/OFFLINE_0124.json"
+    },
+    {
+      "blob": "973ec2f534e051af7ee273ac5bd02e7aee032f1f",
+      "path": "verification/OFFLINE_0124_20261002T213550181440Z.json"
+    },
+    {
+      "blob": "259f4d5f35ff17fd9454a931be1ca783b8609374",
+      "path": "verification/OFFLINE_020.json"
+    },
+    {
+      "blob": "c2b469f6a4431797f1796504c7ce016cd7ef3fff",
+      "path": "verification/OFFLINE_021.json"
+    },
+    {
+      "blob": "f939fb2343f51e66849988b21fed1f67ed53996d",
+      "path": "verification/OFFLINE_030.json"
+    },
+    {
+      "blob": "975388f2897506f727ab4b1c3bc9f642bea3dc46",
+      "path": "verification/OFFLINE_040.json"
+    },
+    {
+      "blob": "10a123521cbcfd48489e5a7934d4964a7daece9c",
+      "path": "verification/OFFLINE_050.json"
+    },
+    {
+      "blob": "5961e2821b5fe332243211f318b4b9da1c7d7a30",
+      "path": "verification/OFFLINE_060.json"
+    },
+    {
+      "blob": "0f91f48a46e26f81d2744370c6641dd03f358eaf",
+      "path": "verification/OFFLINE_061.json"
+    },
+    {
+      "blob": "9a23b649d6b69561954808bc4036c511e2bfd166",
+      "path": "verification/OFFLINE_070.json"
+    },
+    {
+      "blob": "b7222dbd0278e87a23d3e559f977e7c14bbb0739",
+      "path": "verification/OFFLINE_080.json"
+    },
+    {
+      "blob": "3140333b9926b0b7b2069ac6e90d1539f23ea592",
+      "path": "verification/OFFLINE_090.json"
+    },
+    {
+      "blob": "a9ca9a63526269bce3bde90c6e2f50afb32d32bb",
+      "path": "verification/OFFLINE_091.json"
+    },
+    {
+      "blob": "64db504dc45340114b7e62ee6087174458c5f89f",
+      "path": "verification/OFFLINE_092.json"
+    },
+    {
+      "blob": "df1a7c5ddf8475263a7db3c2df65e5251d360f92",
+      "path": "verification/OFFLINE_093.json"
+    },
+    {
+      "blob": "8d7318fd113fb05b83f09bdff0340196cc5a3a72",
+      "path": "verification/REPOSITORY_AUDIT_0100.json"
+    },
+    {
+      "blob": "cde076582915cc3b6316e1040cfe5c3df08bae35",
+      "path": "verification/REPOSITORY_AUDIT_0110.json"
+    },
+    {
+      "blob": "0b9cd9c7b49843bf13c83e8f042638f3030098b6",
+      "path": "verification/REPOSITORY_AUDIT_0110_CI_FIX.json"
+    },
+    {
+      "blob": "ccf01118c7753f0469deb5f7dec0992971cf6ea1",
+      "path": "verification/REPOSITORY_AUDIT_0110_DELIVERY.json"
+    },
+    {
+      "blob": "53b2e8e74a098c7a88ca94d7c9573a19346a70b1",
+      "path": "verification/REPOSITORY_AUDIT_0110_FINAL.json"
+    },
+    {
+      "blob": "d4b1c71c5085e0d3587d6b6668a82b24d24164d8",
+      "path": "verification/REPOSITORY_AUDIT_0120.json"
+    },
+    {
+      "blob": "3dff6e046367054e0df40d58efd2eebc7169f8d8",
+      "path": "verification/REPOSITORY_AUDIT_0120_DELIVERY.json"
+    },
+    {
+      "blob": "372f087e367729c43ae1174090c62c36526a759c",
+      "path": "verification/REPOSITORY_AUDIT_0121.json"
+    },
+    {
+      "blob": "6d21ff7b08d45c14ab22ab7314a9edf2e2aa42d6",
+      "path": "verification/REPOSITORY_AUDIT_0121_DELIVERY.json"
+    },
+    {
+      "blob": "cdf98f30605add3463b727921d6c2965e80fece0",
+      "path": "verification/REPOSITORY_AUDIT_0122.json"
+    },
+    {
+      "blob": "f1a0bd2c53c4ca31566ed8a2d407dc72113cfb72",
+      "path": "verification/REPOSITORY_AUDIT_0122_DELIVERY.json"
+    },
+    {
+      "blob": "6467902c0969dc96e02fa6d867dd65b7e7903e72",
+      "path": "verification/REPOSITORY_AUDIT_0123.json"
+    },
+    {
+      "blob": "d9a4b1d2b6dfe017a7ef86b15f6de1a1fd6b3c39",
+      "path": "verification/REPOSITORY_AUDIT_0123_DELIVERY.json"
+    },
+    {
+      "blob": "7db94465e86afe56b18c128cda46da8ad362b403",
+      "path": "verification/REPOSITORY_AUDIT_091.json"
+    },
+    {
+      "blob": "504d1b17d0a17cc03e9dc36806d6cbdf26f22f12",
+      "path": "verification/WHEEL_0100.json"
+    },
+    {
+      "blob": "cdbf18a2488906e7fab5f7eb02aa706c09d8c4ce",
+      "path": "verification/WHEEL_0110.json"
+    },
+    {
+      "blob": "c67987c2db6b98b71fda6671337d1e9a16cde299",
+      "path": "verification/WHEEL_0110_20261001T215221456512Z.json"
+    },
+    {
+      "blob": "be647d28c9e1f20c9b1394a7af1c8b3ea8f2b164",
+      "path": "verification/WHEEL_0120.json"
+    },
+    {
+      "blob": "4747f3f8466e5f7d5189a4e5cb5890300fa07079",
+      "path": "verification/WHEEL_0121.json"
+    },
+    {
+      "blob": "cd2a8b53b558c4729fb04774159f2819421a39d4",
+      "path": "verification/WHEEL_0122.json"
+    },
+    {
+      "blob": "cae14a206b2fadf92440662ae38974314c2a8f09",
+      "path": "verification/WHEEL_0123.json"
+    },
+    {
+      "blob": "a98045fc89542041a8c15a68cbd5e0e328103888",
+      "path": "verification/WHEEL_0124.json"
+    },
+    {
+      "blob": "0db01fb4d4c960186e584582a9677d6ea9857dc0",
+      "path": "verification/WHEEL_090.json"
+    },
+    {
+      "blob": "e7763f54700fe221c6951c12b61cb0ff172b9a4c",
+      "path": "verification/WHEEL_092.json"
+    },
+    {
+      "blob": "277390a38dd6ed00a4b1b82d5437711955005b80",
+      "path": "verification/WHEEL_093.json"
+    },
+    {
+      "blob": "f093b74761125542b3cf311572d2a9e9ea9c1db9",
+      "path": "verification/benchmark_memory_scaling.py"
+    },
+    {
+      "blob": "cf6ed4eda32fa34fbbc2321142612ec1d3470658",
+      "path": "verification/verify_model_context.py"
+    },
+    {
+      "blob": "d7da0532621d791e5bc51d2668779f15242eb4bd",
+      "path": "verification/verify_offline.py"
+    },
+    {
+      "blob": "f0d413b81565bfa1ad14eeacf9220ab9d507f5d4",
+      "path": "verification/verify_wheel.py"
+    }
+  ],
+  "findings": [
+    {
+      "blob": "012140d8dadff73a4d0c33540328cb3e8ef3663c",
+      "path": "verification/OFFLINE_0120_20261002T012123075561Z.json",
+      "line": 33,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "012140d8dadff73a4d0c33540328cb3e8ef3663c",
+      "path": "verification/OFFLINE_0120_20261002T012123075561Z.json",
+      "line": 37,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "012140d8dadff73a4d0c33540328cb3e8ef3663c",
+      "path": "verification/OFFLINE_0120_20261002T012123075561Z.json",
+      "line": 41,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "012140d8dadff73a4d0c33540328cb3e8ef3663c",
+      "path": "verification/OFFLINE_0120_20261002T012123075561Z.json",
+      "line": 53,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "012140d8dadff73a4d0c33540328cb3e8ef3663c",
+      "path": "verification/OFFLINE_0120_20261002T012123075561Z.json",
+      "line": 57,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "012140d8dadff73a4d0c33540328cb3e8ef3663c",
+      "path": "verification/OFFLINE_0120_20261002T012123075561Z.json",
+      "line": 61,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "012140d8dadff73a4d0c33540328cb3e8ef3663c",
+      "path": "verification/OFFLINE_0120_20261002T012123075561Z.json",
+      "line": 65,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "012140d8dadff73a4d0c33540328cb3e8ef3663c",
+      "path": "verification/OFFLINE_0120_20261002T012123075561Z.json",
+      "line": 77,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "1d7990540bc0a642a74c298259a91949429bc799",
+      "path": "verification/OFFLINE_0123_20261002T210751360525Z.json",
+      "line": 33,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "1d7990540bc0a642a74c298259a91949429bc799",
+      "path": "verification/OFFLINE_0123_20261002T210751360525Z.json",
+      "line": 37,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "1d7990540bc0a642a74c298259a91949429bc799",
+      "path": "verification/OFFLINE_0123_20261002T210751360525Z.json",
+      "line": 41,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "1d7990540bc0a642a74c298259a91949429bc799",
+      "path": "verification/OFFLINE_0123_20261002T210751360525Z.json",
+      "line": 53,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "1d7990540bc0a642a74c298259a91949429bc799",
+      "path": "verification/OFFLINE_0123_20261002T210751360525Z.json",
+      "line": 57,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "1d7990540bc0a642a74c298259a91949429bc799",
+      "path": "verification/OFFLINE_0123_20261002T210751360525Z.json",
+      "line": 61,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "1d7990540bc0a642a74c298259a91949429bc799",
+      "path": "verification/OFFLINE_0123_20261002T210751360525Z.json",
+      "line": 65,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "1d7990540bc0a642a74c298259a91949429bc799",
+      "path": "verification/OFFLINE_0123_20261002T210751360525Z.json",
+      "line": 77,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "2c71bd50a904939da146f39bace5058f38485ee0",
+      "path": "verification/OFFLINE_0120.json",
+      "line": 33,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "2c71bd50a904939da146f39bace5058f38485ee0",
+      "path": "verification/OFFLINE_0120.json",
+      "line": 37,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "2c71bd50a904939da146f39bace5058f38485ee0",
+      "path": "verification/OFFLINE_0120.json",
+      "line": 41,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "2c71bd50a904939da146f39bace5058f38485ee0",
+      "path": "verification/OFFLINE_0120.json",
+      "line": 53,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "2c71bd50a904939da146f39bace5058f38485ee0",
+      "path": "verification/OFFLINE_0120.json",
+      "line": 57,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "2c71bd50a904939da146f39bace5058f38485ee0",
+      "path": "verification/OFFLINE_0120.json",
+      "line": 61,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "2c71bd50a904939da146f39bace5058f38485ee0",
+      "path": "verification/OFFLINE_0120.json",
+      "line": 65,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "2c71bd50a904939da146f39bace5058f38485ee0",
+      "path": "verification/OFFLINE_0120.json",
+      "line": 77,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "39c6b35c42dab128d09fe76109c9919593acfc48",
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json",
+      "line": 21,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "39c6b35c42dab128d09fe76109c9919593acfc48",
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json",
+      "line": 35,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "39c6b35c42dab128d09fe76109c9919593acfc48",
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json",
+      "line": 39,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "39c6b35c42dab128d09fe76109c9919593acfc48",
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json",
+      "line": 43,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "39c6b35c42dab128d09fe76109c9919593acfc48",
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json",
+      "line": 55,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "39c6b35c42dab128d09fe76109c9919593acfc48",
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json",
+      "line": 59,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "39c6b35c42dab128d09fe76109c9919593acfc48",
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json",
+      "line": 63,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "39c6b35c42dab128d09fe76109c9919593acfc48",
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json",
+      "line": 67,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "39c6b35c42dab128d09fe76109c9919593acfc48",
+      "path": "verification/OFFLINE_0110_20261001T215307875585Z.json",
+      "line": 79,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "410065604103fe6862ca03d6a90a8a3b610b40ee",
+      "path": "verification/CI_0110_INITIAL.json",
+      "line": 26,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "4c915694e4a64623acf66098ad2886970c9497ea",
+      "path": "verification/OFFLINE_0121.json",
+      "line": 33,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "4c915694e4a64623acf66098ad2886970c9497ea",
+      "path": "verification/OFFLINE_0121.json",
+      "line": 37,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "4c915694e4a64623acf66098ad2886970c9497ea",
+      "path": "verification/OFFLINE_0121.json",
+      "line": 41,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "4c915694e4a64623acf66098ad2886970c9497ea",
+      "path": "verification/OFFLINE_0121.json",
+      "line": 53,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "4c915694e4a64623acf66098ad2886970c9497ea",
+      "path": "verification/OFFLINE_0121.json",
+      "line": 57,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "4c915694e4a64623acf66098ad2886970c9497ea",
+      "path": "verification/OFFLINE_0121.json",
+      "line": 61,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "4c915694e4a64623acf66098ad2886970c9497ea",
+      "path": "verification/OFFLINE_0121.json",
+      "line": 65,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "4c915694e4a64623acf66098ad2886970c9497ea",
+      "path": "verification/OFFLINE_0121.json",
+      "line": 77,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "57b132119041bafbef148f668a0f8268754f6e4d",
+      "path": "verification/OFFLINE_0100_INITIAL.json",
+      "line": 32,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "57b132119041bafbef148f668a0f8268754f6e4d",
+      "path": "verification/OFFLINE_0100_INITIAL.json",
+      "line": 36,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "57b132119041bafbef148f668a0f8268754f6e4d",
+      "path": "verification/OFFLINE_0100_INITIAL.json",
+      "line": 40,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "57b132119041bafbef148f668a0f8268754f6e4d",
+      "path": "verification/OFFLINE_0100_INITIAL.json",
+      "line": 52,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "57b132119041bafbef148f668a0f8268754f6e4d",
+      "path": "verification/OFFLINE_0100_INITIAL.json",
+      "line": 56,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "57b132119041bafbef148f668a0f8268754f6e4d",
+      "path": "verification/OFFLINE_0100_INITIAL.json",
+      "line": 60,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "57b132119041bafbef148f668a0f8268754f6e4d",
+      "path": "verification/OFFLINE_0100_INITIAL.json",
+      "line": 64,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "57b132119041bafbef148f668a0f8268754f6e4d",
+      "path": "verification/OFFLINE_0100_INITIAL.json",
+      "line": 76,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "64db504dc45340114b7e62ee6087174458c5f89f",
+      "path": "verification/OFFLINE_092.json",
+      "line": 84,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "64db504dc45340114b7e62ee6087174458c5f89f",
+      "path": "verification/OFFLINE_092.json",
+      "line": 88,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "64db504dc45340114b7e62ee6087174458c5f89f",
+      "path": "verification/OFFLINE_092.json",
+      "line": 92,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "64db504dc45340114b7e62ee6087174458c5f89f",
+      "path": "verification/OFFLINE_092.json",
+      "line": 104,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "64db504dc45340114b7e62ee6087174458c5f89f",
+      "path": "verification/OFFLINE_092.json",
+      "line": 108,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "64db504dc45340114b7e62ee6087174458c5f89f",
+      "path": "verification/OFFLINE_092.json",
+      "line": 112,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "64db504dc45340114b7e62ee6087174458c5f89f",
+      "path": "verification/OFFLINE_092.json",
+      "line": 116,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "64db504dc45340114b7e62ee6087174458c5f89f",
+      "path": "verification/OFFLINE_092.json",
+      "line": 128,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "66342f14e1af4197362cd504f3a98d7cfa2eaa68",
+      "path": "verification/OFFLINE_0110.json",
+      "line": 33,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "66342f14e1af4197362cd504f3a98d7cfa2eaa68",
+      "path": "verification/OFFLINE_0110.json",
+      "line": 37,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "66342f14e1af4197362cd504f3a98d7cfa2eaa68",
+      "path": "verification/OFFLINE_0110.json",
+      "line": 41,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "66342f14e1af4197362cd504f3a98d7cfa2eaa68",
+      "path": "verification/OFFLINE_0110.json",
+      "line": 53,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "66342f14e1af4197362cd504f3a98d7cfa2eaa68",
+      "path": "verification/OFFLINE_0110.json",
+      "line": 57,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "66342f14e1af4197362cd504f3a98d7cfa2eaa68",
+      "path": "verification/OFFLINE_0110.json",
+      "line": 61,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "66342f14e1af4197362cd504f3a98d7cfa2eaa68",
+      "path": "verification/OFFLINE_0110.json",
+      "line": 65,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "66342f14e1af4197362cd504f3a98d7cfa2eaa68",
+      "path": "verification/OFFLINE_0110.json",
+      "line": 77,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "7b25305583689944a624db7b26c6341c74ce6265",
+      "path": "verification/OFFLINE_0124.json",
+      "line": 21,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "7b25305583689944a624db7b26c6341c74ce6265",
+      "path": "verification/OFFLINE_0124.json",
+      "line": 35,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "7b25305583689944a624db7b26c6341c74ce6265",
+      "path": "verification/OFFLINE_0124.json",
+      "line": 39,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "7b25305583689944a624db7b26c6341c74ce6265",
+      "path": "verification/OFFLINE_0124.json",
+      "line": 43,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "7b25305583689944a624db7b26c6341c74ce6265",
+      "path": "verification/OFFLINE_0124.json",
+      "line": 55,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "7b25305583689944a624db7b26c6341c74ce6265",
+      "path": "verification/OFFLINE_0124.json",
+      "line": 59,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "7b25305583689944a624db7b26c6341c74ce6265",
+      "path": "verification/OFFLINE_0124.json",
+      "line": 63,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "7b25305583689944a624db7b26c6341c74ce6265",
+      "path": "verification/OFFLINE_0124.json",
+      "line": 67,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "7b25305583689944a624db7b26c6341c74ce6265",
+      "path": "verification/OFFLINE_0124.json",
+      "line": 79,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "89dc11ace08e947f7c5de5cc5e4f0836224de0be",
+      "path": "verification/OFFLINE_0123_20261002T210204677804Z.json",
+      "line": 33,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "89dc11ace08e947f7c5de5cc5e4f0836224de0be",
+      "path": "verification/OFFLINE_0123_20261002T210204677804Z.json",
+      "line": 37,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "89dc11ace08e947f7c5de5cc5e4f0836224de0be",
+      "path": "verification/OFFLINE_0123_20261002T210204677804Z.json",
+      "line": 41,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "89dc11ace08e947f7c5de5cc5e4f0836224de0be",
+      "path": "verification/OFFLINE_0123_20261002T210204677804Z.json",
+      "line": 53,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "89dc11ace08e947f7c5de5cc5e4f0836224de0be",
+      "path": "verification/OFFLINE_0123_20261002T210204677804Z.json",
+      "line": 57,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "89dc11ace08e947f7c5de5cc5e4f0836224de0be",
+      "path": "verification/OFFLINE_0123_20261002T210204677804Z.json",
+      "line": 61,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "89dc11ace08e947f7c5de5cc5e4f0836224de0be",
+      "path": "verification/OFFLINE_0123_20261002T210204677804Z.json",
+      "line": 65,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "89dc11ace08e947f7c5de5cc5e4f0836224de0be",
+      "path": "verification/OFFLINE_0123_20261002T210204677804Z.json",
+      "line": 77,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "973ec2f534e051af7ee273ac5bd02e7aee032f1f",
+      "path": "verification/OFFLINE_0124_20261002T213550181440Z.json",
+      "line": 33,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "973ec2f534e051af7ee273ac5bd02e7aee032f1f",
+      "path": "verification/OFFLINE_0124_20261002T213550181440Z.json",
+      "line": 37,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "973ec2f534e051af7ee273ac5bd02e7aee032f1f",
+      "path": "verification/OFFLINE_0124_20261002T213550181440Z.json",
+      "line": 41,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "973ec2f534e051af7ee273ac5bd02e7aee032f1f",
+      "path": "verification/OFFLINE_0124_20261002T213550181440Z.json",
+      "line": 53,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "973ec2f534e051af7ee273ac5bd02e7aee032f1f",
+      "path": "verification/OFFLINE_0124_20261002T213550181440Z.json",
+      "line": 57,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "973ec2f534e051af7ee273ac5bd02e7aee032f1f",
+      "path": "verification/OFFLINE_0124_20261002T213550181440Z.json",
+      "line": 61,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "973ec2f534e051af7ee273ac5bd02e7aee032f1f",
+      "path": "verification/OFFLINE_0124_20261002T213550181440Z.json",
+      "line": 65,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "973ec2f534e051af7ee273ac5bd02e7aee032f1f",
+      "path": "verification/OFFLINE_0124_20261002T213550181440Z.json",
+      "line": 77,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "97b553a7bbb43908991c44a27654e33dd0ee20ca",
+      "path": "verification/OFFLINE_0110_INITIAL.json",
+      "line": 31,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "97b553a7bbb43908991c44a27654e33dd0ee20ca",
+      "path": "verification/OFFLINE_0110_INITIAL.json",
+      "line": 35,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "97b553a7bbb43908991c44a27654e33dd0ee20ca",
+      "path": "verification/OFFLINE_0110_INITIAL.json",
+      "line": 39,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "97b553a7bbb43908991c44a27654e33dd0ee20ca",
+      "path": "verification/OFFLINE_0110_INITIAL.json",
+      "line": 51,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "97b553a7bbb43908991c44a27654e33dd0ee20ca",
+      "path": "verification/OFFLINE_0110_INITIAL.json",
+      "line": 55,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "97b553a7bbb43908991c44a27654e33dd0ee20ca",
+      "path": "verification/OFFLINE_0110_INITIAL.json",
+      "line": 59,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "97b553a7bbb43908991c44a27654e33dd0ee20ca",
+      "path": "verification/OFFLINE_0110_INITIAL.json",
+      "line": 63,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "97b553a7bbb43908991c44a27654e33dd0ee20ca",
+      "path": "verification/OFFLINE_0110_INITIAL.json",
+      "line": 75,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "9bbd1332fbe1658697e80c5620076371e929c0a3",
+      "path": "verification/OFFLINE_0110_20261001T220004127125Z.json",
+      "line": 33,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "9bbd1332fbe1658697e80c5620076371e929c0a3",
+      "path": "verification/OFFLINE_0110_20261001T220004127125Z.json",
+      "line": 37,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "9bbd1332fbe1658697e80c5620076371e929c0a3",
+      "path": "verification/OFFLINE_0110_20261001T220004127125Z.json",
+      "line": 41,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "9bbd1332fbe1658697e80c5620076371e929c0a3",
+      "path": "verification/OFFLINE_0110_20261001T220004127125Z.json",
+      "line": 53,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "9bbd1332fbe1658697e80c5620076371e929c0a3",
+      "path": "verification/OFFLINE_0110_20261001T220004127125Z.json",
+      "line": 57,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "9bbd1332fbe1658697e80c5620076371e929c0a3",
+      "path": "verification/OFFLINE_0110_20261001T220004127125Z.json",
+      "line": 61,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "9bbd1332fbe1658697e80c5620076371e929c0a3",
+      "path": "verification/OFFLINE_0110_20261001T220004127125Z.json",
+      "line": 65,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "9bbd1332fbe1658697e80c5620076371e929c0a3",
+      "path": "verification/OFFLINE_0110_20261001T220004127125Z.json",
+      "line": 77,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "a4f0f260767f83c113d8e4d7007938d3eb14beca",
+      "path": "tests/test_api_key_wizard.py",
+      "line": 17,
+      "rule": "provider_key_shape",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "blob": "a4f0f260767f83c113d8e4d7007938d3eb14beca",
+      "path": "tests/test_api_key_wizard.py",
+      "line": 18,
+      "rule": "provider_key_shape",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "blob": "a4f0f260767f83c113d8e4d7007938d3eb14beca",
+      "path": "tests/test_api_key_wizard.py",
+      "line": 19,
+      "rule": "provider_key_shape",
+      "classification": "confirmed_named_synthetic_fixture"
+    },
+    {
+      "blob": "a4f7def73445c6086827d152d41cd558d2177cf2",
+      "path": "verification/DOCUMENTATION_CHECKPOINT_0100.json",
+      "line": 57,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "a4f7def73445c6086827d152d41cd558d2177cf2",
+      "path": "verification/DOCUMENTATION_CHECKPOINT_0100.json",
+      "line": 61,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "a4f7def73445c6086827d152d41cd558d2177cf2",
+      "path": "verification/DOCUMENTATION_CHECKPOINT_0100.json",
+      "line": 65,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "a4f7def73445c6086827d152d41cd558d2177cf2",
+      "path": "verification/DOCUMENTATION_CHECKPOINT_0100.json",
+      "line": 77,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "a4f7def73445c6086827d152d41cd558d2177cf2",
+      "path": "verification/DOCUMENTATION_CHECKPOINT_0100.json",
+      "line": 81,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "a4f7def73445c6086827d152d41cd558d2177cf2",
+      "path": "verification/DOCUMENTATION_CHECKPOINT_0100.json",
+      "line": 85,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "a4f7def73445c6086827d152d41cd558d2177cf2",
+      "path": "verification/DOCUMENTATION_CHECKPOINT_0100.json",
+      "line": 89,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "a4f7def73445c6086827d152d41cd558d2177cf2",
+      "path": "verification/DOCUMENTATION_CHECKPOINT_0100.json",
+      "line": 101,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "c988955f11d660a60f22e460e3d86f1c6170fd69",
+      "path": "verification/OFFLINE_0122.json",
+      "line": 33,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "c988955f11d660a60f22e460e3d86f1c6170fd69",
+      "path": "verification/OFFLINE_0122.json",
+      "line": 37,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "c988955f11d660a60f22e460e3d86f1c6170fd69",
+      "path": "verification/OFFLINE_0122.json",
+      "line": 41,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "c988955f11d660a60f22e460e3d86f1c6170fd69",
+      "path": "verification/OFFLINE_0122.json",
+      "line": 53,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "c988955f11d660a60f22e460e3d86f1c6170fd69",
+      "path": "verification/OFFLINE_0122.json",
+      "line": 57,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "c988955f11d660a60f22e460e3d86f1c6170fd69",
+      "path": "verification/OFFLINE_0122.json",
+      "line": 61,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "c988955f11d660a60f22e460e3d86f1c6170fd69",
+      "path": "verification/OFFLINE_0122.json",
+      "line": 65,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "c988955f11d660a60f22e460e3d86f1c6170fd69",
+      "path": "verification/OFFLINE_0122.json",
+      "line": 77,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "df1a7c5ddf8475263a7db3c2df65e5251d360f92",
+      "path": "verification/OFFLINE_093.json",
+      "line": 104,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "df1a7c5ddf8475263a7db3c2df65e5251d360f92",
+      "path": "verification/OFFLINE_093.json",
+      "line": 108,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "df1a7c5ddf8475263a7db3c2df65e5251d360f92",
+      "path": "verification/OFFLINE_093.json",
+      "line": 112,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "df1a7c5ddf8475263a7db3c2df65e5251d360f92",
+      "path": "verification/OFFLINE_093.json",
+      "line": 124,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "df1a7c5ddf8475263a7db3c2df65e5251d360f92",
+      "path": "verification/OFFLINE_093.json",
+      "line": 128,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "df1a7c5ddf8475263a7db3c2df65e5251d360f92",
+      "path": "verification/OFFLINE_093.json",
+      "line": 132,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "df1a7c5ddf8475263a7db3c2df65e5251d360f92",
+      "path": "verification/OFFLINE_093.json",
+      "line": 136,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "df1a7c5ddf8475263a7db3c2df65e5251d360f92",
+      "path": "verification/OFFLINE_093.json",
+      "line": 148,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "e2ca25e833a84e2600b37b622cc0722f593ca7f5",
+      "path": "verification/OFFLINE_0100.json",
+      "line": 31,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "e2ca25e833a84e2600b37b622cc0722f593ca7f5",
+      "path": "verification/OFFLINE_0100.json",
+      "line": 35,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "e2ca25e833a84e2600b37b622cc0722f593ca7f5",
+      "path": "verification/OFFLINE_0100.json",
+      "line": 39,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "e2ca25e833a84e2600b37b622cc0722f593ca7f5",
+      "path": "verification/OFFLINE_0100.json",
+      "line": 51,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "e2ca25e833a84e2600b37b622cc0722f593ca7f5",
+      "path": "verification/OFFLINE_0100.json",
+      "line": 55,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "e2ca25e833a84e2600b37b622cc0722f593ca7f5",
+      "path": "verification/OFFLINE_0100.json",
+      "line": 59,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "e2ca25e833a84e2600b37b622cc0722f593ca7f5",
+      "path": "verification/OFFLINE_0100.json",
+      "line": 63,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "e2ca25e833a84e2600b37b622cc0722f593ca7f5",
+      "path": "verification/OFFLINE_0100.json",
+      "line": 75,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "f4745a7e0e1f924b6dbcfb0710c37a1f261f2eb6",
+      "path": "verification/OFFLINE_0123.json",
+      "line": 33,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "f4745a7e0e1f924b6dbcfb0710c37a1f261f2eb6",
+      "path": "verification/OFFLINE_0123.json",
+      "line": 37,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "f4745a7e0e1f924b6dbcfb0710c37a1f261f2eb6",
+      "path": "verification/OFFLINE_0123.json",
+      "line": 41,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "f4745a7e0e1f924b6dbcfb0710c37a1f261f2eb6",
+      "path": "verification/OFFLINE_0123.json",
+      "line": 53,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "f4745a7e0e1f924b6dbcfb0710c37a1f261f2eb6",
+      "path": "verification/OFFLINE_0123.json",
+      "line": 57,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "f4745a7e0e1f924b6dbcfb0710c37a1f261f2eb6",
+      "path": "verification/OFFLINE_0123.json",
+      "line": 61,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "f4745a7e0e1f924b6dbcfb0710c37a1f261f2eb6",
+      "path": "verification/OFFLINE_0123.json",
+      "line": 65,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    },
+    {
+      "blob": "f4745a7e0e1f924b6dbcfb0710c37a1f261f2eb6",
+      "path": "verification/OFFLINE_0123.json",
+      "line": 77,
+      "rule": "discord_token_shape",
+      "classification": "confirmed_unittest_case_identifier"
+    }
+  ],
+  "unknown_findings": [],
+  "prohibited_paths": [],
+  "empty_runtime_sentinels": [
+    {
+      "path": "knowledge/.gitkeep",
+      "blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "bytes": 0
+    }
+  ],
+  "metadata_files_excluded_from_recursive_scan": [
+    {
+      "path": "verification/REPOSITORY_AUDIT_0110_CI_FIX.json",
+      "blob": "0b9cd9c7b49843bf13c83e8f042638f3030098b6"
+    },
+    {
+      "path": "verification/REPOSITORY_AUDIT_0121.json",
+      "blob": "372f087e367729c43ae1174090c62c36526a759c"
+    },
+    {
+      "path": "verification/REPOSITORY_AUDIT_0120_DELIVERY.json",
+      "blob": "3dff6e046367054e0df40d58efd2eebc7169f8d8"
+    },
+    {
+      "path": "verification/REPOSITORY_AUDIT_0110_FINAL.json",
+      "blob": "53b2e8e74a098c7a88ca94d7c9573a19346a70b1"
+    },
+    {
+      "path": "verification/REPOSITORY_AUDIT_0123.json",
+      "blob": "6467902c0969dc96e02fa6d867dd65b7e7903e72"
+    },
+    {
+      "path": "verification/REPOSITORY_AUDIT_0121_DELIVERY.json",
+      "blob": "6d21ff7b08d45c14ab22ab7314a9edf2e2aa42d6"
+    },
+    {
+      "path": "verification/REPOSITORY_AUDIT_091.json",
+      "blob": "7db94465e86afe56b18c128cda46da8ad362b403"
+    },
+    {
+      "path": "verification/REPOSITORY_AUDIT_0100.json",
+      "blob": "8d7318fd113fb05b83f09bdff0340196cc5a3a72"
+    },
+    {
+      "path": "verification/REPOSITORY_AUDIT_0110_DELIVERY.json",
+      "blob": "ccf01118c7753f0469deb5f7dec0992971cf6ea1"
+    },
+    {
+      "path": "verification/REPOSITORY_AUDIT_0110.json",
+      "blob": "cde076582915cc3b6316e1040cfe5c3df08bae35"
+    },
+    {
+      "path": "verification/REPOSITORY_AUDIT_0122.json",
+      "blob": "cdf98f30605add3463b727921d6c2965e80fece0"
+    },
+    {
+      "path": "verification/REPOSITORY_AUDIT_0120.json",
+      "blob": "d4b1c71c5085e0d3587d6b6668a82b24d24164d8"
+    },
+    {
+      "path": "verification/REPOSITORY_AUDIT_0123_DELIVERY.json",
+      "blob": "d9a4b1d2b6dfe017a7ef86b15f6de1a1fd6b3c39"
+    },
+    {
+      "path": "verification/REPOSITORY_AUDIT_0122_DELIVERY.json",
+      "blob": "f1a0bd2c53c4ca31566ed8a2d407dc72113cfb72"
+    }
+  ],
+  "unknown_findings_count": 0,
+  "prohibited_paths_count": 0,
+  "passed": true
+}
