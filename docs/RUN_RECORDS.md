@@ -1,5 +1,7 @@
 # 可核验运行记录：0.12.2
 
+0.12.3 仅替换内部材料缓存与查找索引；完整全图 edge_statistics、全部频次/邻居/候选决策与 shadow 转换均保留原规范字节，图审计 schema、来源绑定和独立校验不变。缓存私有对象不进入 scratch，仍输出每轮拥有的独立数据树。
+
 0.12.2 用 `FailureNotice` 标识机器人固定失败回执。`discord_delivery_started` 对此保存 `delivery_kind="failure_notice"` / `notice_text`，不保存 `model_output`；送达完成/失败事件也标注种类。`failure_notice_delivered` 保存实际文字和 ID，但本轮仍是 failed，不创建 assistant 历史、生成答案或模型回答的送达记录。没有增加模型调用、自动重试或轮次退款；模型 `skip` 禁止这类发送。总轮时间耗尽时保持 `failure_notice_skipped=turn_time_exhausted`。现有运行校验区分 failed 与 skipped，不据此声称独立核验所有 Discord 失败回执事件的语义关联。
 
 不可变审计快照共享规范化 bytes 与 hash；日志字段/schema 保持，材料冻结仍独立生成字典并重新计算 hash 校验。旧日志不重写，完整证据与严格重复键/非有限数值校验不削减。

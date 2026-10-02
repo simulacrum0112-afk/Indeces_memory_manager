@@ -1,6 +1,14 @@
 # 当前与历史代码检查点
 
-当前代码版本 **0.12.2**；2026-10-02（用户时区）修复已准入机器人失败无提示的问题，并共享不可变完整审计快照减少检索重复处理。失败回执按类型与模型回答区分，关闭提及；模型 skip 仍静默，五次预占/去重、图规则、模型额度与原 5 秒本地预算不变。旧服务已加载与真实失败的诊断证据只在本机，不发布原文、数据库或真实统计。
+当前代码版本 **0.12.3**；2026-10-02（用户时区）保留完整审计和结果/排序字节，缓存材料相关索引并让匹配、邻接和候选查找只访问相关部分。原一跳规则、全动态shadow更新、来源门禁、模型/本地5秒预算不变。
+
+最终合成基准见 [MEMORY_INDEX_0123.json](../verification/MEMORY_INDEX_0123.json)：每组5次，含聊天状态写入，首轮1k/3k由0.199/0.697降至0.061/0.211秒，暖查询0.223/0.759降至0.048/0.171秒；全部完整结果/audit字节与改前一致。完整审计仍约1.8/5.4MB，最终缩放倍数约3.46/3.56；**未证明全链路线性，也不保证任意规模在5秒内完成**。发布开销、方法和局部索引计数证据见 [STATUS.md](STATUS.md)。不发布临时MB合成基线或真实运行数据。
+
+最终 [OFFLINE_0123_20261002T210751360525Z.json](../verification/OFFLINE_0123_20261002T210751360525Z.json) 为872项、0失败、0错误、14跳过、74.559秒，CLI/Console/依赖/只读npmi通过；[WHEEL_0123.json](../verification/WHEEL_0123.json) 隔离构建/安装、版本、静态默认与资源验证通过，本机源码/editable均0.12.3。公开范围审计、源码推送与CI待本轮完成。本机不自动启停真实服务，旧Console须stop、等待清理、quit再重开/start才加载新版。
+
+## 0.12.2 历史检查点
+
+历史代码版本 **0.12.2**；2026-10-02（用户时区）修复已准入机器人失败无提示的问题，并共享不可变完整审计快照减少检索重复处理。失败回执按类型与模型回答区分，关闭提及；模型 skip 仍静默，五次预占/去重、图规则、模型额度与原 5 秒本地预算不变。旧服务已加载与真实失败的诊断证据只在本机，不发布原文、数据库或真实统计。
 
 [WHEEL_0122.json](../verification/WHEEL_0122.json) 的非 editable 隔离构建/安装、静态默认、CLI 与网页资源验证通过；本机源码与安装包均为0.12.2。[OFFLINE_0122.json](../verification/OFFLINE_0122.json)为850项、0失败、0错误、14跳过、65.531秒；新增35项，CLI/Console/依赖/只读npmi检查通过。运行源码 [`549fb161a0a9c749f9f534ff0aba9cc5dd0a8247`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/549fb161a0a9c749f9f534ff0aba9cc5dd0a8247) 已推送 main，绑定精确提交的 [CI 37062176475](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37062176475) 整体 success；Windows/Ubuntu job、unittest 与 CLI check 步骤均 success，公共元数据见 [CI_0122.json](../verification/CI_0122.json)。未读取远端job日志，不推断其测试数量。下列历史CI不能代替本版本的证据。公开范围有限审计见 [REPOSITORY_AUDIT_0122.json](../verification/REPOSITORY_AUDIT_0122.json)：main 可达24提交、439个唯一blob（排除空目录哨兵）及160个公开文件；210个有限规则命中按精确历史blob或已声明unittest限定名称分类，未知发现和禁止路径为零，不发布工具引用或真实运行数据。
 

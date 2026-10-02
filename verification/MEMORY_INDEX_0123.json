@@ -1,0 +1,3019 @@
+{
+  "version": "0.12.3",
+  "recorded_at_utc": "2026-10-02T21:04:44.603756+00:00",
+  "classification": "fully synthetic; no service state, model or Discord used",
+  "baseline_memory_sha256": "454f833c0cd8eb4592279f2445b0f8b66c1e7d3a560538ca4ce22c5a769a197a",
+  "final_memory_sha256": "8489e272d9006b7bf80f1272b34119a65ae8816d9441ae08b4a93e54856ad5ab",
+  "final_retrieval_timing_concurrency": "Run after the concurrent full-suite/benchmark processes finished; no parallel agent or root test/benchmark workload launched for this measurement. Other desktop/system load is uncontrolled.",
+  "interpretation": "Matching and candidate lookup now use query-prefix/incident/postings indexes. Full shadow decay and byte-identical audit remain global. Final total 3k/1k ratios are 3.456 and 3.564; this evidence does not establish linear end-to-end scaling or universal asymptotic superlinearity before the change.",
+  "excluded_development_timing": "Earlier after-final run overlapped unit tests and showed higher ratios; all its bytes matched but it is not the final source hash/isolated timing. Development captures retained locally, not substituted into the final measurements.",
+  "baseline_artifacts": "Large canonical synthetic result/audit/database-digest artifacts are retained only in an isolated local benchmark directory. Public report publishes hashes and full byte-equality results; rerun script to regenerate.",
+  "summary": [
+    {
+      "marks": 1000,
+      "scenario": "first_seed",
+      "before_median_seconds": 0.1993475000053877,
+      "after_median_seconds": 0.06091210000158753,
+      "speedup": 3.272707721457513,
+      "elapsed_reduction_percent": 69.44426190449276,
+      "full_audit_utf8_bytes": 1766307,
+      "baseline_bytes_equal": true,
+      "complete_result_sha256": "6082b6d665b6b874483306aba906a6f1fa300502f8a1a192cb32103012106b21",
+      "before_literal_gate_calls": 1004,
+      "after_literal_gate_calls": 8,
+      "warm_source_record_reads": 1
+    },
+    {
+      "marks": 1000,
+      "scenario": "already_seeded",
+      "before_median_seconds": 0.2226498999953037,
+      "after_median_seconds": 0.04790069999580737,
+      "speedup": 4.648155455239521,
+      "elapsed_reduction_percent": 78.48608959769678,
+      "full_audit_utf8_bytes": 1795294,
+      "baseline_bytes_equal": true,
+      "complete_result_sha256": "32c463e21bf346421357f675ce60dadff0e5e792d94d7ee7688f455ff673ad41",
+      "before_literal_gate_calls": 1004,
+      "after_literal_gate_calls": 8,
+      "warm_source_record_reads": 0
+    },
+    {
+      "marks": 3000,
+      "scenario": "first_seed",
+      "before_median_seconds": 0.6973200000065845,
+      "after_median_seconds": 0.21053589999792166,
+      "speedup": 3.3121192158366726,
+      "elapsed_reduction_percent": 69.80785005507748,
+      "full_audit_utf8_bytes": 5287321,
+      "baseline_bytes_equal": true,
+      "complete_result_sha256": "eb05189cd3b4f2a74b29350d2163c35ccac4b189ce9a13a609f5e82b5a641b72",
+      "before_literal_gate_calls": 3004,
+      "after_literal_gate_calls": 8,
+      "warm_source_record_reads": 1
+    },
+    {
+      "marks": 3000,
+      "scenario": "already_seeded",
+      "before_median_seconds": 0.7592722999979742,
+      "after_median_seconds": 0.1707285000011325,
+      "speedup": 4.447249873295541,
+      "elapsed_reduction_percent": 77.51419352430109,
+      "full_audit_utf8_bytes": 5392331,
+      "baseline_bytes_equal": true,
+      "complete_result_sha256": "d76f1c7ab79440e2c9aadb8c9b20e4936a7c521ba79d2ae9b27928eb69916996",
+      "before_literal_gate_calls": 3004,
+      "after_literal_gate_calls": 8,
+      "warm_source_record_reads": 0
+    }
+  ],
+  "before": {
+    "cases": [
+      {
+        "active_records": 500,
+        "all_repeat_bytes_equal": true,
+        "baseline_artifact": "marks-1000-first_seed.canonical.json",
+        "baseline_bytes_equal": null,
+        "changed_edges": 2500,
+        "complete_result_sha256": "6082b6d665b6b874483306aba906a6f1fa300502f8a1a192cb32103012106b21",
+        "complete_result_utf8_bytes": 1771842,
+        "full_audit_utf8_bytes": 1766307,
+        "known_marks": 1000,
+        "live_edges": 2500,
+        "marks": 1000,
+        "phase_median_seconds_inclusive": {
+          "edges": 0.012168100001872517,
+          "json_encoding": 0.014692799988551997,
+          "literal_match": 0.1458891998481704,
+          "observe": 0.019269000011263415,
+          "records": 0.0013996000052429736,
+          "selection": 0.0031005000055301934
+        },
+        "ranked_candidates": 4,
+        "retrieve_max_seconds": 0.2076593999954639,
+        "retrieve_median_seconds": 0.1993475000053877,
+        "retrieve_min_seconds": 0.19526700000278652,
+        "samples": [
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "6082b6d665b6b874483306aba906a6f1fa300502f8a1a192cb32103012106b21",
+            "complete_result_utf8_bytes": 1771842,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1766215,
+            "full_audit_utf8_bytes": 1766307,
+            "gc_collections_during_retrieve": [
+              15,
+              1,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 1004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.012290799990296364,
+              "json_encoding": 0.014567300007911399,
+              "literal_match": 0.15377520010224544,
+              "observe": 0.019608100003097206,
+              "records": 0.0015091999957803637,
+              "selection": 0.0031005000055301934
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.2076593999954639,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.022702299989759922
+          },
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "6082b6d665b6b874483306aba906a6f1fa300502f8a1a192cb32103012106b21",
+            "complete_result_utf8_bytes": 1771842,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1766215,
+            "full_audit_utf8_bytes": 1766307,
+            "gc_collections_during_retrieve": [
+              15,
+              1,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 1004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.012384100002236664,
+              "json_encoding": 0.01483300000836607,
+              "literal_match": 0.1425764998566592,
+              "observe": 0.019205699994927272,
+              "records": 0.0013746999902650714,
+              "selection": 0.0032513000041944906
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.19623889999638777,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.022622299991780892
+          },
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "6082b6d665b6b874483306aba906a6f1fa300502f8a1a192cb32103012106b21",
+            "complete_result_utf8_bytes": 1771842,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1766215,
+            "full_audit_utf8_bytes": 1766307,
+            "gc_collections_during_retrieve": [
+              15,
+              1,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 1004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.012168100001872517,
+              "json_encoding": 0.014692799988551997,
+              "literal_match": 0.14607129975047428,
+              "observe": 0.02031140000326559,
+              "records": 0.0014017000066814944,
+              "selection": 0.00303880000137724
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.2003437999956077,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.02357819999451749
+          },
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "6082b6d665b6b874483306aba906a6f1fa300502f8a1a192cb32103012106b21",
+            "complete_result_utf8_bytes": 1771842,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1766215,
+            "full_audit_utf8_bytes": 1766307,
+            "gc_collections_during_retrieve": [
+              15,
+              1,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 1004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.011899299992364831,
+              "json_encoding": 0.014527599996654317,
+              "literal_match": 0.14271400001598522,
+              "observe": 0.01884309999877587,
+              "records": 0.0013996000052429736,
+              "selection": 0.003066299992497079
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.19526700000278652,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.022514099997351877
+          },
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "6082b6d665b6b874483306aba906a6f1fa300502f8a1a192cb32103012106b21",
+            "complete_result_utf8_bytes": 1771842,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1766215,
+            "full_audit_utf8_bytes": 1766307,
+            "gc_collections_during_retrieve": [
+              15,
+              1,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 1004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.01202989999728743,
+              "json_encoding": 0.014726699999300763,
+              "literal_match": 0.1458891998481704,
+              "observe": 0.019269000011263415,
+              "records": 0.0013709999911952764,
+              "selection": 0.003308900006231852
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.1993475000053877,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.022845700004836544
+          }
+        ],
+        "scenario": "first_seed",
+        "selected_records": 3,
+        "static_edges": 2500,
+        "support_edges": 2500,
+        "validation_median_seconds_outside_retrieve": 0.022702299989759922
+      },
+      {
+        "active_records": 500,
+        "all_repeat_bytes_equal": true,
+        "baseline_artifact": "marks-1000-already_seeded.canonical.json",
+        "baseline_bytes_equal": null,
+        "changed_edges": 2500,
+        "complete_result_sha256": "32c463e21bf346421357f675ce60dadff0e5e792d94d7ee7688f455ff673ad41",
+        "complete_result_utf8_bytes": 1800831,
+        "full_audit_utf8_bytes": 1795294,
+        "known_marks": 1000,
+        "live_edges": 2500,
+        "marks": 1000,
+        "phase_median_seconds_inclusive": {
+          "edges": 0.0130557999946177,
+          "json_encoding": 0.015036099997814745,
+          "literal_match": 0.1630860996519914,
+          "observe": 0.01830469998822082,
+          "records": 0.001452099997550249,
+          "selection": 0.0030566000059479848
+        },
+        "ranked_candidates": 4,
+        "retrieve_max_seconds": 0.23497269999643322,
+        "retrieve_median_seconds": 0.2226498999953037,
+        "retrieve_min_seconds": 0.19771540000510868,
+        "samples": [
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "32c463e21bf346421357f675ce60dadff0e5e792d94d7ee7688f455ff673ad41",
+            "complete_result_utf8_bytes": 1800831,
+            "counts_before": {
+              "memory_dynamic": 2500,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1795202,
+            "full_audit_utf8_bytes": 1795294,
+            "gc_collections_during_retrieve": [
+              13,
+              1,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 1004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.0130557999946177,
+              "json_encoding": 0.014347700009238906,
+              "literal_match": 0.14764489996014163,
+              "observe": 0.01661559999047313,
+              "records": 0.0012888999917777255,
+              "selection": 0.0033697000035317615
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.19877289999567438,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.022674599997117184
+          },
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "32c463e21bf346421357f675ce60dadff0e5e792d94d7ee7688f455ff673ad41",
+            "complete_result_utf8_bytes": 1800831,
+            "counts_before": {
+              "memory_dynamic": 2500,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1795202,
+            "full_audit_utf8_bytes": 1795294,
+            "gc_collections_during_retrieve": [
+              13,
+              1,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 1004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.012152499999501742,
+              "json_encoding": 0.014351400008308701,
+              "literal_match": 0.14610229978279676,
+              "observe": 0.01830469998822082,
+              "records": 0.0013841000036336482,
+              "selection": 0.002880400003050454
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.19771540000510868,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.022758999999496154
+          },
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "32c463e21bf346421357f675ce60dadff0e5e792d94d7ee7688f455ff673ad41",
+            "complete_result_utf8_bytes": 1800831,
+            "counts_before": {
+              "memory_dynamic": 2500,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1795202,
+            "full_audit_utf8_bytes": 1795294,
+            "gc_collections_during_retrieve": [
+              13,
+              1,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 1004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.018101699999533594,
+              "json_encoding": 0.015036099997814745,
+              "literal_match": 0.17494629995780997,
+              "observe": 0.019275699989520945,
+              "records": 0.0015864000015426427,
+              "selection": 0.0028466999938245863
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.23497269999643322,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.026066899998113513
+          },
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "32c463e21bf346421357f675ce60dadff0e5e792d94d7ee7688f455ff673ad41",
+            "complete_result_utf8_bytes": 1800831,
+            "counts_before": {
+              "memory_dynamic": 2500,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1795202,
+            "full_audit_utf8_bytes": 1795294,
+            "gc_collections_during_retrieve": [
+              13,
+              1,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 1004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.014767000000574626,
+              "json_encoding": 0.017144799989182502,
+              "literal_match": 0.1630860996519914,
+              "observe": 0.021207800004049204,
+              "records": 0.001452099997550249,
+              "selection": 0.0034700999967753887
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.22437519999220967,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.025263599993195385
+          },
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "32c463e21bf346421357f675ce60dadff0e5e792d94d7ee7688f455ff673ad41",
+            "complete_result_utf8_bytes": 1800831,
+            "counts_before": {
+              "memory_dynamic": 2500,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1795202,
+            "full_audit_utf8_bytes": 1795294,
+            "gc_collections_during_retrieve": [
+              13,
+              1,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 1004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.012575000000651926,
+              "json_encoding": 0.015515399994910695,
+              "literal_match": 0.16894249996403232,
+              "observe": 0.01785419999214355,
+              "records": 0.0015554999990854412,
+              "selection": 0.0030566000059479848
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.2226498999953037,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.023954699994646944
+          }
+        ],
+        "scenario": "already_seeded",
+        "selected_records": 3,
+        "static_edges": 2500,
+        "support_edges": 2500,
+        "validation_median_seconds_outside_retrieve": 0.023954699994646944
+      },
+      {
+        "active_records": 1500,
+        "all_repeat_bytes_equal": true,
+        "baseline_artifact": "marks-3000-first_seed.canonical.json",
+        "baseline_bytes_equal": null,
+        "changed_edges": 7500,
+        "complete_result_sha256": "eb05189cd3b4f2a74b29350d2163c35ccac4b189ce9a13a609f5e82b5a641b72",
+        "complete_result_utf8_bytes": 5292856,
+        "full_audit_utf8_bytes": 5287321,
+        "known_marks": 3000,
+        "live_edges": 7500,
+        "marks": 3000,
+        "phase_median_seconds_inclusive": {
+          "edges": 0.041727899995748885,
+          "json_encoding": 0.04942390001087915,
+          "literal_match": 0.5117702993593412,
+          "observe": 0.06639320000249427,
+          "records": 0.004466500002308749,
+          "selection": 0.009572900002240203
+        },
+        "ranked_candidates": 4,
+        "retrieve_max_seconds": 0.750253199992585,
+        "retrieve_median_seconds": 0.6973200000065845,
+        "retrieve_min_seconds": 0.6709926000039559,
+        "samples": [
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "eb05189cd3b4f2a74b29350d2163c35ccac4b189ce9a13a609f5e82b5a641b72",
+            "complete_result_utf8_bytes": 5292856,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5287229,
+            "full_audit_utf8_bytes": 5287321,
+            "gc_collections_during_retrieve": [
+              43,
+              3,
+              0
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 3004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.039359999995213,
+              "json_encoding": 0.050379000007524155,
+              "literal_match": 0.5190368003823096,
+              "observe": 0.06639320000249427,
+              "records": 0.004390000001876615,
+              "selection": 0.009687900004792027
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.6990345999947749,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.07806060000439174
+          },
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "eb05189cd3b4f2a74b29350d2163c35ccac4b189ce9a13a609f5e82b5a641b72",
+            "complete_result_utf8_bytes": 5292856,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5287229,
+            "full_audit_utf8_bytes": 5287321,
+            "gc_collections_during_retrieve": [
+              43,
+              3,
+              0
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 3004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.042858199987676926,
+              "json_encoding": 0.04942390001087915,
+              "literal_match": 0.5053840003383812,
+              "observe": 0.06513689999701455,
+              "records": 0.004254400002537295,
+              "selection": 0.009162300004391
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.6857853000110481,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.07859289999760222
+          },
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "eb05189cd3b4f2a74b29350d2163c35ccac4b189ce9a13a609f5e82b5a641b72",
+            "complete_result_utf8_bytes": 5292856,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5287229,
+            "full_audit_utf8_bytes": 5287321,
+            "gc_collections_during_retrieve": [
+              43,
+              3,
+              0
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 3004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.03923680000298191,
+              "json_encoding": 0.048004599986597896,
+              "literal_match": 0.4874777004006319,
+              "observe": 0.07263529999181628,
+              "records": 0.004694200004450977,
+              "selection": 0.009548999994876795
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.6709926000039559,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.07718960000784136
+          },
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "eb05189cd3b4f2a74b29350d2163c35ccac4b189ce9a13a609f5e82b5a641b72",
+            "complete_result_utf8_bytes": 5292856,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5287229,
+            "full_audit_utf8_bytes": 5287321,
+            "gc_collections_during_retrieve": [
+              43,
+              3,
+              0
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 3004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.043090299994219095,
+              "json_encoding": 0.04967280001437757,
+              "literal_match": 0.5670072998764226,
+              "observe": 0.06394670000008773,
+              "records": 0.005770499992650002,
+              "selection": 0.010539199996856041
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.750253199992585,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.08211679999658372
+          },
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "eb05189cd3b4f2a74b29350d2163c35ccac4b189ce9a13a609f5e82b5a641b72",
+            "complete_result_utf8_bytes": 5292856,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5287229,
+            "full_audit_utf8_bytes": 5287321,
+            "gc_collections_during_retrieve": [
+              43,
+              3,
+              0
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 3004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.041727899995748885,
+              "json_encoding": 0.047002399995108135,
+              "literal_match": 0.5117702993593412,
+              "observe": 0.07289929999387823,
+              "records": 0.004466500002308749,
+              "selection": 0.009572900002240203
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.6973200000065845,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.07593820001056883
+          }
+        ],
+        "scenario": "first_seed",
+        "selected_records": 3,
+        "static_edges": 7500,
+        "support_edges": 7500,
+        "validation_median_seconds_outside_retrieve": 0.07806060000439174
+      },
+      {
+        "active_records": 1500,
+        "all_repeat_bytes_equal": true,
+        "baseline_artifact": "marks-3000-already_seeded.canonical.json",
+        "baseline_bytes_equal": null,
+        "changed_edges": 7500,
+        "complete_result_sha256": "d76f1c7ab79440e2c9aadb8c9b20e4936a7c521ba79d2ae9b27928eb69916996",
+        "complete_result_utf8_bytes": 5397876,
+        "full_audit_utf8_bytes": 5392331,
+        "known_marks": 3000,
+        "live_edges": 7500,
+        "marks": 3000,
+        "phase_median_seconds_inclusive": {
+          "edges": 0.05485220000264235,
+          "json_encoding": 0.05695779999950901,
+          "literal_match": 0.5226758995704586,
+          "observe": 0.07338239999080542,
+          "records": 0.00468699999328237,
+          "selection": 0.01265429999330081
+        },
+        "ranked_candidates": 4,
+        "retrieve_max_seconds": 0.9341140000033192,
+        "retrieve_median_seconds": 0.7592722999979742,
+        "retrieve_min_seconds": 0.6747436000005109,
+        "samples": [
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "d76f1c7ab79440e2c9aadb8c9b20e4936a7c521ba79d2ae9b27928eb69916996",
+            "complete_result_utf8_bytes": 5397876,
+            "counts_before": {
+              "memory_dynamic": 7500,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5392239,
+            "full_audit_utf8_bytes": 5392331,
+            "gc_collections_during_retrieve": [
+              39,
+              3,
+              0
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 3004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.06013820000225678,
+              "json_encoding": 0.07971910000196658,
+              "literal_match": 0.5114044001529692,
+              "observe": 0.07873320000362583,
+              "records": 0.00468699999328237,
+              "selection": 0.013218499996582977
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.7592722999979742,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.10775009999633767
+          },
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "d76f1c7ab79440e2c9aadb8c9b20e4936a7c521ba79d2ae9b27928eb69916996",
+            "complete_result_utf8_bytes": 5397876,
+            "counts_before": {
+              "memory_dynamic": 7500,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5392239,
+            "full_audit_utf8_bytes": 5392331,
+            "gc_collections_during_retrieve": [
+              39,
+              3,
+              0
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 3004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.047275000004447065,
+              "json_encoding": 0.04987790000450332,
+              "literal_match": 0.5226758995704586,
+              "observe": 0.060145699986605905,
+              "records": 0.004527299999608658,
+              "selection": 0.012447000000975095
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.7068909000081476,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.08580429998983163
+          },
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "d76f1c7ab79440e2c9aadb8c9b20e4936a7c521ba79d2ae9b27928eb69916996",
+            "complete_result_utf8_bytes": 5397876,
+            "counts_before": {
+              "memory_dynamic": 7500,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5392239,
+            "full_audit_utf8_bytes": 5392331,
+            "gc_collections_during_retrieve": [
+              39,
+              3,
+              0
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 3004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.04622590000508353,
+              "json_encoding": 0.04668660000606906,
+              "literal_match": 0.49797610024688765,
+              "observe": 0.06046079999941867,
+              "records": 0.004468699989956804,
+              "selection": 0.009405999997397885
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.6747436000005109,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.0941954000008991
+          },
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "d76f1c7ab79440e2c9aadb8c9b20e4936a7c521ba79d2ae9b27928eb69916996",
+            "complete_result_utf8_bytes": 5397876,
+            "counts_before": {
+              "memory_dynamic": 7500,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5392239,
+            "full_audit_utf8_bytes": 5392331,
+            "gc_collections_during_retrieve": [
+              39,
+              3,
+              0
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 3004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.05485220000264235,
+              "json_encoding": 0.05695779999950901,
+              "literal_match": 0.6355760003789328,
+              "observe": 0.07338239999080542,
+              "records": 0.004888700001174584,
+              "selection": 0.01265429999330081
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.8489975000120467,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.09092260000761598
+          },
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "d76f1c7ab79440e2c9aadb8c9b20e4936a7c521ba79d2ae9b27928eb69916996",
+            "complete_result_utf8_bytes": 5397876,
+            "counts_before": {
+              "memory_dynamic": 7500,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5392239,
+            "full_audit_utf8_bytes": 5392331,
+            "gc_collections_during_retrieve": [
+              39,
+              3,
+              0
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 3004,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.06223080000199843,
+              "json_encoding": 0.0714051999966614,
+              "literal_match": 0.6875125000369735,
+              "observe": 0.0822420000040438,
+              "records": 0.005987399999867193,
+              "selection": 0.013213199999881908
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.9341140000033192,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.1143661000096472
+          }
+        ],
+        "scenario": "already_seeded",
+        "selected_records": 3,
+        "static_edges": 7500,
+        "support_edges": 7500,
+        "validation_median_seconds_outside_retrieve": 0.0941954000008991
+      }
+    ],
+    "comparisons": [
+      {
+        "audit_byte_ratio": 2.9934326252457812,
+        "edge_ratio": 3.0,
+        "interpretation_limit": "Two synthetic sizes cannot prove asymptotic complexity or service deadline compliance.",
+        "large_marks": 3000,
+        "mark_ratio": 3.0,
+        "median_time_ratio": 3.4980122649531005,
+        "record_ratio": 3.0,
+        "scenario": "first_seed",
+        "small_marks": 1000,
+        "time_ratio_divided_by_mark_ratio": 1.1660040883177,
+        "two_point_effective_exponent": 1.1397969017661802
+      },
+      {
+        "audit_byte_ratio": 3.00359216930486,
+        "edge_ratio": 3.0,
+        "interpretation_limit": "Two synthetic sizes cannot prove asymptotic complexity or service deadline compliance.",
+        "large_marks": 3000,
+        "mark_ratio": 3.0,
+        "median_time_ratio": 3.4101623221658275,
+        "record_ratio": 3.0,
+        "scenario": "already_seeded",
+        "small_marks": 1000,
+        "time_ratio_divided_by_mark_ratio": 1.1367207740552758,
+        "two_point_effective_exponent": 1.1166449753241923
+      }
+    ],
+    "data_classification": "fully synthetic; no existing runtime or knowledge data used",
+    "environment": {
+      "platform": "Windows-11-10.0.26200-SP0",
+      "python": "3.14.7 (tags/v3.14.7:823f032, Aug  5 2026, 10:51:32) [MSC v.1944 64 bit (AMD64)]",
+      "python_hash_seed": null,
+      "sqlite": "3.50.4"
+    },
+    "format_version": 1,
+    "method": {
+      "database": "fresh SQLite :memory: clone for every sample",
+      "fixed_query": "m000000 m000001 m000002 m000003",
+      "garbage_collection": "enabled; explicit collection before timing",
+      "ingestion_included": false,
+      "phase_times": "inclusive/nested; do not sum them",
+      "ranking_mode": "static",
+      "regex_cache": "purged before each timed retrieval",
+      "repeats": 5,
+      "runtime_simulation": "unrelated turn INSERT and UPDATE before each retrieval",
+      "scope": "synthetic:memory-scaling",
+      "sizes": [
+        1000,
+        3000
+      ],
+      "unit_fact_offsets": [
+        [
+          0,
+          1,
+          2,
+          3
+        ],
+        [
+          2,
+          3,
+          4,
+          5
+        ],
+        [
+          4,
+          5,
+          6,
+          7
+        ],
+        [
+          6,
+          7,
+          8,
+          9
+        ],
+        [
+          0,
+          1,
+          8,
+          9
+        ]
+      ],
+      "unit_marks": 10,
+      "validation_and_output_encoding_in_retrieve_time": false
+    },
+    "source": {
+      "benchmark_py_sha256": "fd9545757b5f8fcef704473589ac19ecc83308ec97e4b64dccb7a2e4d54c16cb",
+      "head_commit": "9ba2e7653d4736844dbc89556074f64febdc82d7",
+      "memory_py_sha256": "454f833c0cd8eb4592279f2445b0f8b66c1e7d3a560538ca4ce22c5a769a197a"
+    }
+  },
+  "after": {
+    "cases": [
+      {
+        "active_records": 500,
+        "all_repeat_bytes_equal": true,
+        "baseline_artifact": "marks-1000-first_seed.canonical.json",
+        "baseline_bytes_equal": true,
+        "changed_edges": 2500,
+        "complete_result_sha256": "6082b6d665b6b874483306aba906a6f1fa300502f8a1a192cb32103012106b21",
+        "complete_result_utf8_bytes": 1771842,
+        "full_audit_utf8_bytes": 1766307,
+        "known_marks": 1000,
+        "live_edges": 2500,
+        "marks": 1000,
+        "phase_median_seconds_inclusive": {
+          "edges": 0.020169399998849258,
+          "json_encoding": 0.014939200002118014,
+          "literal_match": 0.0007110999868018553,
+          "observe": 0.018604700002470054,
+          "records": 0.0012284999975236133,
+          "selection": 0.001450199997634627
+        },
+        "ranked_candidates": 4,
+        "retrieve_max_seconds": 0.06231310000293888,
+        "retrieve_median_seconds": 0.06091210000158753,
+        "retrieve_min_seconds": 0.059278400003677234,
+        "samples": [
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "6082b6d665b6b874483306aba906a6f1fa300502f8a1a192cb32103012106b21",
+            "complete_result_utf8_bytes": 1771842,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1766215,
+            "full_audit_utf8_bytes": 1766307,
+            "gc_collections_during_retrieve": [
+              56,
+              5,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.020169399998849258,
+              "json_encoding": 0.014873799998895265,
+              "literal_match": 0.0007794999983161688,
+              "observe": 0.01919219999399502,
+              "records": 0.0012674000026891008,
+              "selection": 0.0017244999908143654
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.06231310000293888,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.02269680000608787
+          },
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "6082b6d665b6b874483306aba906a6f1fa300502f8a1a192cb32103012106b21",
+            "complete_result_utf8_bytes": 1771842,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1766215,
+            "full_audit_utf8_bytes": 1766307,
+            "gc_collections_during_retrieve": [
+              56,
+              5,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.020123800000874326,
+              "json_encoding": 0.014477399992756546,
+              "literal_match": 0.000706499966327101,
+              "observe": 0.017835000006016344,
+              "records": 0.0012284999975236133,
+              "selection": 0.0013450999977067113
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.059278400003677234,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.021785200005979277
+          },
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "6082b6d665b6b874483306aba906a6f1fa300502f8a1a192cb32103012106b21",
+            "complete_result_utf8_bytes": 1771842,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1766215,
+            "full_audit_utf8_bytes": 1766307,
+            "gc_collections_during_retrieve": [
+              56,
+              5,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.019626199995400384,
+              "json_encoding": 0.015038900004583411,
+              "literal_match": 0.0007110999868018553,
+              "observe": 0.018604700002470054,
+              "records": 0.0012641000066651031,
+              "selection": 0.0014179999998304993
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.06047870000475086,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.021916500001680106
+          },
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "6082b6d665b6b874483306aba906a6f1fa300502f8a1a192cb32103012106b21",
+            "complete_result_utf8_bytes": 1771842,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1766215,
+            "full_audit_utf8_bytes": 1766307,
+            "gc_collections_during_retrieve": [
+              56,
+              5,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.020243499995558523,
+              "json_encoding": 0.015278499995474704,
+              "literal_match": 0.0007367999787675217,
+              "observe": 0.018532200003392063,
+              "records": 0.001221300000906922,
+              "selection": 0.0014673999976366758
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.06109899999864865,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.022233900002902374
+          },
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "6082b6d665b6b874483306aba906a6f1fa300502f8a1a192cb32103012106b21",
+            "complete_result_utf8_bytes": 1771842,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1766215,
+            "full_audit_utf8_bytes": 1766307,
+            "gc_collections_during_retrieve": [
+              56,
+              5,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.020328699989477172,
+              "json_encoding": 0.014939200002118014,
+              "literal_match": 0.0006842000148026273,
+              "observe": 0.01869270000315737,
+              "records": 0.0012258999922778457,
+              "selection": 0.001450199997634627
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.06091210000158753,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.02236429999175016
+          }
+        ],
+        "scenario": "first_seed",
+        "selected_records": 3,
+        "static_edges": 2500,
+        "support_edges": 2500,
+        "validation_median_seconds_outside_retrieve": 0.022233900002902374
+      },
+      {
+        "active_records": 500,
+        "all_repeat_bytes_equal": true,
+        "baseline_artifact": "marks-1000-already_seeded.canonical.json",
+        "baseline_bytes_equal": true,
+        "changed_edges": 2500,
+        "complete_result_sha256": "32c463e21bf346421357f675ce60dadff0e5e792d94d7ee7688f455ff673ad41",
+        "complete_result_utf8_bytes": 1800831,
+        "full_audit_utf8_bytes": 1795294,
+        "known_marks": 1000,
+        "live_edges": 2500,
+        "marks": 1000,
+        "phase_median_seconds_inclusive": {
+          "edges": 0.010280999995302409,
+          "json_encoding": 0.015594399999827147,
+          "literal_match": 0.0007111000013537705,
+          "observe": 0.017680399992968887,
+          "records": 0.0,
+          "selection": 0.0019013999990420416
+        },
+        "ranked_candidates": 4,
+        "retrieve_max_seconds": 0.04995250000501983,
+        "retrieve_median_seconds": 0.04790069999580737,
+        "retrieve_min_seconds": 0.047822499996982515,
+        "samples": [
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "32c463e21bf346421357f675ce60dadff0e5e792d94d7ee7688f455ff673ad41",
+            "complete_result_utf8_bytes": 1800831,
+            "counts_before": {
+              "memory_dynamic": 2500,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1795202,
+            "full_audit_utf8_bytes": 1795294,
+            "gc_collections_during_retrieve": [
+              33,
+              3,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 0,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.010244699995382689,
+              "json_encoding": 0.015594399999827147,
+              "literal_match": 0.0007111000013537705,
+              "observe": 0.017680399992968887,
+              "records": 0.0,
+              "selection": 0.0019013999990420416
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.04866020000190474,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.024958499998319894
+          },
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "32c463e21bf346421357f675ce60dadff0e5e792d94d7ee7688f455ff673ad41",
+            "complete_result_utf8_bytes": 1800831,
+            "counts_before": {
+              "memory_dynamic": 2500,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1795202,
+            "full_audit_utf8_bytes": 1795294,
+            "gc_collections_during_retrieve": [
+              33,
+              3,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 0,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.010280999995302409,
+              "json_encoding": 0.01513169999816455,
+              "literal_match": 0.0007737000123597682,
+              "observe": 0.017389900007401593,
+              "records": 0.0,
+              "selection": 0.0016969999996945262
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.047822499996982515,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.025200899995979853
+          },
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "32c463e21bf346421357f675ce60dadff0e5e792d94d7ee7688f455ff673ad41",
+            "complete_result_utf8_bytes": 1800831,
+            "counts_before": {
+              "memory_dynamic": 2500,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1795202,
+            "full_audit_utf8_bytes": 1795294,
+            "gc_collections_during_retrieve": [
+              33,
+              3,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 0,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.010414300006232224,
+              "json_encoding": 0.0157723000011174,
+              "literal_match": 0.0007472999859601259,
+              "observe": 0.016541599994525313,
+              "records": 0.0,
+              "selection": 0.0020044999982928857
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.04790069999580737,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.023555099993245676
+          },
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "32c463e21bf346421357f675ce60dadff0e5e792d94d7ee7688f455ff673ad41",
+            "complete_result_utf8_bytes": 1800831,
+            "counts_before": {
+              "memory_dynamic": 2500,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1795202,
+            "full_audit_utf8_bytes": 1795294,
+            "gc_collections_during_retrieve": [
+              33,
+              3,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 0,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.009726999996928498,
+              "json_encoding": 0.014654999991762452,
+              "literal_match": 0.0006847000331617892,
+              "observe": 0.01779270000406541,
+              "records": 0.0,
+              "selection": 0.0017411000007996336
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.047897399999783374,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.023390499991364777
+          },
+          {
+            "changed_edges": 2500,
+            "complete_result_sha256": "32c463e21bf346421357f675ce60dadff0e5e792d94d7ee7688f455ff673ad41",
+            "complete_result_utf8_bytes": 1800831,
+            "counts_before": {
+              "memory_dynamic": 2500,
+              "memory_records": 500,
+              "memory_static": 2500,
+              "memory_support": 2500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 1795202,
+            "full_audit_utf8_bytes": 1795294,
+            "gc_collections_during_retrieve": [
+              33,
+              3,
+              0
+            ],
+            "known_marks": 1000,
+            "live_edges": 2500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 0,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.010619199994835071,
+              "json_encoding": 0.015730500002973713,
+              "literal_match": 0.0007053999725030735,
+              "observe": 0.017907800007378682,
+              "records": 0.0,
+              "selection": 0.0024926000041887164
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.04995250000501983,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.027443200000561774
+          }
+        ],
+        "scenario": "already_seeded",
+        "selected_records": 3,
+        "static_edges": 2500,
+        "support_edges": 2500,
+        "validation_median_seconds_outside_retrieve": 0.024958499998319894
+      },
+      {
+        "active_records": 1500,
+        "all_repeat_bytes_equal": true,
+        "baseline_artifact": "marks-3000-first_seed.canonical.json",
+        "baseline_bytes_equal": true,
+        "changed_edges": 7500,
+        "complete_result_sha256": "eb05189cd3b4f2a74b29350d2163c35ccac4b189ce9a13a609f5e82b5a641b72",
+        "complete_result_utf8_bytes": 5292856,
+        "full_audit_utf8_bytes": 5287321,
+        "known_marks": 3000,
+        "live_edges": 7500,
+        "marks": 3000,
+        "phase_median_seconds_inclusive": {
+          "edges": 0.07328109999070875,
+          "json_encoding": 0.046382500004256144,
+          "literal_match": 0.000774600004660897,
+          "observe": 0.06063270001322962,
+          "records": 0.003941200004192069,
+          "selection": 0.004608699993696064
+        },
+        "ranked_candidates": 4,
+        "retrieve_max_seconds": 0.23231349998968653,
+        "retrieve_median_seconds": 0.21053589999792166,
+        "retrieve_min_seconds": 0.20038280000153463,
+        "samples": [
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "eb05189cd3b4f2a74b29350d2163c35ccac4b189ce9a13a609f5e82b5a641b72",
+            "complete_result_utf8_bytes": 5292856,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5287229,
+            "full_audit_utf8_bytes": 5287321,
+            "gc_collections_during_retrieve": [
+              176,
+              16,
+              1
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.07328109999070875,
+              "json_encoding": 0.046382500004256144,
+              "literal_match": 0.0007486000104108825,
+              "observe": 0.0593496000074083,
+              "records": 0.004163600009633228,
+              "selection": 0.004608699993696064
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.20122560000163503,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.07124390000535641
+          },
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "eb05189cd3b4f2a74b29350d2163c35ccac4b189ce9a13a609f5e82b5a641b72",
+            "complete_result_utf8_bytes": 5292856,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5287229,
+            "full_audit_utf8_bytes": 5287321,
+            "gc_collections_during_retrieve": [
+              176,
+              16,
+              1
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.07295149999845307,
+              "json_encoding": 0.045788300019921735,
+              "literal_match": 0.0007736999832559377,
+              "observe": 0.06063270001322962,
+              "records": 0.0037957999884383753,
+              "selection": 0.003935500004445203
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.20038280000153463,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.07175920000008773
+          },
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "eb05189cd3b4f2a74b29350d2163c35ccac4b189ce9a13a609f5e82b5a641b72",
+            "complete_result_utf8_bytes": 5292856,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5287229,
+            "full_audit_utf8_bytes": 5287321,
+            "gc_collections_during_retrieve": [
+              176,
+              16,
+              1
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.07935929999803193,
+              "json_encoding": 0.07002269999065902,
+              "literal_match": 0.000774600004660897,
+              "observe": 0.05896759999450296,
+              "records": 0.0039021999982651323,
+              "selection": 0.005706399999326095
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.23231349998968653,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.09481849998701364
+          },
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "eb05189cd3b4f2a74b29350d2163c35ccac4b189ce9a13a609f5e82b5a641b72",
+            "complete_result_utf8_bytes": 5292856,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5287229,
+            "full_audit_utf8_bytes": 5287321,
+            "gc_collections_during_retrieve": [
+              176,
+              16,
+              1
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.07193659999757074,
+              "json_encoding": 0.046160300000337884,
+              "literal_match": 0.0010620999819366261,
+              "observe": 0.07222250000631902,
+              "records": 0.003941200004192069,
+              "selection": 0.0036277999897720292
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.21053589999792166,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.07378520000202116
+          },
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "eb05189cd3b4f2a74b29350d2163c35ccac4b189ce9a13a609f5e82b5a641b72",
+            "complete_result_utf8_bytes": 5292856,
+            "counts_before": {
+              "memory_dynamic": 0,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5287229,
+            "full_audit_utf8_bytes": 5287321,
+            "gc_collections_during_retrieve": [
+              176,
+              16,
+              1
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 1,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.07347639999352396,
+              "json_encoding": 0.046541700008674525,
+              "literal_match": 0.001035899986163713,
+              "observe": 0.06916280000586994,
+              "records": 0.00547450000885874,
+              "selection": 0.00486040000396315
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.21519380000245292,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.07265089999418706
+          }
+        ],
+        "scenario": "first_seed",
+        "selected_records": 3,
+        "static_edges": 7500,
+        "support_edges": 7500,
+        "validation_median_seconds_outside_retrieve": 0.07265089999418706
+      },
+      {
+        "active_records": 1500,
+        "all_repeat_bytes_equal": true,
+        "baseline_artifact": "marks-3000-already_seeded.canonical.json",
+        "baseline_bytes_equal": true,
+        "changed_edges": 7500,
+        "complete_result_sha256": "d76f1c7ab79440e2c9aadb8c9b20e4936a7c521ba79d2ae9b27928eb69916996",
+        "complete_result_utf8_bytes": 5397876,
+        "full_audit_utf8_bytes": 5392331,
+        "known_marks": 3000,
+        "live_edges": 7500,
+        "marks": 3000,
+        "phase_median_seconds_inclusive": {
+          "edges": 0.03939590000663884,
+          "json_encoding": 0.05591219999769237,
+          "literal_match": 0.0009794000070542097,
+          "observe": 0.060684500000206754,
+          "records": 0.0,
+          "selection": 0.005302400008076802
+        },
+        "ranked_candidates": 4,
+        "retrieve_max_seconds": 0.20506100000056904,
+        "retrieve_median_seconds": 0.1707285000011325,
+        "retrieve_min_seconds": 0.16012070000579115,
+        "samples": [
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "d76f1c7ab79440e2c9aadb8c9b20e4936a7c521ba79d2ae9b27928eb69916996",
+            "complete_result_utf8_bytes": 5397876,
+            "counts_before": {
+              "memory_dynamic": 7500,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5392239,
+            "full_audit_utf8_bytes": 5392331,
+            "gc_collections_during_retrieve": [
+              99,
+              9,
+              0
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 0,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.046575500004109927,
+              "json_encoding": 0.05529099999694154,
+              "literal_match": 0.000755899993237108,
+              "observe": 0.06636520000756718,
+              "records": 0.0,
+              "selection": 0.007057900002109818
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.1842361000017263,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.07898209999257233
+          },
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "d76f1c7ab79440e2c9aadb8c9b20e4936a7c521ba79d2ae9b27928eb69916996",
+            "complete_result_utf8_bytes": 5397876,
+            "counts_before": {
+              "memory_dynamic": 7500,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5392239,
+            "full_audit_utf8_bytes": 5392331,
+            "gc_collections_during_retrieve": [
+              99,
+              9,
+              0
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 0,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.03939590000663884,
+              "json_encoding": 0.056966900010593235,
+              "literal_match": 0.0009794000070542097,
+              "observe": 0.060053299996070564,
+              "records": 0.0,
+              "selection": 0.005302400008076802
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.1707285000011325,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.08205350000935141
+          },
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "d76f1c7ab79440e2c9aadb8c9b20e4936a7c521ba79d2ae9b27928eb69916996",
+            "complete_result_utf8_bytes": 5397876,
+            "counts_before": {
+              "memory_dynamic": 7500,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5392239,
+            "full_audit_utf8_bytes": 5392331,
+            "gc_collections_during_retrieve": [
+              99,
+              9,
+              0
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 0,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.0376723000081256,
+              "json_encoding": 0.05591219999769237,
+              "literal_match": 0.0009901999728754163,
+              "observe": 0.060205899993889034,
+              "records": 0.0,
+              "selection": 0.004506500001298264
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.16697489999933168,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.08313640000415035
+          },
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "d76f1c7ab79440e2c9aadb8c9b20e4936a7c521ba79d2ae9b27928eb69916996",
+            "complete_result_utf8_bytes": 5397876,
+            "counts_before": {
+              "memory_dynamic": 7500,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5392239,
+            "full_audit_utf8_bytes": 5392331,
+            "gc_collections_during_retrieve": [
+              99,
+              9,
+              0
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 0,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.034750399994663894,
+              "json_encoding": 0.05158540001139045,
+              "literal_match": 0.0009829000191530213,
+              "observe": 0.060684500000206754,
+              "records": 0.0,
+              "selection": 0.004697099997429177
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.16012070000579115,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.08275180000055116
+          },
+          {
+            "changed_edges": 7500,
+            "complete_result_sha256": "d76f1c7ab79440e2c9aadb8c9b20e4936a7c521ba79d2ae9b27928eb69916996",
+            "complete_result_utf8_bytes": 5397876,
+            "counts_before": {
+              "memory_dynamic": 7500,
+              "memory_records": 1500,
+              "memory_static": 7500,
+              "memory_support": 7500
+            },
+            "direct_hits": [
+              "m000000",
+              "m000001",
+              "m000002",
+              "m000003"
+            ],
+            "durable_audit_utf8_bytes": 5392239,
+            "full_audit_utf8_bytes": 5392331,
+            "gc_collections_during_retrieve": [
+              99,
+              9,
+              0
+            ],
+            "known_marks": 3000,
+            "live_edges": 7500,
+            "phase_calls": {
+              "edges": 1,
+              "json_encoding": 2,
+              "literal_match": 8,
+              "observe": 1,
+              "records": 0,
+              "selection": 1
+            },
+            "phase_seconds_inclusive": {
+              "edges": 0.04657700000097975,
+              "json_encoding": 0.07241140000405721,
+              "literal_match": 0.0006954999698791653,
+              "observe": 0.07000629999674857,
+              "records": 0.0,
+              "selection": 0.006692900002235547
+            },
+            "ranked_candidates": 4,
+            "retrieve_seconds": 0.20506100000056904,
+            "selected_records": 3,
+            "unrelated_runtime_changes_before_retrieve": 2,
+            "validation_seconds_outside_retrieve": 0.1135807999962708
+          }
+        ],
+        "scenario": "already_seeded",
+        "selected_records": 3,
+        "static_edges": 7500,
+        "support_edges": 7500,
+        "validation_median_seconds_outside_retrieve": 0.08275180000055116
+      }
+    ],
+    "comparisons": [
+      {
+        "audit_byte_ratio": 2.9934326252457812,
+        "edge_ratio": 3.0,
+        "interpretation_limit": "Two synthetic sizes cannot prove asymptotic complexity or service deadline compliance.",
+        "large_marks": 3000,
+        "mark_ratio": 3.0,
+        "median_time_ratio": 3.4563887961904864,
+        "record_ratio": 3.0,
+        "scenario": "first_seed",
+        "small_marks": 1000,
+        "time_ratio_divided_by_mark_ratio": 1.152129598730162,
+        "two_point_effective_exponent": 1.1289008472821334
+      },
+      {
+        "audit_byte_ratio": 3.00359216930486,
+        "edge_ratio": 3.0,
+        "interpretation_limit": "Two synthetic sizes cannot prove asymptotic complexity or service deadline compliance.",
+        "large_marks": 3000,
+        "mark_ratio": 3.0,
+        "median_time_ratio": 3.5642172247185515,
+        "record_ratio": 3.0,
+        "scenario": "already_seeded",
+        "small_marks": 1000,
+        "time_ratio_divided_by_mark_ratio": 1.188072408239517,
+        "two_point_effective_exponent": 1.1568635000329224
+      }
+    ],
+    "data_classification": "fully synthetic; no existing runtime or knowledge data used",
+    "environment": {
+      "platform": "Windows-11-10.0.26200-SP0",
+      "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+      "python_hash_seed": null,
+      "sqlite": "3.53.1"
+    },
+    "format_version": 1,
+    "method": {
+      "database": "fresh SQLite :memory: clone for every sample",
+      "fixed_query": "m000000 m000001 m000002 m000003",
+      "garbage_collection": "enabled; explicit collection before timing",
+      "ingestion_included": false,
+      "phase_times": "inclusive/nested; do not sum them",
+      "ranking_mode": "static",
+      "regex_cache": "purged before each timed retrieval",
+      "repeats": 5,
+      "runtime_simulation": "unrelated turn INSERT and UPDATE before each retrieval",
+      "scope": "synthetic:memory-scaling",
+      "sizes": [
+        1000,
+        3000
+      ],
+      "unit_fact_offsets": [
+        [
+          0,
+          1,
+          2,
+          3
+        ],
+        [
+          2,
+          3,
+          4,
+          5
+        ],
+        [
+          4,
+          5,
+          6,
+          7
+        ],
+        [
+          6,
+          7,
+          8,
+          9
+        ],
+        [
+          0,
+          1,
+          8,
+          9
+        ]
+      ],
+      "unit_marks": 10,
+      "validation_and_output_encoding_in_retrieve_time": false
+    },
+    "source": {
+      "benchmark_py_sha256": "b4704582ec2d1d9076a834b3a6588940c632374ccadb41c895c6f4893031e56e",
+      "head_commit": "9ba2e7653d4736844dbc89556074f64febdc82d7",
+      "memory_py_sha256": "8489e272d9006b7bf80f1272b34119a65ae8816d9441ae08b4a93e54856ad5ab",
+      "memory_source_captured": "immediately before import and checked unchanged immediately after import",
+      "retrieve_code_object_sha256": "d05a760d5d38b967e6a57633c2630a4de141867ca5be45bb5c2d8144a35485c8"
+    }
+  },
+  "source_publication": {
+    "cases": [],
+    "comparisons": [],
+    "data_classification": "fully synthetic; no existing runtime or knowledge data used",
+    "environment": {
+      "platform": "Windows-11-10.0.26200-SP0",
+      "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+      "python_hash_seed": null,
+      "sqlite": "3.53.1"
+    },
+    "format_version": 1,
+    "method": {
+      "database": "fresh SQLite :memory: clone for every sample",
+      "fixed_query": "m000000 m000001 m000002 m000003",
+      "garbage_collection": "enabled; explicit collection before timing",
+      "ingestion_included": false,
+      "phase_times": "inclusive/nested; do not sum them",
+      "ranking_mode": "static",
+      "regex_cache": "purged before each timed retrieval",
+      "repeats": 3,
+      "runtime_simulation": "unrelated turn INSERT and UPDATE before each retrieval",
+      "scope": "synthetic:memory-scaling",
+      "sizes": [
+        1000,
+        3000
+      ],
+      "unit_fact_offsets": [
+        [
+          0,
+          1,
+          2,
+          3
+        ],
+        [
+          2,
+          3,
+          4,
+          5
+        ],
+        [
+          4,
+          5,
+          6,
+          7
+        ],
+        [
+          6,
+          7,
+          8,
+          9
+        ],
+        [
+          0,
+          1,
+          8,
+          9
+        ]
+      ],
+      "unit_marks": 10,
+      "validation_and_output_encoding_in_retrieve_time": false
+    },
+    "source": {
+      "benchmark_py_sha256": "b4704582ec2d1d9076a834b3a6588940c632374ccadb41c895c6f4893031e56e",
+      "head_commit": "9ba2e7653d4736844dbc89556074f64febdc82d7",
+      "memory_py_sha256": "8489e272d9006b7bf80f1272b34119a65ae8816d9441ae08b4a93e54856ad5ab",
+      "memory_source_captured": "immediately before import and checked unchanged immediately after import",
+      "retrieve_code_object_sha256": "d05a760d5d38b967e6a57633c2630a4de141867ca5be45bb5c2d8144a35485c8"
+    },
+    "source_publication": {
+      "baseline_memory_py_sha256": "454f833c0cd8eb4592279f2445b0f8b66c1e7d3a560538ca4ce22c5a769a197a",
+      "baseline_ref": "9ba2e76",
+      "cases": [
+        {
+          "all_full_bytes_equal": true,
+          "marks": 1000,
+          "operations": {
+            "initial_add": {
+              "after": {
+                "median_seconds": 0.051303700005519204,
+                "rebuild_median_seconds_inclusive": 0.04237390001071617,
+                "samples": [
+                  {
+                    "rebuild_seconds_inclusive": 0.04068889998598024,
+                    "seconds": 0.04965440000523813,
+                    "sqlite_total_changes": 11000,
+                    "temp_revision_writes": 5500
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.04237390001071617,
+                    "seconds": 0.051303700005519204,
+                    "sqlite_total_changes": 11000,
+                    "temp_revision_writes": 5500
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.0548175000003539,
+                    "seconds": 0.0657640999997966,
+                    "sqlite_total_changes": 11000,
+                    "temp_revision_writes": 5500
+                  }
+                ],
+                "sqlite_total_changes": 11000,
+                "temp_revision_writes": 5500
+              },
+              "after_divided_by_before_seconds": 1.2851306330343644,
+              "before": {
+                "median_seconds": 0.03992100000323262,
+                "rebuild_median_seconds_inclusive": 0.03273789999366272,
+                "samples": [
+                  {
+                    "rebuild_seconds_inclusive": 0.03273789999366272,
+                    "seconds": 0.03992100000323262,
+                    "sqlite_total_changes": 5500,
+                    "temp_revision_writes": 0
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.031260999996447936,
+                    "seconds": 0.03774489999341313,
+                    "sqlite_total_changes": 5500,
+                    "temp_revision_writes": 0
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.033375999992131256,
+                    "seconds": 0.04015649999200832,
+                    "sqlite_total_changes": 5500,
+                    "temp_revision_writes": 0
+                  }
+                ],
+                "sqlite_total_changes": 5500,
+                "temp_revision_writes": 0
+              }
+            },
+            "representative_add": {
+              "after": {
+                "median_seconds": 0.04549629999382887,
+                "rebuild_median_seconds_inclusive": 0.04505590000189841,
+                "samples": [
+                  {
+                    "rebuild_seconds_inclusive": 0.044962100000702776,
+                    "seconds": 0.04546350000600796,
+                    "sqlite_total_changes": 20010,
+                    "temp_revision_writes": 10005
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.04505590000189841,
+                    "seconds": 0.04549629999382887,
+                    "sqlite_total_changes": 20010,
+                    "temp_revision_writes": 10005
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.048203900005319156,
+                    "seconds": 0.04863840001053177,
+                    "sqlite_total_changes": 20010,
+                    "temp_revision_writes": 10005
+                  }
+                ],
+                "sqlite_total_changes": 20010,
+                "temp_revision_writes": 10005
+              },
+              "after_divided_by_before_seconds": 1.3737427721500233,
+              "before": {
+                "median_seconds": 0.03311849999590777,
+                "rebuild_median_seconds_inclusive": 0.03281670001160819,
+                "samples": [
+                  {
+                    "rebuild_seconds_inclusive": 0.03206040000077337,
+                    "seconds": 0.03245280000555795,
+                    "sqlite_total_changes": 10005,
+                    "temp_revision_writes": 0
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.03281670001160819,
+                    "seconds": 0.03311849999590777,
+                    "sqlite_total_changes": 10005,
+                    "temp_revision_writes": 0
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.035933299994212575,
+                    "seconds": 0.036221699992893264,
+                    "sqlite_total_changes": 10005,
+                    "temp_revision_writes": 0
+                  }
+                ],
+                "sqlite_total_changes": 10005,
+                "temp_revision_writes": 0
+              }
+            },
+            "representative_retire": {
+              "after": {
+                "median_seconds": 0.0498239000007743,
+                "rebuild_median_seconds_inclusive": 0.04955740000877995,
+                "samples": [
+                  {
+                    "rebuild_seconds_inclusive": 0.045228999995742925,
+                    "seconds": 0.04547030001413077,
+                    "sqlite_total_changes": 20010,
+                    "temp_revision_writes": 10005
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.04955740000877995,
+                    "seconds": 0.0498239000007743,
+                    "sqlite_total_changes": 20010,
+                    "temp_revision_writes": 10005
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.0501897999929497,
+                    "seconds": 0.050447300003725104,
+                    "sqlite_total_changes": 20010,
+                    "temp_revision_writes": 10005
+                  }
+                ],
+                "sqlite_total_changes": 20010,
+                "temp_revision_writes": 10005
+              },
+              "after_divided_by_before_seconds": 1.5367786313358858,
+              "before": {
+                "median_seconds": 0.0324209999962477,
+                "rebuild_median_seconds_inclusive": 0.032228800002485514,
+                "samples": [
+                  {
+                    "rebuild_seconds_inclusive": 0.032086499995784834,
+                    "seconds": 0.03226100000028964,
+                    "sqlite_total_changes": 10005,
+                    "temp_revision_writes": 0
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.032228800002485514,
+                    "seconds": 0.0324209999962477,
+                    "sqlite_total_changes": 10005,
+                    "temp_revision_writes": 0
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.03991900000255555,
+                    "seconds": 0.040108400004100986,
+                    "sqlite_total_changes": 10005,
+                    "temp_revision_writes": 0
+                  }
+                ],
+                "sqlite_total_changes": 10005,
+                "temp_revision_writes": 0
+              }
+            },
+            "retrieve_after_initial_add": {
+              "after": {
+                "median_seconds": 0.05883200000971556,
+                "samples": [
+                  {
+                    "seconds": 0.05854199999885168
+                  },
+                  {
+                    "seconds": 0.05883200000971556
+                  },
+                  {
+                    "seconds": 0.061536199995316565
+                  }
+                ]
+              },
+              "after_divided_by_before_seconds": 0.3020386789690089,
+              "before": {
+                "median_seconds": 0.1947830000135582,
+                "samples": [
+                  {
+                    "seconds": 0.1947830000135582
+                  },
+                  {
+                    "seconds": 0.19408950000070035
+                  },
+                  {
+                    "seconds": 0.21929710000404157
+                  }
+                ]
+              }
+            },
+            "retrieve_after_representative_add": {
+              "after": {
+                "median_seconds": 0.06165449999389239,
+                "samples": [
+                  {
+                    "seconds": 0.057262700007413514
+                  },
+                  {
+                    "seconds": 0.06165449999389239
+                  },
+                  {
+                    "seconds": 0.06481989999883808
+                  }
+                ]
+              },
+              "after_divided_by_before_seconds": 0.3199473798601073,
+              "before": {
+                "median_seconds": 0.19270200000028126,
+                "samples": [
+                  {
+                    "seconds": 0.19270200000028126
+                  },
+                  {
+                    "seconds": 0.19052839999494608
+                  },
+                  {
+                    "seconds": 0.20806369998899754
+                  }
+                ]
+              }
+            },
+            "retrieve_after_representative_retire": {
+              "after": {
+                "median_seconds": 0.06506779999472201,
+                "samples": [
+                  {
+                    "seconds": 0.05711380000866484
+                  },
+                  {
+                    "seconds": 0.08865630000946112
+                  },
+                  {
+                    "seconds": 0.06506779999472201
+                  }
+                ]
+              },
+              "after_divided_by_before_seconds": 0.3503518443675756,
+              "before": {
+                "median_seconds": 0.18572130000393372,
+                "samples": [
+                  {
+                    "seconds": 0.18572130000393372
+                  },
+                  {
+                    "seconds": 0.18502270001044963
+                  },
+                  {
+                    "seconds": 0.20026409999991301
+                  }
+                ]
+              }
+            }
+          },
+          "outcome_sha256": {
+            "retrieve_after_initial_add": "3030d4c0122f256efd77926a1965f55b363c914bda7c85e58c4335133270804d",
+            "retrieve_after_representative_add": "96a97e1ca51e3b92962cf073a8807074f0c7c598af376931eaf4aec522887af8",
+            "retrieve_after_representative_retire": "f37a569bd53b78d797b216eecab91adaac32c762ddb5058b19461840688deead"
+          }
+        },
+        {
+          "all_full_bytes_equal": true,
+          "marks": 3000,
+          "operations": {
+            "initial_add": {
+              "after": {
+                "median_seconds": 0.21973520000756253,
+                "rebuild_median_seconds_inclusive": 0.17216290000942536,
+                "samples": [
+                  {
+                    "rebuild_seconds_inclusive": 0.13509379999595694,
+                    "seconds": 0.16340219999256078,
+                    "sqlite_total_changes": 33000,
+                    "temp_revision_writes": 16500
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.20155139999405947,
+                    "seconds": 0.2394295999984024,
+                    "sqlite_total_changes": 33000,
+                    "temp_revision_writes": 16500
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.17216290000942536,
+                    "seconds": 0.21973520000756253,
+                    "sqlite_total_changes": 33000,
+                    "temp_revision_writes": 16500
+                  }
+                ],
+                "sqlite_total_changes": 33000,
+                "temp_revision_writes": 16500
+              },
+              "after_divided_by_before_seconds": 1.7085057828774242,
+              "before": {
+                "median_seconds": 0.12861250000423752,
+                "rebuild_median_seconds_inclusive": 0.10670390000450425,
+                "samples": [
+                  {
+                    "rebuild_seconds_inclusive": 0.10320040000078734,
+                    "seconds": 0.1253426000039326,
+                    "sqlite_total_changes": 16500,
+                    "temp_revision_writes": 0
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.10670390000450425,
+                    "seconds": 0.12861250000423752,
+                    "sqlite_total_changes": 16500,
+                    "temp_revision_writes": 0
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.11307950000627898,
+                    "seconds": 0.13563410000642762,
+                    "sqlite_total_changes": 16500,
+                    "temp_revision_writes": 0
+                  }
+                ],
+                "sqlite_total_changes": 16500,
+                "temp_revision_writes": 0
+              }
+            },
+            "representative_add": {
+              "after": {
+                "median_seconds": 0.1509998999972595,
+                "rebuild_median_seconds_inclusive": 0.15027569999801926,
+                "samples": [
+                  {
+                    "rebuild_seconds_inclusive": 0.15183149999938905,
+                    "seconds": 0.1525922000000719,
+                    "sqlite_total_changes": 60010,
+                    "temp_revision_writes": 30005
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.1497638000000734,
+                    "seconds": 0.1505036000016844,
+                    "sqlite_total_changes": 60010,
+                    "temp_revision_writes": 30005
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.15027569999801926,
+                    "seconds": 0.1509998999972595,
+                    "sqlite_total_changes": 60010,
+                    "temp_revision_writes": 30005
+                  }
+                ],
+                "sqlite_total_changes": 60010,
+                "temp_revision_writes": 30005
+              },
+              "after_divided_by_before_seconds": 1.275120524283627,
+              "before": {
+                "median_seconds": 0.1184200999996392,
+                "rebuild_median_seconds_inclusive": 0.11763140000402927,
+                "samples": [
+                  {
+                    "rebuild_seconds_inclusive": 0.10327890000189655,
+                    "seconds": 0.1039541000063764,
+                    "sqlite_total_changes": 30005,
+                    "temp_revision_writes": 0
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.11763140000402927,
+                    "seconds": 0.1184200999996392,
+                    "sqlite_total_changes": 30005,
+                    "temp_revision_writes": 0
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.15088860000832938,
+                    "seconds": 0.15165269999124575,
+                    "sqlite_total_changes": 30005,
+                    "temp_revision_writes": 0
+                  }
+                ],
+                "sqlite_total_changes": 30005,
+                "temp_revision_writes": 0
+              }
+            },
+            "representative_retire": {
+              "after": {
+                "median_seconds": 0.16065020000678487,
+                "rebuild_median_seconds_inclusive": 0.1599699999933364,
+                "samples": [
+                  {
+                    "rebuild_seconds_inclusive": 0.15372749998641666,
+                    "seconds": 0.1544175000017276,
+                    "sqlite_total_changes": 60010,
+                    "temp_revision_writes": 30005
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.1599699999933364,
+                    "seconds": 0.16065020000678487,
+                    "sqlite_total_changes": 60010,
+                    "temp_revision_writes": 30005
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.17160000000149012,
+                    "seconds": 0.17241120000835508,
+                    "sqlite_total_changes": 60010,
+                    "temp_revision_writes": 30005
+                  }
+                ],
+                "sqlite_total_changes": 60010,
+                "temp_revision_writes": 30005
+              },
+              "after_divided_by_before_seconds": 1.359643725463971,
+              "before": {
+                "median_seconds": 0.11815610001212917,
+                "rebuild_median_seconds_inclusive": 0.1174349000066286,
+                "samples": [
+                  {
+                    "rebuild_seconds_inclusive": 0.11136439999972936,
+                    "seconds": 0.11199710000073537,
+                    "sqlite_total_changes": 30005,
+                    "temp_revision_writes": 0
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.1174349000066286,
+                    "seconds": 0.11815610001212917,
+                    "sqlite_total_changes": 30005,
+                    "temp_revision_writes": 0
+                  },
+                  {
+                    "rebuild_seconds_inclusive": 0.13052259999676608,
+                    "seconds": 0.13095479999901727,
+                    "sqlite_total_changes": 30005,
+                    "temp_revision_writes": 0
+                  }
+                ],
+                "sqlite_total_changes": 30005,
+                "temp_revision_writes": 0
+              }
+            },
+            "retrieve_after_initial_add": {
+              "after": {
+                "median_seconds": 0.21549719999893568,
+                "samples": [
+                  {
+                    "seconds": 0.19919470000604633
+                  },
+                  {
+                    "seconds": 0.21549719999893568
+                  },
+                  {
+                    "seconds": 0.2384106000099564
+                  }
+                ]
+              },
+              "after_divided_by_before_seconds": 0.3237258854913004,
+              "before": {
+                "median_seconds": 0.6656779999902938,
+                "samples": [
+                  {
+                    "seconds": 0.649299600001541
+                  },
+                  {
+                    "seconds": 0.6762239000090631
+                  },
+                  {
+                    "seconds": 0.6656779999902938
+                  }
+                ]
+              }
+            },
+            "retrieve_after_representative_add": {
+              "after": {
+                "median_seconds": 0.2177044999989448,
+                "samples": [
+                  {
+                    "seconds": 0.20503440000175033
+                  },
+                  {
+                    "seconds": 0.224491200002376
+                  },
+                  {
+                    "seconds": 0.2177044999989448
+                  }
+                ]
+              },
+              "after_divided_by_before_seconds": 0.33280068998560286,
+              "before": {
+                "median_seconds": 0.6541587999963667,
+                "samples": [
+                  {
+                    "seconds": 0.6138914000039222
+                  },
+                  {
+                    "seconds": 0.6541587999963667
+                  },
+                  {
+                    "seconds": 0.7048275999986799
+                  }
+                ]
+              }
+            },
+            "retrieve_after_representative_retire": {
+              "after": {
+                "median_seconds": 0.21551580000959802,
+                "samples": [
+                  {
+                    "seconds": 0.20340959999884944
+                  },
+                  {
+                    "seconds": 0.21551580000959802
+                  },
+                  {
+                    "seconds": 0.2972122000064701
+                  }
+                ]
+              },
+              "after_divided_by_before_seconds": 0.2872156557001597,
+              "before": {
+                "median_seconds": 0.750362300008419,
+                "samples": [
+                  {
+                    "seconds": 0.62643420000677
+                  },
+                  {
+                    "seconds": 0.7605535000038799
+                  },
+                  {
+                    "seconds": 0.750362300008419
+                  }
+                ]
+              }
+            }
+          },
+          "outcome_sha256": {
+            "retrieve_after_initial_add": "a05179b765e00a84d63ca215e51ad584905d85b331c3ad6d42a052375e442695",
+            "retrieve_after_representative_add": "26d6f272367e0010834b4a6dba9be917083c8b9ce127ec59153d897f3ec07807",
+            "retrieve_after_representative_retire": "8b1707c5085e24aac84d9cbdc42ccaa073dc0657ab1dbee00f7913e1e1d4087d"
+          }
+        }
+      ],
+      "method": "initial full add; one five-fact source add; retire that source; cold retrieval after each mutation",
+      "timing_limit": "publication timings are separate and excluded from ordinary retrieval benchmark"
+    }
+  },
+  "reproduction": {
+    "baseline_ref": "9ba2e76",
+    "entry_point": "verification/benchmark_memory_scaling.py",
+    "retrieval_arguments": "--sizes 1000 3000 --repeats 5 --save-baseline BASELINE_DIR --output BEFORE_JSON; after the source update use --compare-baseline BASELINE_DIR --output AFTER_JSON",
+    "publication_arguments": "--sizes 1000 3000 --repeats 3 --publication-only --baseline-ref 9ba2e76 --output PUBLICATION_JSON",
+    "historical_baseline": "Run the tracked baseline ref in an isolated checkout; never overwrite an active service checkout."
+  }
+}

@@ -34,7 +34,8 @@ import re
 import sqlite3
 import time
 from collections import Counter
-from contextlib import nullcontext
+from copy import deepcopy
+from contextlib import contextmanager, nullcontext
 from typing import Any
 
 from .identity import AGENT_NAME, SELF_NAME_ALIASES
@@ -67,6 +68,109 @@ def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
+class _IndexedRecords(list):
+    """Private, committed source snapshot; never returned to the caller."""
+
+    def __init__(self, records, self_marks):
+        super().__init__(records)
+        self.self_marks = frozenset(self_marks)
+        frequencies = Counter()
+        self.postings = {}
+        for ordinal, record in enumerate(records):
+            marks = set(record["marks"]) - self_marks
+            frequencies.update(marks)
+            for mark in marks:
+                self.postings.setdefault(mark, []).append(ordinal)
+        self.known = set(frequencies)
+        self.frequencies = dict(sorted(frequencies.items()))
+        self.latin_trie, self.substring_trie = {}, {}
+        for mark in self.known:
+            latin = bool(_LATIN.fullmatch(mark))
+            node = self.latin_trie if latin else self.substring_trie
+            for character in mark.lower() if latin else mark.casefold():
+                node = node.setdefault(character, {})
+            node.setdefault(None, []).append(mark)
+
+    def literal_matches(self, query):
+        """Find candidate labels by query prefixes, then use the exact gate.
+
+        ASCII regex IGNORECASE additionally matches İ, ı, ſ and K. Its
+        lookarounds still use the original query and regex flags. The
+        non-Latin matcher instead searches casefolded substrings, including
+        matches inside a multi-character casefold expansion.
+        """
+        special = {"İ": "i", "ı": "i", "ſ": "s", "K": "k"}
+        normalized = "".join(special.get(c, c.lower() if "A" <= c <= "Z" else c)
+                             for c in query)
+        candidates = set(self.substring_trie.get(None, ()))
+
+        def ascii_word(character):
+            return ("A" <= character <= "Z" or "a" <= character <= "z"
+                    or "0" <= character <= "9" or character == "_")
+
+        for start in range(len(query)):
+            if start and ascii_word(query[start - 1]):
+                continue
+            node = self.latin_trie
+            for end in range(start, len(query)):
+                node = node.get(normalized[end])
+                if node is None:
+                    break
+                if end + 1 == len(query) or not ascii_word(query[end + 1]):
+                    candidates.update(node.get(None, ()))
+        folded = query.casefold()
+        for start in range(len(folded)):
+            node = self.substring_trie
+            for end in range(start, len(folded)):
+                node = node.get(folded[end])
+                if node is None:
+                    break
+                candidates.update(node.get(None, ()))
+        return {mark for mark in candidates if _hit(mark, query)}
+
+
+class _IndexedEdges(dict):
+    """Fresh dynamic values with source-order and incident-edge indexes."""
+
+    def __init__(self, edges, index, ranking_mode):
+        super().__init__(edges)
+        self.ordered_pairs = index.ordered_pairs
+        self.ordinals = index.edge_ordinals
+        self.incident = index.incident
+        self.static_neighbors = index.static_neighbors if ranking_mode == "static" else None
+
+
+class _RetrievalIndex:
+    def __init__(self, records, self_marks):
+        self.records = _IndexedRecords(records, self_marks)
+        self.edges = None
+        self.decoded_edges = {}
+
+    def index_edges(self, edges):
+        self.edges = edges
+        self.indexable_edges = all(isinstance(mark, str) for pair in edges for mark in pair)
+        if not self.indexable_edges:
+            # SQLite TEXT affinity can still contain legacy BLOB values.
+            # The old path sorts only live edges; do not inspect inactive
+            # mixed-type keys earlier than that policy does.
+            return
+        self.ordered_pairs = tuple(sorted(edges))
+        self.edge_ordinals = {pair: ordinal for ordinal, pair in enumerate(edges)}
+        self.incident = {}
+        for pair in edges:
+            for mark in pair:
+                self.incident.setdefault(mark, []).append(pair)
+        self.static_neighbors = None
+
+    def index_static_neighbors(self):
+        self.static_neighbors = {}
+        for mark, pairs in self.incident.items():
+            self.static_neighbors[mark] = tuple(sorted(
+                (pair for pair in pairs if self.edges[pair]["static_score"] > 0),
+                key=lambda pair: (-self.edges[pair]["static_score"],
+                                  pair[1] if pair[0] == mark else pair[0])))
+
+
 class MemoryGraph:
     """One caller-owned SQLite connection; methods commit atomic updates.
 
@@ -78,6 +182,12 @@ class MemoryGraph:
     def __init__(self, connection: sqlite3.Connection,
                  self_marks: tuple[str, ...] = (AGENT_NAME,)) -> None:
         self.connection = connection
+        self._retrieval_cache = {}
+        self._retrieval_index = None
+        self._retrieval_token = None
+        self._tracking_connection = None
+        self._tracking_schema = None
+        self._cache_shadows = False
         self.self_marks = {_canonical(mark) for mark in self_marks}
         if self.self_marks & SELF_NAME_ALIASES:
             self.self_marks.update(SELF_NAME_ALIASES)
@@ -161,6 +271,113 @@ class MemoryGraph:
                         affected_scopes.add(scope)
             for scope in sorted(affected_scopes):
                 self._rebuild_static(scope)
+        self._ensure_cache_tracking()
+
+    def _schema_versions(self):
+        return (self.connection.execute("PRAGMA main.schema_version").fetchone()[0],
+                self.connection.execute("PRAGMA temp.schema_version").fetchone()[0])
+
+    def _ensure_cache_tracking(self):
+        """Connection-local revisions change only with source graph DML.
+
+        TEMP state and triggers do not migrate or change persisted evidence.
+        Their revisions roll back together with publication transactions.
+        data_version additionally covers committed writes by other connections.
+        """
+        schema = self._schema_versions()
+        if self._tracking_connection is self.connection and self._tracking_schema == schema:
+            return
+        self._retrieval_cache.clear()
+        self._cache_shadows = bool(self.connection.execute(
+            "SELECT 1 FROM temp.sqlite_master WHERE type='table' "
+            "AND name IN ('memory_records','memory_static','memory_support') LIMIT 1").fetchone())
+        self.connection.execute("CREATE TEMP TABLE IF NOT EXISTS indeces_retrieval_revisions "
+                                "(scope TEXT PRIMARY KEY, revision INTEGER NOT NULL)")
+        existing = {name: (table, sql) for name, table, sql in self.connection.execute(
+            "SELECT name,tbl_name,sql FROM temp.sqlite_master WHERE type='trigger'")}
+
+        def install(name, table, timing, operation, body):
+            sql = (f"CREATE TRIGGER {name} {timing} {operation.upper()} "
+                   f"ON main.{table} BEGIN {body} END")
+            if existing.get(name) != (table, sql):
+                # DDL may rename the source table or remove the trigger.
+                # Another Graph on this connection can share valid tracking.
+                self.connection.execute(f"DROP TRIGGER IF EXISTS temp.{name}")
+                self.connection.execute(sql.replace("CREATE TRIGGER", "CREATE TEMP TRIGGER", 1))
+
+        for table in ("memory_records", "memory_static", "memory_support"):
+            for operation in ("insert", "update", "delete"):
+                name = f"indeces_retrieval_{table}_{operation}"
+                row = "OLD" if operation == "delete" else "NEW"
+                body = (f"INSERT INTO indeces_retrieval_revisions VALUES({row}.scope,1) "
+                        "ON CONFLICT(scope) DO UPDATE SET revision=revision+1;")
+                if operation == "update":
+                    body += ("INSERT INTO indeces_retrieval_revisions "
+                             "SELECT OLD.scope,1 WHERE OLD.scope != NEW.scope "
+                             "ON CONFLICT(scope) DO UPDATE SET revision=revision+1;")
+                install(name, table, "AFTER", operation, body)
+        # With recursive_triggers OFF, REPLACE does not run DELETE triggers
+        # for the conflicting row. The records' global ID can move across
+        # scopes, so invalidate that old scope before its implicit deletion.
+        for operation in ("insert", "update"):
+            name = f"indeces_retrieval_records_replace_{operation}"
+            body = ("INSERT INTO indeces_retrieval_revisions "
+                "SELECT scope,1 FROM main.memory_records WHERE id=NEW.id AND scope != NEW.scope "
+                "ON CONFLICT(scope) DO UPDATE SET revision=revision+1;")
+            install(name, "memory_records", "BEFORE", operation, body)
+        self._tracking_connection = self.connection
+        self._tracking_schema = self._schema_versions()
+
+    def _cache_token(self, scope):
+        revision = self.connection.execute(
+            "SELECT revision FROM temp.indeces_retrieval_revisions WHERE scope=?", (scope,)).fetchone()
+        return (self.connection.execute("PRAGMA main.data_version").fetchone()[0],
+                self._schema_versions(), revision[0] if revision else 0,
+                frozenset(self.self_marks))
+
+    def _source_edges(self, scope):
+        edges = {}
+        for a, b, context, evidence, count in self.connection.execute(
+                "SELECT a,b,context_json,evidence_json,co_count FROM memory_support WHERE scope=?", (scope,)):
+            edges[(a, b)] = {"static_score": 0.0, "context": context,
+                             "source_record_ids": evidence, "co_count": count}
+        for a, b, weight, context, evidence, count in self.connection.execute(
+                "SELECT a,b,weight,context_json,evidence_json,co_count FROM memory_static WHERE scope=?", (scope,)):
+            edges[(a, b)] = {"static_score": weight, "context": context,
+                             "source_record_ids": evidence, "co_count": count}
+        return edges
+
+    def _indexed_sources(self, scope, token):
+        cached = self._retrieval_cache.get(scope)
+        if cached is None or cached[0] != token:
+            index = _RetrievalIndex(self._records(scope), self.self_marks)
+            self._retrieval_cache[scope] = (token, index)
+            return index
+        return cached[1]
+
+    @contextmanager
+    def _retrieval_transaction(self, scope):
+        try:
+            with self.connection:
+                self.connection.execute("BEGIN IMMEDIATE")
+                self._ensure_cache_tracking()
+                token = self._cache_token(scope)
+                index = self._indexed_sources(scope, token)
+                self._retrieval_index = index
+                self._retrieval_token = token
+                yield index
+                # An application trigger or subclass may modify sources
+                # during observation. Never certify the old index as new.
+                if self._cache_shadows or self._cache_token(scope) != token:
+                    self._retrieval_cache.pop(scope, None)
+        except BaseException:
+            # This includes commit failure, interruption and cancellation.
+            # Uncommitted source snapshots must never survive rollback.
+            self._retrieval_cache.clear()
+            raise
+        finally:
+            self._retrieval_index = None
+            self._retrieval_token = None
 
     def _marks(self, marks: list[str]) -> list[str]:
         if not isinstance(marks, list) or not all(isinstance(m, str) for m in marks):
@@ -405,6 +622,45 @@ class MemoryGraph:
         return True
 
     def _edges(self, scope: str, ranking_mode: str) -> dict[tuple[str, str], dict[str, Any]]:
+        index = self._retrieval_index
+        if index is not None:
+            if self._cache_shadows or self._cache_token(scope) != self._retrieval_token:
+                # Records were read before observation in the old policy;
+                # edges were read afterwards. Preserve that boundary if an
+                # application trigger changes source edges during decay.
+                index.index_edges(self._source_edges(scope))
+                index.decoded_edges.clear()
+            if index.edges is None:
+                index.index_edges(self._source_edges(scope))
+            if not index.indexable_edges:
+                return self._uncached_edges(scope, ranking_mode)
+            edges = {pair: dict(edge, dynamic_score=0.0,
+                                effective_score=edge["static_score"], dynamic_last_event_id=None)
+                     for pair, edge in index.edges.items()}
+            for a, b, weight, event_id in self.connection.execute(
+                    "SELECT a,b,weight,last_event_id FROM memory_dynamic WHERE scope=?", (scope,)):
+                edge = edges.get((a, b))
+                if edge is not None:
+                    edge.update(dynamic_score=weight, dynamic_last_event_id=event_id)
+                    if ranking_mode == "dynamic":
+                        edge["effective_score"] = weight
+            live_edges = {}
+            for pair, edge in edges.items():
+                if not edge["effective_score"] > 0:
+                    continue
+                if pair not in index.decoded_edges:
+                    index.decoded_edges[pair] = (json.loads(edge["context"]),
+                                                 json.loads(edge["source_record_ids"]))
+                # Every query owns its output tree. Mutating a returned
+                # audit or reference cannot poison the next cached query.
+                edge["context"], edge["source_record_ids"] = deepcopy(index.decoded_edges[pair])
+                live_edges[pair] = edge
+            if ranking_mode == "static" and index.static_neighbors is None:
+                index.index_static_neighbors()
+            return _IndexedEdges(live_edges, index, ranking_mode)
+        return self._uncached_edges(scope, ranking_mode)
+
+    def _uncached_edges(self, scope: str, ranking_mode: str) -> dict[tuple[str, str], dict[str, Any]]:
         edges: dict[tuple[str, str], dict[str, Any]] = {}
         for a, b, context, evidence, count in self.connection.execute(
                 "SELECT a,b,context_json,evidence_json,co_count "
@@ -471,12 +727,10 @@ class MemoryGraph:
             raise ValueError("event_id must be a nonempty string")
         payload = {"schema_version": 1, "scope": scope, "event_id": event_id,
                    "request": {"query": query, "requested_marks": requested, "observed_at": now}}
-        with self.connection:
-            self.connection.execute("BEGIN IMMEDIATE")
-            records = self._records(scope)
-            known = {m for record in records for m in record["marks"]} - self.self_marks
-            candidates = known | set(requested)
-            literal = sorted((m for m in candidates if m in known and _hit(m, query)),
+        with self._retrieval_transaction(scope) as index:
+            records = index.records
+            known = records.known
+            literal = sorted(records.literal_matches(query),
                              key=lambda m: (-len(m), m))
             hits = literal[:MAX_DIRECT]
             payload["match"] = {"known_marks_count": len(known), "literal_matches": literal,
@@ -546,12 +800,23 @@ class MemoryGraph:
                 context_matches[mark] = _hit(mark, query)
             return context_matches[mark]
 
-        frequencies = Counter()
-        for record in records:
-            frequencies.update(set(record["marks"]) - self.self_marks)
-        known = set(frequencies)
+        indexed_records = isinstance(records, _IndexedRecords)
+        if indexed_records and records.self_marks != frozenset(self.self_marks):
+            records = _IndexedRecords(records, self.self_marks)
+        indexed_edges = isinstance(edges, _IndexedEdges)
+        if indexed_records:
+            frequencies = records.frequencies
+            known = records.known
+            mark_frequencies = dict(frequencies)
+        else:
+            frequencies = Counter()
+            for record in records:
+                frequencies.update(set(record["marks"]) - self.self_marks)
+            known = set(frequencies)
+            mark_frequencies = dict(sorted(frequencies.items()))
+        statistic_pairs = (edges.ordered_pairs if indexed_edges else sorted(edges))
         selection = {"active_record_count": len(records), "live_edge_count": len(edges),
-            "mark_frequencies": dict(sorted(frequencies.items())), "static_formula_reproducible": True,
+            "mark_frequencies": mark_frequencies, "static_formula_reproducible": True,
             "static_policy": {"formula": "log(p_ab/(p_a*p_b))/-log(p_ab)",
                               "p_ab_one_value": 1.0, "retain_only_positive": True, "round_digits": 4},
             "edge_statistics": [{"a": a, "b": b, "co_count": edge["co_count"],
@@ -559,7 +824,8 @@ class MemoryGraph:
                                  "context": edge["context"], "dynamic_last_event_id": edge["dynamic_last_event_id"],
                                  "static_score": edge["static_score"], "dynamic_score": edge["dynamic_score"],
                                  "effective_score": edge["effective_score"]}
-                                for (a, b), edge in sorted(edges.items())],
+                                for a, b in statistic_pairs if (a, b) in edges
+                                for edge in (edges[(a, b)],)],
             "limits": {"direct_marks": MAX_DIRECT, "neighbors_per_hit": 5,
                        "expanded_marks": MAX_EXTRA, "references": MAX_REFERENCES,
                        "total_text_characters": MAX_TEXT_CHARS, "entry_text_characters": MAX_ENTRY_CHARS},
@@ -571,14 +837,21 @@ class MemoryGraph:
         expansion: dict[str, dict[str, Any]] = {}
         for hit in hits:
             neighbors = []
-            for (a, b), edge in edges.items():
+            if indexed_edges:
+                pairs = (edges.static_neighbors.get(hit, ()) if edges.static_neighbors is not None
+                         else edges.incident.get(hit, ()))
+                incident = ((pair, edges[pair]) for pair in pairs if pair in edges)
+            else:
+                incident = edges.items()
+            for (a, b), edge in incident:
                 if hit not in (a, b):
                     continue
                 neighbor = b if a == hit else a
                 if neighbor in hits or neighbor in self.self_marks or neighbor not in known:
                     continue
                 neighbors.append((neighbor, edge))
-            neighbors.sort(key=lambda item: (-item[1]["effective_score"], item[0]))
+            if not indexed_edges or edges.static_neighbors is None:
+                neighbors.sort(key=lambda item: (-item[1]["effective_score"], item[0]))
             for neighbor_rank, (neighbor, edge) in enumerate(neighbors, 1):
                 context_passed = not edge["context"] or any(context_hit(m) for m in edge["context"])
                 decision = dict(edge, from_mark=hit, mark=neighbor, neighbor_rank=neighbor_rank,
@@ -606,11 +879,23 @@ class MemoryGraph:
         # evidence receipt remain identical, without scanning every live edge
         # again for each candidate record (at most six direct pairs).
         hit_set = set(hits)
-        direct_edges = [(a, b, edge) for (a, b), edge in edges.items()
+        if indexed_edges:
+            # Normal sourced edges have six possible direct pairs. Include
+            # reversed/self pairs too, preserving any legacy SQLite rows.
+            pairs = {(a, b) for a in hit_set for b in hit_set if (a, b) in edges}
+            direct_items = ((pair, edges[pair]) for pair in sorted(pairs, key=edges.ordinals.__getitem__))
+        else:
+            direct_items = edges.items()
+        direct_edges = [(a, b, edge) for (a, b), edge in direct_items
                         if a in hit_set and b in hit_set
                         and (not edge["context"] or any(context_hit(m) for m in edge["context"]))]
         ranked = []
-        for record in records:
+        if indexed_records:
+            ordinals = {ordinal for mark in allowed for ordinal in records.postings.get(mark, ())}
+            candidates = (records[ordinal] for ordinal in sorted(ordinals))
+        else:
+            candidates = records
+        for record in candidates:
             present = set(record["marks"]) & allowed
             if not present:
                 continue
@@ -627,7 +912,7 @@ class MemoryGraph:
             static = sum(item["static_score"] for item in evidence)
             dynamic = sum(item["dynamic_score"] for item in evidence)
             effective = sum(item["effective_score"] for item in evidence)
-            result = dict(record, direct_marks=direct,
+            result = dict(record, marks=deepcopy(record["marks"]), direct_marks=direct,
                           expanded_marks=sorted(present - set(hits)),
                           static_score=round(static, 6), dynamic_score=round(dynamic, 6),
                           ranking_score=round(effective, 6), evidence=evidence,
