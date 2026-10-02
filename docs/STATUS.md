@@ -10,7 +10,9 @@
 
 首次 [OFFLINE_0124.json](../verification/OFFLINE_0124.json) 为895项、1错误、14跳过：旧快照复制测试只提供任意audit字典，没有候选，无法满足新视图独立绑定。修正为在真实图审计上附加同一非原生嵌套测试值，仍验证深复制，不放宽生产绑定；新测试导入TestCase导致原有8项重复发现，也改为模块导入。相关24项重跑通过后完成最终全套，不删除失败证据或把首次错误称为通过。
 
-提交、CI及公开范围审计见 [CHECKPOINT.md](CHECKPOINT.md)。真正过长的输入仍可能超限，完整审计仍有全图成本；真实模型收尾判断/Discord往返未验收。真实实例不自动更新，用户须stop、等清理、quit、重开Console再start加载0.12.4。
+运行源码 [`3a422d1`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/3a422d1dcdc9006e7879d147aa3801809e6b1902) 已推送main，精确提交 [CI 37067919192](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37067919192) 整体与Windows/Ubuntu job、unittest、CLI check步骤均success，见 [CI_0124.json](../verification/CI_0124.json)；只读公共元数据，不读日志/推断远端测试数量。[公开范围审计](../verification/REPOSITORY_AUDIT_0124.json) 覆盖此前main的28提交/492唯一blob与181公开文件，未知发现/禁止路径零。最终仅文档/CI补扫见 [REPOSITORY_AUDIT_0124_DELIVERY.json](../verification/REPOSITORY_AUDIT_0124_DELIVERY.json)，保持运行源码不变。
+
+真正过长的输入仍可能超限，完整审计仍有全图成本；真实模型收尾判断/Discord往返未验收。真实实例不自动更新，用户须stop、等清理、quit、重开Console再start加载0.12.4。
 
 # 0.12.3 历史交付
 

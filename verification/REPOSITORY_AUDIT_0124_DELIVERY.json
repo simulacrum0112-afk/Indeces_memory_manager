@@ -1,0 +1,40 @@
+{
+  "version": "0.12.4",
+  "recorded_at_utc": "2026-10-02T21:41:17.007293+00:00",
+  "implementation_commit": "3a422d1dcdc9006e7879d147aa3801809e6b1902",
+  "scope": "Exact five staged delivery documents and unsigned public CI metadata; source/tests/version/dependencies unchanged from verified implementation commit. Main history and original public index are covered by REPOSITORY_AUDIT_0124.json. No local tool refs or private runtime read.",
+  "rule_definitions": {
+    "provider_key_shape": "(?<![A-Za-z0-9_-])sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{16,}",
+    "github_token_shape": "\\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{30,})\\b",
+    "private_key_header": "-----BEGIN(?: RSA| DSA| EC| OPENSSH| ENCRYPTED)? PRIVATE KEY-----",
+    "discord_token_shape": "(?:mfa\\.[A-Za-z0-9_-]{80,}|[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{6,}\\.[A-Za-z0-9_-]{20,})",
+    "private_runtime_path": "Tracked path components assets/state/scratch/knowledge/_staging; config.local.toml/.env; extensions .sqlite3/.sqlite/.db/.secret/.jsonl. knowledge/.gitkeep allowed only as an empty tracked sentinel; its content is not read."
+  },
+  "scanned_files": [
+    {
+      "path": "AGENTS.md",
+      "blob": "0daa1896774d5b64a7e1488d8fa319e212b7093a"
+    },
+    {
+      "path": "docs/STATUS.md",
+      "blob": "dadcd594f58875e6e4eb96ffd5d66cd6b567b43b"
+    },
+    {
+      "path": "docs/CHECKPOINT.md",
+      "blob": "790f8b0d4a1497b6b866c9662c9b4fcc8d1255a1"
+    },
+    {
+      "path": "docs/REPOSITORY_PRIVACY.md",
+      "blob": "ef4b80ddefde5ab8769f087942bf9685d8ec1386"
+    },
+    {
+      "path": "verification/CI_0124.json",
+      "blob": "b30d1e269c6c9336443acc146c6ba18992a32629"
+    }
+  ],
+  "findings": [],
+  "unknown_findings_count": 0,
+  "prohibited_paths_count": 0,
+  "implementation_unchanged": true,
+  "passed": true
+}

@@ -4,7 +4,9 @@
 
 [MODEL_CONTEXT_0124_20261002T213232430876Z.json](../verification/MODEL_CONTEXT_0124_20261002T213232430876Z.json) 比较25/100/200条同标签合成记录：模型材料7927/12014/19216→2608/2609/2611字节，原额度下均可准入；完整图审计字节/选择/数据库/材料原文保持，整个模型视图收据按新声明变化。最终 [OFFLINE_0124_20261002T213550181440Z.json](../verification/OFFLINE_0124_20261002T213550181440Z.json)：887项、0失败/错误、14跳过、68.188秒，CLI/Console/依赖/只读npmi通过；[WHEEL_0124.json](../verification/WHEEL_0124.json) 隔离构建/安装验证通过，本机源码/editable均0.12.4。首次失败记录和修正原因见 [STATUS.md](STATUS.md)。
 
-没有自动启停/热加载真实服务，真实模型与Discord仍待用户验收。运行源码的提交/CI与公开范围检查将在本交付段绑定精确提交；历史CI不代替本版证据。
+运行源码 [`3a422d1`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/3a422d1dcdc9006e7879d147aa3801809e6b1902) 已推送 main；精确提交 [CI 37067919192](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37067919192) 整体与Windows/Ubuntu job、unittest、CLI check步骤均 success，见 [CI_0124.json](../verification/CI_0124.json)（仅公共元数据，未读日志/不推断远端测试数量）。[公开范围有限审计](../verification/REPOSITORY_AUDIT_0124.json) 覆盖此前main可达28提交/492唯一blob及181个公开文件，未知发现/禁止路径零；最终交付补扫见 [REPOSITORY_AUDIT_0124_DELIVERY.json](../verification/REPOSITORY_AUDIT_0124_DELIVERY.json)，后续文档提交不改变已验证运行源码。
+
+没有自动启停/热加载真实服务，真实模型与Discord仍待用户验收。旧Console须stop、等待清理、quit再重开/start加载新版；历史CI不代替本版证据。
 
 ## 0.12.3 历史检查点
 

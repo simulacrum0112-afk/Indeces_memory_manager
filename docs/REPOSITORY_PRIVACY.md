@@ -4,6 +4,8 @@
 
 本次事故排查只读自身相关配置、运行链和消息元数据，同一输入仅在内存复算；真实原文、配置、日志、数据库和事故数值不进入公开附件。模型材料视图去掉全量图 evidence，不改变完整 scratch 保留合同。新复现使用合成消息/临时SQLite及已公开0.12.3源码对照，没有真实模型调用。有限公开范围审计见本版本 [CHECKPOINT.md](CHECKPOINT.md)。
 
+[REPOSITORY_AUDIT_0124.json](../verification/REPOSITORY_AUDIT_0124.json) 核验此前main可达28提交/492唯一blob与181公开文件，有限规则未知发现/禁止路径零；最终四份交付文档与公开CI元数据补扫见 [REPOSITORY_AUDIT_0124_DELIVERY.json](../verification/REPOSITORY_AUDIT_0124_DELIVERY.json)，运行源码保持3a422d1，不发布本地工具引用、私有运行记录或临时合成数据库。
+
 检索缓存的 TEMP revision 不新增持久运行表；合成基准公开摘要/hash与复现脚本，MB级临时基线不进入Git，原材料、SQLite与scratch排除规则不变。
 
 机器人五次准入/去重的 SQLite 表与迁移备份同属私有运行数据，沿用数据库排除规则；公开验证仅使用临时合成数据。[REPOSITORY_AUDIT_0120.json](../verification/REPOSITORY_AUDIT_0120.json) 明确本版 Git main 与公开文件的有限规则检查范围，不发布本地工具引用，不将文件路径或模型源码审计称为运行数据备份。
