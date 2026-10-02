@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 from indeces.config import load_config
 from indeces.path_policy import (PathPolicyError, validate_config_path,
-                                 validate_knowledge_root, validate_runtime_paths)
+                                 validate_knowledge_root, validate_managed_path, validate_runtime_paths)
 
 
 class PathPolicyTests(unittest.TestCase):
@@ -43,6 +43,22 @@ class PathPolicyTests(unittest.TestCase):
             alias.symlink_to(target, target_is_directory=True)
         except (OSError, NotImplementedError):
             self.skipTest("directory symlink creation unavailable")
+        return alias
+
+    def windows_short_path(self, path):
+        import ctypes
+        from ctypes import wintypes
+        get_short = ctypes.windll.kernel32.GetShortPathNameW
+        get_short.argtypes = (wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD)
+        get_short.restype = wintypes.DWORD
+        buffer = ctypes.create_unicode_buffer(32768)
+        count = get_short(str(path), buffer, len(buffer))
+        if not count or count >= len(buffer):
+            self.skipTest("Windows short-name generation unavailable")
+        alias = Path(buffer.value)
+        if os.path.normcase(str(alias)) == os.path.normcase(str(path.resolve())):
+            self.skipTest("filesystem did not provide a distinct 8.3 alias")
+        self.assertTrue(alias.samefile(path))
         return alias
 
     def test_defaults_anchor_knowledge_without_creating_managed_directories(self):
@@ -116,9 +132,63 @@ class PathPolicyTests(unittest.TestCase):
         target = self.root / "plain"
         target.mkdir()
         alias = self.symlink("alias", target)
-        with patch.object(Path, "open", side_effect=AssertionError("must not read linked files")):
+        with patch.object(Path, "open", side_effect=AssertionError("must not read linked files")), \
+                patch.object(Path, "resolve", side_effect=AssertionError("must reject links before resolve")):
             self.assert_code("linked_path_forbidden", lambda: validate_config_path(alias / "config.toml"))
             self.assert_code("linked_path_forbidden", lambda: validate_knowledge_root(self.config(knowledge_dir=alias / "knowledge")))
+
+    @unittest.skipUnless(os.name == "nt", "Windows short-path aliases only")
+    def test_real_windows_short_onedrive_name_rejected_before_any_file_read(self):
+        original = self.root / "OneDrive - Synthetic Long Folder"
+        original.mkdir()
+        alias = self.windows_short_path(original)
+        if alias.name.casefold().startswith("onedrive"):
+            self.skipTest("short name did not hide the OneDrive component")
+        with patch.dict(os.environ, {}, clear=True), \
+                patch.object(Path, "open", side_effect=AssertionError("must not read synthetic cloud files")):
+            self.assert_code("onedrive_path_forbidden", lambda: validate_config_path(alias / "config.toml"))
+            self.assert_code("onedrive_path_forbidden", lambda: validate_managed_path(alias / "state", "state_dir"))
+            self.assert_code("onedrive_path_forbidden", lambda: validate_knowledge_root(self.config(knowledge_dir=alias / "knowledge")))
+        self.assertEqual(list(original.iterdir()), [])
+
+    @unittest.skipUnless(os.name == "nt", "Windows short-path aliases only")
+    def test_real_windows_short_environment_root_compares_canonical_identity(self):
+        original = self.root / "synthetic_sync_root_with_long_name"
+        original.mkdir()
+        alias = self.windows_short_path(original)
+        for variable in ("OneDrive", "OneDriveConsumer", "OneDriveCommercial"):
+            for environment_root, candidate_root in ((original, alias), (alias, original)):
+                with self.subTest(variable=variable, environment_root=environment_root), \
+                        patch.dict(os.environ, {variable: str(environment_root)}, clear=True), \
+                        patch.object(Path, "open", side_effect=AssertionError("must not read synthetic sync files")):
+                    self.assert_code("onedrive_path_forbidden", lambda: validate_config_path(candidate_root / "config.toml"))
+                    self.assert_code("onedrive_path_forbidden", lambda: validate_managed_path(candidate_root / "state", "state_dir"))
+                    self.assert_code("onedrive_path_forbidden", lambda: validate_knowledge_root(self.config(knowledge_dir=candidate_root / "knowledge")))
+        self.assertEqual(list(original.iterdir()), [])
+
+    @unittest.skipUnless(os.name == "nt", "Windows short-path aliases only")
+    def test_real_windows_short_portable_config_and_knowledge_are_equivalent(self):
+        original = self.root / "synthetic_project_with_long_name"
+        original.mkdir()
+        knowledge = original / "knowledge"
+        knowledge.mkdir()
+        alias = self.windows_short_path(original)
+        knowledge_alias = self.windows_short_path(knowledge)
+        config_path = original / "config.toml"
+        text = self.example.replace('knowledge_dir = "knowledge"',
+                                    'knowledge_dir = "' + knowledge_alias.as_posix() + '"')
+        config_path.write_text(text, encoding="utf-8")
+        with patch.dict(os.environ, {}, clear=True):
+            loaded = load_config(alias / "config.toml")
+            self.assertEqual(loaded.knowledge_dir, knowledge.resolve())
+            self.assertEqual(validate_managed_path(alias / "missing_state", "state_dir"), original.resolve() / "missing_state")
+            self.assertEqual(validate_knowledge_root(self.config(knowledge_dir=knowledge_alias), expected=knowledge), knowledge.resolve())
+        self.assertFalse((original / "missing_state").exists())
+
+    def test_canonical_metadata_failure_is_sanitized_and_fails_closed(self):
+        with patch.object(Path, "resolve", side_effect=PermissionError("private canonical diagnostic")):
+            error = self.assert_code("path_inspection_failed", lambda: validate_managed_path(self.root / "state", "state_dir"))
+        self.assertNotIn("private canonical diagnostic", str(error))
 
     def test_raw_link_ancestor_cannot_be_hidden_with_parent_traversal(self):
         target = self.root / "plain"

@@ -2,11 +2,13 @@
 
 当前源码版本 **0.12.5**；2026-10-02（用户时区）知识库路径与旧来源根身份隔离修复。OneDrive、外目录知识配置和链接拒绝；安全错误阻断入库；旧缓存迁移先备份并核验当前文件digest，保留原文/PDF/标词/计量，未知usage不能获得新预算。事故与调查限制见 [PATH_BOUNDARY.md](PATH_BOUNDARY.md)。
 
-最终 [OFFLINE_0125_20261002T231425377695Z.json](../verification/OFFLINE_0125_20261002T231425377695Z.json) 为932项、0失败/错误、20跳过、121.264秒，CLI/Console/依赖/只读npmi通过；[WHEEL_0125_20261002T231304530568Z.json](../verification/WHEEL_0125_20261002T231304530568Z.json) 隔离构建和安装通过，源码/editable元数据均0.12.5。真实Windows junction与reparse模拟拒绝通过，symlink权限和平台差异跳过逐项保存。首次失败记录/等待夹具修正见 [STATUS.md](STATUS.md)。
+最终 [OFFLINE_0125_20261002T233508741009Z.json](../verification/OFFLINE_0125_20261002T233508741009Z.json) 为939项、0失败/错误、20跳过、140.087秒，CLI/Console/依赖/只读npmi通过；[WHEEL_0125_20261002T233302782369Z.json](../verification/WHEEL_0125_20261002T233302782369Z.json) 隔离构建和安装通过，源码/editable元数据均0.12.5。真实Windows junction、8.3短名与reparse模拟拒绝通过，symlink权限和平台差异跳过逐项保存。首次失败记录/等待夹具及平台修正见 [STATUS.md](STATUS.md)。
 
 [最终公开范围有限审计](../verification/REPOSITORY_AUDIT_0125_RELEASE.json) 核验main可达历史与精确暂存公开文件，有限规则未知发现/禁止路径均零；早期有限检查保留 [REPOSITORY_AUDIT_0125.json](../verification/REPOSITORY_AUDIT_0125.json)。不含私有目录名、原文、真实运行统计和工具引用。
 
-运行源码提交 [`b8de289`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/b8de28993b6233511ed0fdde6d52ac470e6d0e7a) 已推送main，远端HEAD核对一致；精确提交 [CI 37076777661](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37076777661) 首轮Ubuntu因兼容错误文字断言失败，Windows被取消；已恢复兼容诊断（没有改变路径拒绝），见 [CI_0125_INITIAL.json](../verification/CI_0125_INITIAL.json)。最终CI须绑定后续修正提交，历史CI不能代替本版结果。本轮没有启动/停止真实服务，没有对活动真实数据库应用迁移。另chat在本轮施工期间启动的实例不能据0.12.5版本号认定已加载最终修复，须待当前任务自然结束后由用户显式stop、清理、quit、重开/start。
+首版运行源码 [`b8de289`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/b8de28993b6233511ed0fdde6d52ac470e6d0e7a) 的 [CI 37076777661](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37076777661) Ubuntu因兼容错误文字断言失败，Windows被取消，见 [CI_0125_INITIAL.json](../verification/CI_0125_INITIAL.json)。兼容提示修正 [`6ff12fa`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/6ff12fa64b542a6709b71cf02010589fa06f4b97) 的 [CI 37077154547](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37077154547) Ubuntu成功、Windows因ANSI通知与8.3短名错误失败，见 [CI_0125_SECOND.json](../verification/CI_0125_SECOND.json)。本机最终验证已包含这些修正，最终CI须绑定随后平台修正提交，历史CI不能代替本版结果。
+
+本轮没有启动/停止真实服务，没有对活动真实数据库应用迁移。另chat在本轮施工期间启动的实例不能据0.12.5版本号认定已加载最终修复，须待当前任务自然结束后由用户显式stop、清理、quit、重开/start。
 
 ## 0.12.4 历史检查点
 

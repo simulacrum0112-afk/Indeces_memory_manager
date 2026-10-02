@@ -1,0 +1,84 @@
+{
+  "version": "0.12.5",
+  "recorded_at_utc": "2026-10-02T23:28:02.638873+00:00",
+  "implementation_commit": "6ff12fa64b542a6709b71cf02010589fa06f4b97",
+  "run_id": 37077154547,
+  "url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37077154547",
+  "status": "completed",
+  "conclusion": "failure",
+  "jobs": [
+    {
+      "id": 111069504570,
+      "name": "check (windows-latest, ./.venv/Scripts/python.exe)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 111069504681,
+      "name": "check (ubuntu-latest, ./.venv/bin/python)",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "failed_test_diagnostics": [
+    {
+      "case": "ERROR: test_root_binding_isolated_by_guild (test_knowledge_root_binding.KnowledgeRootBindingTests.test_root_binding_isolated_by_guild)",
+      "exception": "UnicodeEncodeError: 'charmap' codec can't encode characters in position 10-17: character maps to <undefined>"
+    },
+    {
+      "case": "ERROR: test_root_change_never_inherits_identical_relative_path_or_bytes (test_knowledge_root_binding.KnowledgeRootBindingTests.test_root_change_never_inherits_identical_relative_path_or_bytes)",
+      "exception": "UnicodeEncodeError: 'charmap' codec can't encode characters in position 10-17: character maps to <undefined>"
+    },
+    {
+      "case": "ERROR: test_root_migration_backup_precedes_archival_and_is_not_repeated (test_knowledge_root_binding.KnowledgeRootBindingTests.test_root_migration_backup_precedes_archival_and_is_not_repeated)",
+      "exception": "UnicodeEncodeError: 'charmap' codec can't encode characters in position 10-17: character maps to <undefined>"
+    },
+    {
+      "case": "ERROR: test_unbound_active_orphan_is_archived_without_deleting_the_record (test_knowledge_root_binding.KnowledgeRootBindingTests.test_unbound_active_orphan_is_archived_without_deleting_the_record)",
+      "exception": "UnicodeEncodeError: 'charmap' codec can't encode characters in position 10-17: character maps to <undefined>"
+    },
+    {
+      "case": "ERROR: test_unbound_current_snapshot_verified_independently_of_previous_publication (test_knowledge_root_binding.KnowledgeRootBindingTests.test_unbound_current_snapshot_verified_independently_of_previous_publication)",
+      "exception": "UnicodeEncodeError: 'charmap' codec can't encode characters in position 10-17: character maps to <undefined>"
+    },
+    {
+      "case": "ERROR: test_unbound_digest_mismatch_archives_without_removing_snapshots_or_usage (test_knowledge_root_binding.KnowledgeRootBindingTests.test_unbound_digest_mismatch_archives_without_removing_snapshots_or_usage)",
+      "exception": "UnicodeEncodeError: 'charmap' codec can't encode characters in position 10-17: character maps to <undefined>"
+    },
+    {
+      "case": "ERROR: test_unbound_missing_source_archives_before_any_scan_or_model_call (test_knowledge_root_binding.KnowledgeRootBindingTests.test_unbound_missing_source_archives_before_any_scan_or_model_call)",
+      "exception": "UnicodeEncodeError: 'charmap' codec can't encode characters in position 10-17: character maps to <undefined>"
+    },
+    {
+      "case": "ERROR: test_unbound_pdf_bytes_and_derived_text_survive_archival (test_knowledge_root_binding.KnowledgeRootBindingTests.test_unbound_pdf_bytes_and_derived_text_survive_archival)",
+      "exception": "UnicodeEncodeError: 'charmap' codec can't encode characters in position 10-17: character maps to <undefined>"
+    },
+    {
+      "case": "ERROR: test_unbound_reserved_file_cannot_keep_a_published_source_active (test_knowledge_root_binding.KnowledgeRootBindingTests.test_unbound_reserved_file_cannot_keep_a_published_source_active)",
+      "exception": "UnicodeEncodeError: 'charmap' codec can't encode characters in position 10-17: character maps to <undefined>"
+    },
+    {
+      "case": "ERROR: test_unknown_usage_missing_and_returning_bytes_cannot_create_fresh_budget (test_knowledge_root_binding.KnowledgeRootBindingTests.test_unknown_usage_missing_and_returning_bytes_cannot_create_fresh_budget)",
+      "exception": "UnicodeEncodeError: 'charmap' codec can't encode characters in position 10-17: character maps to <undefined>"
+    },
+    {
+      "case": "ERROR: test_export_does_not_overwrite_an_atomic_publication_race (test_pdf_import.PdfConfigAndExportTests.test_export_does_not_overwrite_an_atomic_publication_race)",
+      "exception": "FileNotFoundError: [Errno 2] No such file or directory: 'C:\\\\Users\\\\RUNNER~1\\\\AppData\\\\Local\\\\Temp\\\\tmp02732t0s\\\\pdf_markdown\\\\bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md'"
+    },
+    {
+      "case": "ERROR: test_export_is_idempotent_and_preserves_user_edits (test_pdf_import.PdfConfigAndExportTests.test_export_is_idempotent_and_preserves_user_edits)",
+      "exception": "indeces.contracts.GovernedError: pdf_export_path_invalid"
+    },
+    {
+      "case": "ERROR: test_fdopen_failure_closes_descriptor_and_removes_temp (test_pdf_import.PdfConfigAndExportTests.test_fdopen_failure_closes_descriptor_and_removes_temp)",
+      "exception": "indeces.contracts.GovernedError: pdf_export_path_invalid"
+    },
+    {
+      "case": "FAIL: test_pdf_conversion_failure_can_retry_frozen_bytes_without_duplicate_version (test_knowledge_recovery.IngestionRecoveryTests.test_pdf_conversion_failure_can_retry_frozen_bytes_without_duplicate_version)",
+      "exception": "AssertionError: 'failed' != 'ready'"
+    }
+  ],
+  "raw_logs_saved": false,
+  "public_job_log_read_for_failure_diagnostics": true,
+  "passed": false
+}

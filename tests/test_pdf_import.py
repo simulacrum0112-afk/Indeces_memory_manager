@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -149,6 +150,45 @@ class PdfImportTests(unittest.IsolatedAsyncioTestCase):
 
 
 class PdfConfigAndExportTests(unittest.TestCase):
+    def windows_short_path(self, original):
+        import ctypes
+        from ctypes import wintypes
+        get_short = ctypes.windll.kernel32.GetShortPathNameW
+        get_short.argtypes = (wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD)
+        get_short.restype = wintypes.DWORD
+        buffer = ctypes.create_unicode_buffer(32768)
+        count = get_short(str(original), buffer, len(buffer))
+        if not count or count >= len(buffer):
+            self.skipTest("Windows short-name generation unavailable")
+        alias = Path(buffer.value)
+        if alias == original.resolve():
+            self.skipTest("filesystem did not provide a distinct 8.3 alias")
+        self.assertTrue(alias.samefile(original))
+        return alias
+
+    @unittest.skipUnless(os.name == "nt", "Windows short-path aliases only")
+    def test_export_accepts_unlinked_windows_short_path_after_validation(self):
+        with tempfile.TemporaryDirectory(prefix="indeces_pdf_export_long_name_") as directory:
+            original = Path(directory)
+            alias = self.windows_short_path(original)
+            source_id = "kb:" + "d" * 32
+            target = pdf_import.publish_markdown(alias, source_id, "synthetic short-path draft")
+            self.assertEqual(target, original.resolve() / "pdf_markdown" / ("d" * 32 + ".md"))
+            self.assertEqual(target.read_text(encoding="utf-8"), "synthetic short-path draft")
+            self.assertEqual(pdf_import.publish_markdown(alias, source_id, "synthetic short-path draft"), target)
+
+    @unittest.skipUnless(os.name == "nt", "Windows short-path aliases only")
+    def test_short_name_cannot_hide_synthetic_onedrive_export_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            # This is a synthetic folder in temporary storage, never a sync root.
+            original = Path(directory) / "OneDrive_for_export_boundary_test"
+            original.mkdir()
+            alias = self.windows_short_path(original)
+            with self.assertRaises(GovernedError) as error:
+                pdf_import.publish_markdown(alias, "kb:" + "e" * 32, "synthetic draft")
+            self.assertEqual(error.exception.code, "pdf_export_path_invalid")
+            self.assertFalse((original / "pdf_markdown").exists())
+
     def test_existing_configuration_loads_without_pdf_section(self):
         example = Path(__file__).resolve().parents[1] / "config.example.toml"
         text = example.read_text(encoding="utf-8")

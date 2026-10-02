@@ -4,7 +4,7 @@
 
 0.12.4运行源码 `3a422d1dcdc9006e7879d147aa3801809e6b1902` 已推main，精确提交CI `37067919192` 整体与Windows/Ubuntu job、unittest/CLI check步骤success，仅公共元数据、未读日志/不推断远端测试数。公开范围审计无未知发现/禁止路径；最终交付补扫与版本合同见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)。真实模型/Discord仍未验收，新Console显式start才加载新版。
 
-当前0.12.4已完成模型材料固定视图修复，保留完整quote、来源/[M]/PDF页码与排序摘要，完整图证据仍在scratch；新receipt标记citation_material_v1，未知/删除标记拒绝，旧完整/无模式动态记录兼容。本机最终887项、14跳过、0失败/错误及wheel通过，源码/editable均0.12.4；预算、图公式、静态排序和五次准入不变。真实服务不自动更新，提交/CI与交付结果见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)。
+历史0.12.4已完成模型材料固定视图修复，保留完整quote、来源/[M]/PDF页码与排序摘要，完整图证据仍在scratch；新receipt标记citation_material_v1，未知/删除标记拒绝，旧完整/无模式动态记录兼容。本机最终887项、14跳过、0失败/错误及wheel通过，当时源码/editable均0.12.4；预算、图公式、静态排序和五次准入不变。真实服务不自动更新，提交/CI与交付结果见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)。
 
 用户已明确授权建立 `Indeces_memory_manager` 仓库，并将后续代码更新提交、上传到 `https://github.com/simulacrum0112-afk/Indeces_memory_manager`，现已要求以现有 MIT 许可证开源、将 GitHub 仓库设为公开。公开前须核验可达 Git 历史及已跟踪文件，密钥、token、scratch 和其他运行数据不得上传；`.gitignore` 不代替历史审计，不强制添加忽略文件。未跟踪的本地 `assets/` 保留且排除提交。本地工作区为 `D:\Indeces`。更新应完成与风险相称的验证、更新版本/交付状态、提交并推送；不据此创建定时任务或自动启动真实 Bot。
 

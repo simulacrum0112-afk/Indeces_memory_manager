@@ -1,8 +1,9 @@
 """Root provenance migration uses only synthetic local files and model stubs."""
 from __future__ import annotations
 
-from contextlib import closing
+from contextlib import closing, redirect_stdout
 import hashlib
+import io
 import os
 from pathlib import Path
 import sqlite3
@@ -59,6 +60,22 @@ class KnowledgeRootBindingTests(unittest.IsolatedAsyncioTestCase):
     def unbind(self):
         with self.store.db:
             self.store.db.execute("DELETE FROM knowledge_root_bindings WHERE scope=?", (self.service.scope,))
+
+    async def test_archival_notice_survives_ansi_redirected_stdout(self):
+        path, source_id = await self.ready()
+        path.unlink()
+        self.unbind()
+        output = io.BytesIO()
+        stream = io.TextIOWrapper(output, encoding="cp1252", errors="strict")
+        with redirect_stdout(stream):
+            restarted = self.make_service()
+        stream.flush()
+        self.assertIn(b"\\u77e5", output.getvalue())
+        self.assertIsNone(self.store.db.execute(
+            "SELECT source_id FROM knowledge_published WHERE scope=?", (restarted.scope,)).fetchone())
+        self.assertEqual(self.store.db.execute(
+            "SELECT status FROM knowledge_versions WHERE source_id=?", (source_id,)).fetchone()[0], "superseded")
+        self.assertTrue(self.scratch.events)
 
     async def test_nested_onedrive_is_pruned_before_descent_or_source_read(self):
         forbidden = self.config.knowledge_dir / "OneDrive" / "private.md"

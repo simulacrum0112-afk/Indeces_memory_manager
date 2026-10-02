@@ -199,7 +199,13 @@ class KnowledgeService:
                                archived_source_ids=sorted(retired), archived_records=archived_records,
                                reason=reason, historical_origin_verified=False, automatically_replayed=False)
             if retired:
-                print(f"[{self.config.name}] 知识根目录隔离：{len(retired)} 个无法沿用的来源已归档；原文、PDF、标词与累计用量保留。", flush=True)
+                notice = f"[{self.config.name}] 知识根目录隔离：{len(retired)} 个无法沿用的来源已归档；原文、PDF、标词与累计用量保留。"
+                try:
+                    print(notice, flush=True)
+                except UnicodeEncodeError:
+                    # Redirected Windows output can use an ANSI encoding. Keep
+                    # the completed migration usable without hiding I/O errors.
+                    print(notice.encode("ascii", "backslashreplace").decode("ascii"), flush=True)
 
     def _root_binding_needs_backup(self):
         tables = {row[0] for row in self.store.db.execute("SELECT name FROM sqlite_master WHERE type='table'")}

@@ -255,6 +255,10 @@ def publish_markdown(state_dir, source_id, markdown):
     from .path_policy import PathPolicyError, validate_managed_path
     try:
         base = validate_managed_path(state_dir, "PDF export state")
+        # Reject links in the supplied spelling before expanding safe Windows
+        # short names; otherwise canonical comparison mistakes 8.3 aliases for
+        # directory redirection. Recheck the expanded spelling for OneDrive.
+        base = validate_managed_path(base.resolve(), "PDF export canonical state")
         validate_managed_path(base / "pdf_markdown", "PDF export directory")
     except PathPolicyError:
         raise GovernedError("pdf_export_path_invalid") from None

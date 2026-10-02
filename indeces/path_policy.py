@@ -1,8 +1,8 @@
 """Local path boundaries, checked before opening or creating managed files.
 
 Only filesystem metadata is inspected here.  In particular, this module never
-opens source documents, creates directories, or resolves a link before checking
-its original spelling.  Callers must revalidate before subsequent filesystem
+opens source documents, creates directories, or resolves a supplied managed
+path before checking its original spelling.  Callers must revalidate before subsequent filesystem
 operations; these checks do not provide an operating-system atomic path lease.
 """
 from __future__ import annotations
@@ -34,21 +34,31 @@ def _path_key(path: Path) -> str:
     return os.path.normcase(os.path.normpath(os.fspath(path)))
 
 
-def _onedrive_roots():
+def _canonical(path: Path, role: str) -> Path:
+    try:
+        # Resolve the existing prefix too when a managed child does not exist.
+        # On Windows this expands 8.3 spellings to the same directory identity.
+        return path.resolve()
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise PathPolicyError("path_inspection_failed", f"cannot inspect {role} canonical path metadata") from exc
+
+
+def _onedrive_roots(*, canonical: bool = False):
     names = {"onedrive", "onedriveconsumer", "onedrivecommercial"}
     for name, value in os.environ.items():
         if name.casefold() in names and value:
-            yield _absolute(Path(value))
+            root = _absolute(Path(value))
+            yield _canonical(root, "OneDrive environment root") if canonical else root
 
 
-def _reject_onedrive(path: Path, role: str) -> None:
+def _reject_onedrive(path: Path, role: str, *, canonical: bool = False) -> None:
     # Also recognize Windows spellings when tests/audits run on another platform.
     # Prefix matching covers OneDrive, OneDrive - Organization and OneDriveBusiness.
     if any(part.casefold().startswith("onedrive")
            for part in re.split(r"[\\/]", os.fspath(path)) if part):
         raise PathPolicyError("onedrive_path_forbidden", f"{role} cannot use a OneDrive path")
     candidate = _path_key(_absolute(path))
-    for root in _onedrive_roots():
+    for root in _onedrive_roots(canonical=canonical):
         root_key = _path_key(root)
         try:
             inside = os.path.commonpath((candidate, root_key)) == root_key
@@ -89,7 +99,10 @@ def _validate_path(value, role: str) -> Path:
     for candidate in (raw_absolute, normalized):
         _reject_onedrive(candidate, role)
         _reject_link_ancestors(candidate, role)
-    return normalized
+    canonical = _canonical(normalized, role)
+    _reject_onedrive(canonical, role, canonical=True)
+    _reject_link_ancestors(canonical, role)
+    return canonical
 
 
 def validate_config_path(path: Path) -> Path:
