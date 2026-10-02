@@ -6,6 +6,8 @@
 
 最终 [OFFLINE_0120_20261002T012123075561Z.json](../verification/OFFLINE_0120_20261002T012123075561Z.json)：784 项、0 失败、0 错误、14 跳过、60.402 秒；新增 51 项覆盖门禁、传输、模型决策/计量/静默和端到端模拟对话。安装包验证 [WHEEL_0120.json](../verification/WHEEL_0120.json) 通过；源码/本机安装包均为 0.12.0。公开范围有限审计 [REPOSITORY_AUDIT_0120.json](../verification/REPOSITORY_AUDIT_0120.json) 与精确推送/CI 检查点见 [CHECKPOINT](CHECKPOINT.md)。
 
+运行源码提交 [`7405790`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/7405790d71b114b887c91ac96c29a40686e3a708) 已推送 main，精确绑定的 [CI 36951114506](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36951114506) Windows/Ubuntu 两个 job 与 unittest/CLI check 步骤均 success，见 [CI_0120.json](../verification/CI_0120.json)。没有读取 CI 测试日志，不宣称远端测试数量。最终文档/CI 元数据补扫见 [REPOSITORY_AUDIT_0120_DELIVERY.json](../verification/REPOSITORY_AUDIT_0120_DELIVERY.json)，后续交付提交保持运行源码不变。
+
 未启动、停止或热加载真实服务，未读取私有配置/数据库/知识材料；尚未验收真实 Discord 往返、对方 Bot 是否允许机器人消息、模型收尾判断质量或召回相关性。新进程显式 start 后才加载新版。
 
 ## 0.11.0 历史交付

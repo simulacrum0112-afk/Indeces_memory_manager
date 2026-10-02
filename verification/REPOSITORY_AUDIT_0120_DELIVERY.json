@@ -1,0 +1,88 @@
+{
+  "version": "0.12.0",
+  "recorded_at_utc": "2026-10-02T01:35:58.881718+00:00",
+  "implementation_commit": "7405790d71b114b887c91ac96c29a40686e3a708",
+  "current_head": "7405790d71b114b887c91ac96c29a40686e3a708",
+  "current_main": "7405790d71b114b887c91ac96c29a40686e3a708",
+  "original_publication_audit": "verification/REPOSITORY_AUDIT_0120.json",
+  "original_audit_git_blob": "d4b1c71c5085e0d3587d6b6668a82b24d24164d8",
+  "original_audit_unclassified_findings": 0,
+  "scope": "Exactly the four staged delivery documentation/CI files listed in scanned_files. Original main-history and source/worktree publication scans remain in the referenced original audit; no history repetition. Audit output itself is metadata only and excluded from recursive self-scan.",
+  "scanned_files": [
+    {
+      "path": "AGENTS.md",
+      "blob": "dfa6eb2a809f399aeafca6c4deb6379f35485b76",
+      "worktree_sha256": "40e630cd84ad120e0ca56ac1500dc8cad89bf692805f5ce7993a55d34fc2778b"
+    },
+    {
+      "path": "docs/CHECKPOINT.md",
+      "blob": "10d9e9bf887d418bf5ee6b81c5c24ebc1b419d35",
+      "worktree_sha256": "e7e6323926d98fa63d83976842890aaf5f19364b533e02db351aa59dfe0fc55b"
+    },
+    {
+      "path": "docs/STATUS.md",
+      "blob": "1005877c310e37ecb899bb018e158a9f0453a503",
+      "worktree_sha256": "5a4c2a5caf5f2c9c145773f2a3958aada818eb150a7f57f7263561b9a140e711"
+    },
+    {
+      "path": "verification/CI_0120.json",
+      "blob": "96e0848184c6ef0958feca5ab14d222df1bc5925",
+      "worktree_sha256": "cbc8e7e232203db35ef7e259c6c33da5932f4bf36020c2b0b3dbf9c8c6457529"
+    }
+  ],
+  "staged_changed_files_exactly_match_scope": true,
+  "index_worktree_content_matches": true,
+  "running_source_unchanged_by_delivery_staging": true,
+  "rules": [
+    "provider_key_shape",
+    "github_token_shape",
+    "private_key_header",
+    "discord_token_shape",
+    "private_runtime_path"
+  ],
+  "rule_definitions": {
+    "provider_key_shape": "(?<![A-Za-z0-9_-])sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{16,}",
+    "github_token_shape": "\\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{30,})\\b",
+    "private_key_header": "-----BEGIN(?: RSA| DSA| EC| OPENSSH| ENCRYPTED)? PRIVATE KEY-----",
+    "discord_token_shape": "(?:mfa\\.[A-Za-z0-9_-]{80,}|[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{6,}\\.[A-Za-z0-9_-]{20,})",
+    "private_runtime_path": "Tracked path components assets/state/scratch/knowledge/_staging; config.local.toml/.env; extensions .sqlite3/.sqlite/.db/.secret/.jsonl. knowledge/.gitkeep allowed only as an empty tracked sentinel; its content is not read."
+  },
+  "classification_policy": "Prior path/rule/line classifications require the exact captured-byte Git blob hash or a recomputed LF/CRLF-equivalent exact blob hash (older audits captured raw CRLF worktree bytes while Git stores canonical LF). Newly detected Discord-shaped matches must be entirely within an exact qualified unittest identifier whose module/class/test method exists in current public test AST; no whole-directory or token-prefix exemptions.",
+  "findings": [],
+  "unclassified_findings": 0,
+  "private_runtime_paths_in_scope": false,
+  "secret_values_recorded": false,
+  "private_materials_included": false,
+  "ci_public_metadata": {
+    "source_urls": [
+      "https://api.github.com/repos/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36951114506",
+      "https://api.github.com/repos/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36951114506/jobs?per_page=100"
+    ],
+    "fetched_without_authentication": true,
+    "run_id": 36951114506,
+    "run_attempt": 1,
+    "exact_source_head_sha_matches": true,
+    "overall_status": "completed",
+    "overall_conclusion": "success",
+    "recorded_job_fields_verified": [
+      {
+        "job_id": 110664057019,
+        "recorded_fields_match_public_api": true,
+        "required_steps_match_public_api": true
+      },
+      {
+        "job_id": 110664057258,
+        "recorded_fields_match_public_api": true,
+        "required_steps_match_public_api": true
+      }
+    ],
+    "job_log_contents_read": false,
+    "per_platform_test_counts_claimed": false
+  },
+  "documentation_local_links": {
+    "links_checked": 79,
+    "missing_public_targets": [],
+    "scope": "Local Markdown file targets only; future audit output target included. Remote Markdown links and anchors are not separately fetched."
+  },
+  "limitations": "Finite credential-shape/path rules and exact supplemental scope. Arbitrary secrets, external releases/artifacts and later changes are not certified. Public GitHub API conclusions verify offline workflow/step outcomes; actual model/Discord exchange, loaded service and semantic classification/recall quality remain unvalidated."
+}

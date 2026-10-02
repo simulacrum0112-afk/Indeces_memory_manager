@@ -2,7 +2,7 @@
 
 用户已明确授权建立 `Indeces_memory_manager` 仓库，并将后续代码更新提交、上传到 `https://github.com/simulacrum0112-afk/Indeces_memory_manager`，现已要求以现有 MIT 许可证开源、将 GitHub 仓库设为公开。公开前须核验可达 Git 历史及已跟踪文件，密钥、token、scratch 和其他运行数据不得上传；`.gitignore` 不代替历史审计，不强制添加忽略文件。未跟踪的本地 `assets/` 保留且排除提交。本地工作区为 `D:\Indeces`。更新应完成与风险相称的验证、更新版本/交付状态、提交并推送；不据此创建定时任务或自动启动真实 Bot。
 
-当前 0.12.0 机器人有限对话交付检查点见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)。历史 0.11.0 验收提交 `a0dc1a4ad32d61e7356d41876ecb1657d16aa7a6` 的 Windows/Ubuntu CI 已通过（两平台733项，分别3/12跳过）；运行源码实现提交为 `661fddf1d034288afe3c3c088e6c99881588aa17`。历史 0.10.0 代码提交 `f27013910ae52852a7084ad8f2d92132dcda31c7` 的 Windows/Ubuntu CI 已通过；此历史证据不代表新版已加载。不得将文档提交、CI 成功或持久化状态当作真实服务在线、模型/Discord 验收或召回质量证明。
+当前 0.12.0 机器人有限对话交付检查点见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)。运行源码提交 `7405790d71b114b887c91ac96c29a40686e3a708` 已推送 main，精确绑定的 CI `36951114506` Windows/Ubuntu 与 unittest/CLI check 步骤均 success；本机最终784项、14跳过、0失败/错误。没有读取远端测试日志，不推断其测试数量。历史 0.11.0 验收提交 `a0dc1a4ad32d61e7356d41876ecb1657d16aa7a6` 的 Windows/Ubuntu CI 已通过（两平台733项，分别3/12跳过）；运行源码实现提交为 `661fddf1d034288afe3c3c088e6c99881588aa17`。历史 0.10.0 代码提交 `f27013910ae52852a7084ad8f2d92132dcda31c7` 的 Windows/Ubuntu CI 已通过；此历史证据不代表新版已加载。不得将文档提交、CI 成功或持久化状态当作真实服务在线、模型/Discord 验收或召回质量证明。
 
 ## 已确定的产品边界
 

@@ -8,7 +8,9 @@
 
 [WHEEL_0120.json](../verification/WHEEL_0120.json) 确认非 editable 隔离构建/安装、导入、静态默认、CLI 入口和网页资源。原虚拟环境未安装 build backend，首次无隔离 editable 构建未成功；随后通过标准 pip 临时构建隔离完成安装，不更改运行依赖。公开范围有限审计见 [REPOSITORY_AUDIT_0120.json](../verification/REPOSITORY_AUDIT_0120.json)，不上传真实知识、scratch、数据库、凭据或 assets。
 
-本版远端精确提交与 CI 在推送后另核验；历史 CI 不代替本版。真实机器人对话、对方 Bot 的响应策略和模型对收尾的判断质量尚未验收，离线工程通过不证明线上体验。新版本在用户显式启动的新进程加载，活动实例不自动更新。
+运行源码实现为 [`7405790d71b114b887c91ac96c29a40686e3a708`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/7405790d71b114b887c91ac96c29a40686e3a708)，已推送 `main`。[Offline checks / 36951114506](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36951114506) 绑定该精确提交，整体 success；[Ubuntu job](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36951114506/job/110664057019) 和 [Windows job](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36951114506/job/110664057258) 的 unittest、CLI check 步骤均 success，公共元数据见 [CI_0120.json](../verification/CI_0120.json)。公共日志请求返回 403，未解析日志，不推断两个平台的测试/跳过数量。最终 CI 元数据与文档补扫见 [REPOSITORY_AUDIT_0120_DELIVERY.json](../verification/REPOSITORY_AUDIT_0120_DELIVERY.json)。后续交付文档提交不修改运行源码，只推送 main，不创建版本标签或发布工具引用。
+
+真实机器人对话、对方 Bot 的响应策略和模型对收尾的判断质量尚未验收，离线工程及 CI 通过不证明线上体验。新版本在用户显式启动的新进程加载，活动实例不自动更新。
 
 ## 0.11.0 历史检查点
 

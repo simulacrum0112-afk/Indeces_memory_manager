@@ -1,0 +1,72 @@
+{
+  "version": "0.12.0",
+  "recorded_at_utc": "2026-10-02T01:32:13.4222579Z",
+  "implementation_commit": "7405790d71b114b887c91ac96c29a40686e3a708",
+  "validated_commit": "7405790d71b114b887c91ac96c29a40686e3a708",
+  "expected_head_sha_verified": true,
+  "run_id": 36951114506,
+  "run_attempt": 1,
+  "run_url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36951114506",
+  "status": "completed",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "id": 110664057019,
+      "name": "check (ubuntu-latest, ./.venv/bin/python)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36951114506/job/110664057019",
+      "required_validation_steps": [
+        {
+          "number": 7,
+          "name": "Run ./.venv/bin/python -m unittest discover -s tests -v",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 8,
+          "name": "Run ./.venv/bin/python -m indeces check",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 110664057258,
+      "name": "check (windows-latest, ./.venv/Scripts/python.exe)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36951114506/job/110664057258",
+      "required_validation_steps": [
+        {
+          "number": 7,
+          "name": "Run ./.venv/Scripts/python.exe -m unittest discover -s tests -v",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "number": 8,
+          "name": "Run ./.venv/Scripts/python.exe -m indeces check",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "private_runtime_data_included": false,
+  "live_model_or_discord_validation": false,
+  "source": "Unauthenticated public GitHub API run/jobs metadata",
+  "source_api_urls": [
+    "https://api.github.com/repos/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36951114506",
+    "https://api.github.com/repos/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36951114506/jobs?per_page=100"
+  ],
+  "job_log_access": {
+    "unauthenticated_attempts": 1,
+    "job_id": 110664057258,
+    "http_status": 403,
+    "available": false,
+    "test_counts_claimed": false
+  },
+  "validation_statement": "The specified source commit completed the Ubuntu and Windows CI jobs, including unit-test and offline CLI-check steps. This metadata verifies step conclusions without claiming per-platform test counts.",
+  "limitations": "Offline CI only. No real model, real Discord exchange, active service/process loading, native foreground focus, or retrieval semantic quality has been validated."
+}
