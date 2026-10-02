@@ -14,11 +14,13 @@ from .credentials import load_openai_key, validate_api_key
 from .knowledge import KnowledgeService
 from .lock import InstanceLock
 from .memory import MemoryGraph
+from .path_policy import validate_runtime_paths
 from .scratch import ScratchLog
 from .store import Store
 
 
 async def retry_ingestion(config, config_path, *, paths=None, key=None, lease=None, knowledge_ready=None):
+    validate_runtime_paths(config)
     if not config.discord.guild_id:
         raise ValueError("configure a Guild before retrying its knowledge")
     if paths is not None and (not isinstance(paths, (list, tuple)) or

@@ -10,6 +10,7 @@ import tempfile
 import tomllib
 
 from .config import load_config, snowflake
+from .path_policy import validate_config_path
 from .credentials import CredentialError, _check_secret_path, load_discord_token, prompt_secret, save_discord_token, secret_path, validate_token
 from .lock import InstanceLock
 
@@ -175,10 +176,10 @@ def configure_discord(config_path: Path, input_fn=None, secret_fn=None, output=N
     input_fn = input_fn or input
     secret_fn = secret_fn or prompt_secret
     output = output or print
-    path = Path(config_path).resolve()
     lease = None
     committed = False
     try:
+        path = validate_config_path(config_path)
         original = path.read_bytes()
         config = load_config(path)
         lease = InstanceLock(config.state_dir)

@@ -4,10 +4,15 @@ import json
 from pathlib import Path
 import sqlite3
 
+from .path_policy import validate_managed_path
+
 
 class Store:
     def __init__(self, directory: Path):
+        directory = validate_managed_path(directory, "state_dir")
         directory.mkdir(parents=True, exist_ok=True)
+        for name in ("memory.sqlite3", "memory.sqlite3-wal", "memory.sqlite3-shm", "memory.sqlite3-journal"):
+            validate_managed_path(directory / name, "knowledge database")
         self.db = sqlite3.connect(directory / "memory.sqlite3")
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")

@@ -16,6 +16,7 @@ import stat
 from .config import PdfConfig
 from .knowledge_directory import RESERVED_ROOT_DIRECTORIES, SUPPORTED_SUFFIXES
 from .knowledge_progress import _terminal_text
+from .path_policy import PathPolicyError, validate_knowledge_root, validate_managed_path
 from .observer_data import _database, _scope, _tables
 
 
@@ -35,7 +36,7 @@ def _stage(error, status):
 
 
 def _census(config):
-    root = Path(config.knowledge_dir)
+    root = validate_knowledge_root(config)
     rows, warnings = {}, []
     if root.is_symlink() or root.is_junction():
         return rows, ["knowledge_root_link_skipped"]
@@ -49,6 +50,16 @@ def _census(config):
         for name in sorted(dirs):
             path = parent / name
             relative = path.relative_to(root).as_posix()
+            try:
+                validate_managed_path(path, "knowledge audit directory")
+            except PathPolicyError as error:
+                if error.code == "path_inspection_failed":
+                    warnings.append("knowledge_directory_scan_failed")
+                rows[relative + "/"] = {"path": relative + "/", "suffix": "",
+                    "byte_count": None, "state": "skipped", "stage": "discovery",
+                    "skip_reason": "directory_link" if error.code == "linked_path_forbidden" else error.code,
+                    "digest": None}
+                continue
             if path.is_symlink() or path.is_junction():
                 rows[relative + "/"] = {"path": relative + "/", "suffix": "",
                     "byte_count": None, "state": "skipped", "stage": "discovery",
@@ -78,6 +89,11 @@ def _census(config):
                 row.update(limit_bytes=limit, limit_config_key=config_key)
                 if info.st_size > limit:
                     row.update(state="rejected", stage="validation", validation_error="knowledge_file_size_limit")
+                    continue
+                try:
+                    validate_managed_path(path, "knowledge audit material")
+                except PathPolicyError as error:
+                    row.update(state="rejected", stage="validation", validation_error=error.code)
                     continue
                 with path.open("rb") as stream:
                     raw = stream.read(limit + 1)

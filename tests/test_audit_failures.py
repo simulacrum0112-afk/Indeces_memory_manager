@@ -114,6 +114,7 @@ class CleanupFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(fail=fail):
                 config = configuration()
                 config.state_dir, config.scratch_dir = Path("unused-state"), Path("unused-scratch")
+                config.knowledge_dir = Path("unused-project/knowledge")
                 lease, scratch, store = Mock(), Mock(), Mock()
                 store.recover.return_value = []
                 scratch.path = Path("unused-scratch.jsonl")
@@ -128,6 +129,7 @@ class CleanupFailureTests(unittest.IsolatedAsyncioTestCase):
                         patch.object(console, "Store", return_value=store), patch.object(console, "OpenAIAdapter", return_value=adapter), \
                         patch.object(console, "Runtime", return_value=SimpleNamespace(graph=object())), \
                         patch.object(console, "KnowledgeService", return_value=knowledge), patch.object(console, "DiscordBridge", return_value=bridge), \
+                        patch.object(console, "prepare_knowledge_directory"), \
                         patch.object(console, "prepare_scratch_directory"), patch.object(console, "ObserverServer"), \
                         redirect_stdout(io.StringIO()), self.assertRaises(OSError):
                     await console.serve(config, "synthetic-key", "synthetic-token")

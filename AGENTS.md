@@ -1,5 +1,7 @@
 # Indeces 项目协作约定
 
+0.12.5 新增知识库路径防护与来源根目录绑定：本机唯一材料目录为 `D:\Indeces\knowledge`，禁止任何 Indeces 配置/知识/state/scratch/凭据/管理说明与 OneDrive 路径或链接关联。知识路径只能在项目配置旁的 knowledge 子目录；不得给其他文献目录生成管理结构或整理原文件。目录安全拒绝必须阻断启动/入库。旧未绑定来源在打开Gateway前按当前文件完整digest验证，未确认来源撤下归档，原文/PDF/标词/计量与未知usage禁发保护保留，迁移先一致备份。具体边界、事故未定因及活动实例加载限制见 [docs/PATH_BOUNDARY.md](docs/PATH_BOUNDARY.md)。本轮源码/离线验证交付状态见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)；另chat的运行实例不能据源码版本号推定已加载最终修复。
+
 0.12.4运行源码 `3a422d1dcdc9006e7879d147aa3801809e6b1902` 已推main，精确提交CI `37067919192` 整体与Windows/Ubuntu job、unittest/CLI check步骤success，仅公共元数据、未读日志/不推断远端测试数。公开范围审计无未知发现/禁止路径；最终交付补扫与版本合同见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)。真实模型/Discord仍未验收，新Console显式start才加载新版。
 
 当前0.12.4已完成模型材料固定视图修复，保留完整quote、来源/[M]/PDF页码与排序摘要，完整图证据仍在scratch；新receipt标记citation_material_v1，未知/删除标记拒绝，旧完整/无模式动态记录兼容。本机最终887项、14跳过、0失败/错误及wheel通过，源码/editable均0.12.4；预算、图公式、静态排序和五次准入不变。真实服务不自动更新，提交/CI与交付结果见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)。

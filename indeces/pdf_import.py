@@ -252,7 +252,12 @@ def publish_markdown(state_dir, source_id, markdown):
     """Write a version-specific review file outside knowledge; never overwrite notes."""
     if not isinstance(source_id, str) or not re.fullmatch(r"kb:[0-9a-f]{32}", source_id):
         raise ValueError("invalid PDF source ID")
-    base = Path(state_dir).resolve()
+    from .path_policy import PathPolicyError, validate_managed_path
+    try:
+        base = validate_managed_path(state_dir, "PDF export state")
+        validate_managed_path(base / "pdf_markdown", "PDF export directory")
+    except PathPolicyError:
+        raise GovernedError("pdf_export_path_invalid") from None
     directory = base / "pdf_markdown"
     if directory.is_symlink():
         raise GovernedError("pdf_export_path_invalid")
@@ -260,6 +265,10 @@ def publish_markdown(state_dir, source_id, markdown):
     if directory.resolve() != directory:
         raise GovernedError("pdf_export_path_invalid")
     target = directory / (source_id.removeprefix("kb:") + ".md")
+    try:
+        validate_managed_path(target, "PDF export file")
+    except PathPolicyError:
+        raise GovernedError("pdf_export_path_invalid") from None
     desired = markdown.encode("utf-8")
     if target.is_symlink():
         raise GovernedError("pdf_export_path_invalid")

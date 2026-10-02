@@ -18,6 +18,8 @@ import re
 import stat
 import uuid
 
+from .path_policy import validate_managed_path
+
 
 _ZERO_HASH = "0" * 64
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
@@ -361,7 +363,7 @@ class ScratchLog:
     """
 
     def __init__(self, directory: Path, *, clock=None):
-        directory = Path(directory)
+        directory = validate_managed_path(directory, "scratch_dir")
         if directory.is_symlink() or directory.is_junction():
             raise ValueError("scratch directory must not be a link")
         directory.mkdir(parents=True, exist_ok=True)

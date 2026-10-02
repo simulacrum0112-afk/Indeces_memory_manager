@@ -17,6 +17,7 @@ import time
 
 from . import scratch
 from .identity import SELF_NAME_ALIASES
+from .path_policy import validate_managed_path
 from .run_records import (MAX_PDF_METADATA_BYTES, digest, pdf_conversion_metadata,
                           validate_answer, validate_graph_audit, validate_retrieval)
 
@@ -68,8 +69,9 @@ def _json(value, fallback=None):
 @contextmanager
 def _database(config):
     """A short SQLite snapshot, with a VM deadline and no schema constructors."""
-    directory = Path(config.state_dir)
+    directory = validate_managed_path(config.state_dir, "state snapshot")
     path = directory / "memory.sqlite3"
+    validate_managed_path(path, "database snapshot")
     if directory.is_symlink() or directory.is_junction() or path.is_symlink() or path.is_junction():
         raise ValueError("database snapshot path must not be a link")
     if directory.exists() and not directory.is_dir():

@@ -231,12 +231,12 @@ class ConsoleTests(unittest.TestCase):
         self.assertEqual(error.exception.code, 2)
         loader.assert_not_called()
 
-    def test_live_console_routing_does_not_load_config_or_open_credentials(self):
+    def test_live_console_routing_validates_config_without_opening_credentials(self):
         with patch.object(console, "route_existing", return_value={"accepted": True, "focused": False}) as route, \
                 patch.object(console, "load_config") as loader, patch.object(console, "prompt_secret") as prompt:
             output = self.main("start")
         route.assert_called_once_with(self.path, "start", path=None)
-        loader.assert_not_called()
+        loader.assert_called_once_with(self.path)
         prompt.assert_not_called()
         self.assertIn("已连接现有", output)
 

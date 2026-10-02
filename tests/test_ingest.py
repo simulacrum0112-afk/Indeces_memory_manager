@@ -27,7 +27,8 @@ class MaintenanceTests(unittest.IsolatedAsyncioTestCase):
         async def adapter_close():
             events.append("adapter_closed")
         config = SimpleNamespace(discord=SimpleNamespace(guild_id="10"), state_dir=Path("unused"),
-                                 scratch_dir=Path("unused"), adapter=SimpleNamespace())
+                                 scratch_dir=Path("unused"), knowledge_dir=Path("unused/knowledge"),
+                                 adapter=SimpleNamespace())
         lease = SimpleNamespace(close=lambda: events.append("lease_closed"))
         store = SimpleNamespace(db=None, close=lambda: events.append("store_closed"))
         scratch = SimpleNamespace(write=lambda *args, **kwargs: None, close=lambda: events.append("scratch_closed"))
@@ -37,7 +38,7 @@ class MaintenanceTests(unittest.IsolatedAsyncioTestCase):
              patch("indeces.ingest.ScratchLog", return_value=scratch), patch("indeces.ingest.OpenAIAdapter", return_value=SimpleNamespace(close=adapter_close)), \
              patch("indeces.ingest.KnowledgeService", return_value=knowledge):
             task = asyncio.create_task(retry_ingestion(config, Path("unused"), key="synthetic-maintenance-key"))
-            await entered.wait()
+            await asyncio.wait_for(entered.wait(), timeout=5)
             task.cancel()
             await asyncio.sleep(0)
             task.cancel()

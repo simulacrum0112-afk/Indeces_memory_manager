@@ -73,7 +73,7 @@ class KnowledgeDirectoryTests(unittest.TestCase):
         self.assertEqual(material.read_bytes(), b"synthetic raw remains in place")
         self.assertFalse((self.root / "missing-name").exists())
 
-    def test_explicit_root_symlink_alias_can_resolve_to_a_safe_actual_directory(self):
+    def test_explicit_root_symlink_alias_is_refused_before_writing_actual_directory(self):
         actual = self.root / "actual"
         actual.mkdir()
         alias = self.root / "alias"
@@ -81,8 +81,9 @@ class KnowledgeDirectoryTests(unittest.TestCase):
             alias.symlink_to(actual, target_is_directory=True)
         except (OSError, NotImplementedError):
             self.skipTest("directory symlink creation unavailable on this host")
-        root = directory.prepare_knowledge_directory(replace(self.config, knowledge_dir=alias))
-        self.assertEqual(root, actual)
+        with self.assertRaises(directory.KnowledgeDirectoryError):
+            directory.prepare_knowledge_directory(replace(self.config, knowledge_dir=alias))
+        self.assertEqual(list(actual.iterdir()), [])
         self.assertTrue(alias.is_symlink())
 
     def test_unsafe_types_are_refused_without_overwriting_user_data(self):

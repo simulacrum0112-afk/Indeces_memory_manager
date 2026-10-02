@@ -7,6 +7,7 @@ import stat
 import tempfile
 
 from .config import load_config
+from .path_policy import validate_config_path
 from .credentials import (CredentialError, _check_openai_secret_path, load_openai_key,
                           openai_secret_path, prompt_secret, save_openai_key,
                           validate_api_key)
@@ -84,10 +85,10 @@ def configure_api_key(config_path: Path, input_fn=None, secret_fn=None, output=N
     input_fn = input_fn or input
     secret_fn = secret_fn or prompt_secret
     output = output or print
-    path = Path(config_path).resolve()
     lease = None
     committed = False
     try:
+        path = validate_config_path(config_path)
         original = path.read_bytes()
         config = load_config(path)
         try:

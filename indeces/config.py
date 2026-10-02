@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import math
+import os
 from pathlib import Path
 import tomllib
 
 from .identity import AGENT_NAME, normalize_agent_name
+from .path_policy import validate_config_path, validate_knowledge_root, validate_runtime_paths
 
 
 @dataclass(frozen=True)
@@ -137,7 +139,7 @@ def snowflake(value: str) -> str:
 
 
 def load_config(path: Path) -> Config:
-    path = path.resolve()
+    path = validate_config_path(path)
     with path.open("rb") as stream:
         raw = tomllib.load(stream)
     _keys(raw, {"name", "state_dir", "scratch_dir", "knowledge_dir", "discord", "runtime", "adapter", "knowledge", "pdf"})
@@ -184,5 +186,9 @@ def load_config(path: Path) -> Config:
     name = normalize_agent_name(name)
     def directory(key):
         value = Path(raw.get(key, key.removesuffix("_dir")))
-        return (path.parent / value).resolve()
-    return Config(name, directory("state_dir"), directory("scratch_dir"), directory("knowledge_dir"), dc, rc, ac, kc, pc)
+        return path.parent / value
+    config = Config(name, directory("state_dir"), directory("scratch_dir"), directory("knowledge_dir"), dc, rc, ac, kc, pc)
+    validate_runtime_paths(config)
+    knowledge_dir = validate_knowledge_root(config, expected=path.parent / "knowledge")
+    return Config(name, Path(os.path.abspath(config.state_dir)), Path(os.path.abspath(config.scratch_dir)),
+                  knowledge_dir, dc, rc, ac, kc, pc)

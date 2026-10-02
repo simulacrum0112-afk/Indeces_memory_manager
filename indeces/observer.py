@@ -12,6 +12,7 @@ import threading
 from urllib.parse import parse_qs, urlsplit
 
 from . import observer_data
+from .path_policy import validate_managed_path, validate_runtime_paths
 
 
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -79,7 +80,7 @@ def _replace_managed_guide(target: Path, previous: bytes, desired: bytes):
 
 def prepare_scratch_directory(directory: Path):
     """Create fixed guides or migrate exact managed templates; preserve user files."""
-    directory = Path(directory)
+    directory = validate_managed_path(directory, "scratch_dir")
     if directory.is_symlink():
         raise ValueError("scratch directory must not be a link")
     directory.mkdir(parents=True, exist_ok=True)
@@ -118,6 +119,7 @@ class _Server(HTTPServer):
 class ObserverServer:
     """One serial GET server, confined to loopback and an ephemeral private URL."""
     def __init__(self, config):
+        validate_runtime_paths(config)
         self.config = config
         self.prefix = "/" + secrets.token_urlsafe(24) + "/"
         self._server = None
@@ -233,6 +235,7 @@ class ObserverServer:
 
 
 def observe(config):
+    validate_runtime_paths(config)
     prepare_scratch_directory(config.scratch_dir)
     observer = ObserverServer(config)
     try:
@@ -250,6 +253,7 @@ def observe(config):
 
 
 def show_logs(config):
+    validate_runtime_paths(config)
     prepare_scratch_directory(config.scratch_dir)
     print(f"Scratch directory: {config.scratch_dir}")
     print(f"Directory guide: {config.scratch_dir / 'README.md'}")

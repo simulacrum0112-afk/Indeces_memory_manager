@@ -19,13 +19,14 @@ from .context import encode
 from . import pdf_import
 from .prompts import LABEL, LABEL_SCHEMA
 from .runtime import label_data
+from .path_policy import validate_knowledge_root, validate_managed_path, PathPolicyError
 
 
 class KnowledgeService:
     def __init__(self, config, store, graph, adapter, scratch):
         self.config, self.store, self.graph, self.adapter, self.scratch = config, store, graph, adapter, scratch
         self.scope = f"{config.discord.guild_id}:knowledge"
-        self.root = config.knowledge_dir
+        self.root = validate_knowledge_root(config)
         self.root.mkdir(parents=True, exist_ok=True)
         self._wake = asyncio.Event()
         self._convert_wake = asyncio.Event()
@@ -35,7 +36,11 @@ class KnowledgeService:
         self._errors = {}
         self._closing = False
         self.background_error = None
-        self._backup_audit_migration()
+        # Back up before even additive schema/legacy migrations alter provenance.
+        needs_root_backup = self._root_binding_needs_backup()
+        audit_backup = self._backup_audit_migration()
+        if needs_root_backup and audit_backup is None:
+            self._backup_store("before-root-binding")
         store.db.executescript("""
             CREATE TABLE IF NOT EXISTS knowledge_versions (
                 source_id TEXT PRIMARY KEY, path TEXT NOT NULL, digest TEXT NOT NULL,
@@ -60,6 +65,12 @@ class KnowledgeService:
                 source_id TEXT NOT NULL, PRIMARY KEY(scope,path));
             CREATE TABLE IF NOT EXISTS knowledge_schema_meta (
                 key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS knowledge_root_bindings (
+                scope TEXT PRIMARY KEY, root TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS knowledge_root_quarantine (
+                scope TEXT NOT NULL, path TEXT NOT NULL, digest TEXT NOT NULL,
+                source_id TEXT NOT NULL, reason TEXT NOT NULL,
+                PRIMARY KEY(scope,path,digest));
             CREATE TABLE IF NOT EXISTS knowledge_pdf_versions (
                 source_id TEXT PRIMARY KEY, pdf_bytes BLOB NOT NULL,
                 metadata_json TEXT, markdown_path TEXT);
@@ -73,6 +84,7 @@ class KnowledgeService:
         if "scope" not in {r[1] for r in store.db.execute("PRAGMA table_info(knowledge_versions)")}:
             store.db.execute("ALTER TABLE knowledge_versions ADD COLUMN scope TEXT NOT NULL DEFAULT ''")
         self._migrate_legacy()
+        self._bind_source_root()
         # An interrupted HTTP request has unknown usage; do not retry it silently.
         with store.db:
             store.db.execute("UPDATE knowledge_versions SET status='failed',error='interrupted_unknown_usage' WHERE status='labelling' AND scope=?", (self.scope,))
@@ -90,19 +102,133 @@ class KnowledgeService:
             scratch.write("knowledge_recovery_archived", scope=row[0], source_id=row[1],
                           archived_records=archived, reason="non_ready_or_non_current_source", automatically_replayed=False)
 
+    @staticmethod
+    def _root_identity(root):
+        return os.path.normcase(str(root))
+
+    def _check_root(self):
+        """Recheck the configured root before every source-read entry point."""
+        try:
+            current = validate_knowledge_root(self.config)
+        except PathPolicyError as error:
+            raise GovernedError(error.code) from None
+        if self._root_identity(current) != self._root_identity(self.root):
+            raise GovernedError("knowledge_root_changed_while_running")
+
+    def _bind_source_root(self):
+        """Bind current sources to one root before a Gateway can serve them.
+
+        Earlier databases recorded only a Guild and relative path. Their
+        provenance cannot establish a directory identity. Retain an unbound
+        source only when the current permitted file has its exact byte digest;
+        archive every other source without deleting original snapshots or usage.
+        A recorded root change never inherits sources, even for identical bytes.
+        """
+        self._check_root()
+        identity = self._root_identity(self.root)
+        row = self.store.db.execute("SELECT root FROM knowledge_root_bindings WHERE scope=?", (self.scope,)).fetchone()
+        if row is not None and row[0] == identity:
+            return
+        sources = {r[0] for r in self.store.db.execute("""SELECT source_id FROM knowledge_desired WHERE scope=?
+            UNION SELECT source_id FROM knowledge_published WHERE scope=?
+            UNION SELECT source_id FROM knowledge_migration_hold WHERE scope=?
+            UNION SELECT source_id FROM memory_records WHERE scope=? AND active=1 AND source_id LIKE 'kb:%'""",
+            (self.scope, self.scope, self.scope, self.scope))}
+        verified, retained_holds = set(), set()
+        versions = {source_id: self.store.db.execute("""SELECT v.source_id,v.path,v.digest,v.scope,
+            v.status,v.error,a.remote_usage_unknown
+            FROM knowledge_versions v LEFT JOIN knowledge_file_audit a
+            ON a.scope=? AND a.path=v.path AND a.source_id=v.source_id WHERE v.source_id=?""",
+            (self.scope, source_id)).fetchone() for source_id in sources}
+        if row is None and sources:
+            files = self._scan_files()
+            # Overflow keeps no old evidence eligible, matching the scan policy.
+            if len(files) <= self.config.knowledge.max_files:
+                candidates = {path.relative_to(self.root).as_posix(): path for path in files}
+                snapshots = {}
+                for source_id in sources:
+                    version = versions[source_id]
+                    held = self.store.db.execute("SELECT digest FROM knowledge_migration_hold WHERE scope=? AND source_id=?",
+                                                 (self.scope, source_id)).fetchone()
+                    if version is None or version["path"] not in candidates:
+                        continue
+                    if version["path"] not in snapshots:
+                        try:
+                            snapshot = self._snapshot_file(candidates[version["path"]])
+                        except (OSError, UnicodeError, GovernedError):
+                            snapshot = None
+                        # Retain only a digest, never a batch of original PDFs.
+                        snapshots[version["path"]] = snapshot[1] if snapshot is not None else None
+                    if snapshots[version["path"]] == version["digest"]:
+                        if version["scope"] == self.scope:
+                            verified.add(source_id)
+                        elif (held is not None and held[0] == version["digest"]
+                              and not version["scope"] and version["error"] == "legacy_scope_unknown"):
+                            # This remains a no-replay hold, not accepted evidence.
+                            retained_holds.add(source_id)
+        retired = sources - verified - retained_holds
+        reason = "knowledge_root_changed" if row is not None else "knowledge_root_unverified"
+        archived_records = 0
+        with self.store.db:
+            self.store.db.execute("BEGIN IMMEDIATE")
+            for source_id in sources:
+                version = versions[source_id]
+                if version is not None and (version["remote_usage_unknown"] == 1
+                        or version["status"] == "labelling"
+                        or version["error"] in {"interrupted_unknown_usage", "legacy_scope_unknown", "legacy_incomplete_request"}):
+                    # Archive eligibility independently of the lasting no-replay
+                    # digest. A missing file or later root migration must not
+                    # turn an unknown request into a fresh unmetered version.
+                    self.store.db.execute("INSERT OR IGNORE INTO knowledge_root_quarantine VALUES(?,?,?,?,?)",
+                                          (self.scope, version["path"], version["digest"], source_id,
+                                           version["error"] or "interrupted_unknown_usage"))
+            for source_id in retired:
+                archived_records += self.graph.deactivate_source(self.scope, source_id, commit=False)
+                self.store.db.execute("UPDATE knowledge_versions SET status='superseded',error=? WHERE scope=? AND source_id=?",
+                                      (reason, self.scope, source_id))
+                for table in ("knowledge_desired", "knowledge_published", "knowledge_migration_hold"):
+                    self.store.db.execute(f"DELETE FROM {table} WHERE scope=? AND source_id=?", (self.scope, source_id))
+                self.store.db.execute("UPDATE knowledge_file_audit SET state='archived',stage='root_binding',error=? WHERE scope=? AND source_id=?",
+                                      (reason, self.scope, source_id))
+            self.store.db.execute("INSERT INTO knowledge_root_bindings VALUES(?,?) ON CONFLICT(scope) DO UPDATE SET root=excluded.root",
+                                  (self.scope, identity))
+        if sources or row is not None:
+            self.scratch.write("knowledge_root_bound", scope=self.scope, root=str(self.root),
+                               previous_root_known=row is not None, retained_source_ids=sorted(verified),
+                               retained_no_replay_hold_ids=sorted(retained_holds),
+                               archived_source_ids=sorted(retired), archived_records=archived_records,
+                               reason=reason, historical_origin_verified=False, automatically_replayed=False)
+            if retired:
+                print(f"[{self.config.name}] 知识根目录隔离：{len(retired)} 个无法沿用的来源已归档；原文、PDF、标词与累计用量保留。", flush=True)
+
+    def _root_binding_needs_backup(self):
+        tables = {row[0] for row in self.store.db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "knowledge_versions" not in tables:
+            return False
+        if "knowledge_root_bindings" not in tables:
+            return True
+        row = self.store.db.execute("SELECT root FROM knowledge_root_bindings WHERE scope=?", (self.scope,)).fetchone()
+        return row is None or row[0] != self._root_identity(self.root)
+
     def _backup_audit_migration(self):
         """Back up an existing knowledge database before the additive migration."""
         tables = {row[0] for row in self.store.db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if "knowledge_versions" not in tables or "knowledge_file_audit" in tables:
             return
+        return self._backup_store("before-file-audit")
+
+    def _backup_store(self, purpose):
+        """Preserve one consistent committed WAL snapshot before migration."""
         filename = next(row[2] for row in self.store.db.execute("PRAGMA database_list") if row[1] == "main")
         if not filename:  # In-memory test stores have no existing disk data.
             return
         if self.store.db.in_transaction:
             raise GovernedError("knowledge_migration_requires_committed_store")
         directory = Path(filename).parent / "migration_backups"
+        validate_managed_path(directory, "knowledge migration backups")
         directory.mkdir(parents=True, exist_ok=True)
-        destination = directory / ("memory.before-file-audit-" + uuid.uuid4().hex + ".sqlite3")
+        validate_managed_path(directory, "knowledge migration backups")
+        destination = directory / ("memory." + purpose + "-" + uuid.uuid4().hex + ".sqlite3")
         # The source's backup API includes a consistent WAL snapshot. An
         # exclusive placeholder prevents overwriting any existing backup.
         with destination.open("xb"):
@@ -112,6 +238,7 @@ class KnowledgeService:
             self.store.db.backup(backup)
         finally:
             backup.close()
+        return destination
 
     def _audit_file(self, path, *, source_id=None, state, stage, error=None, details=None,
                     remote_usage_unknown=None, byte_count=None):
@@ -181,6 +308,7 @@ class KnowledgeService:
             print(f"[{self.config.name}] 知识迁移需更新文件内容：{path} | version={source_id} | {reason}；旧请求不会自动重发。", flush=True)
 
     def _snapshot_file(self, path):
+        self._check_root()
         if (path.is_symlink() or path.is_junction()
                 or not path.resolve().is_relative_to(self.root.resolve())):
             raise GovernedError("knowledge_path_outside_root")
@@ -189,6 +317,10 @@ class KnowledgeService:
                 break
             if parent.is_symlink() or parent.is_junction():
                 raise GovernedError("knowledge_path_outside_root")
+        try:
+            validate_managed_path(path, "knowledge material")
+        except PathPolicyError as error:
+            raise GovernedError(error.code) from None
         limit, config_key = self.config.knowledge.file_limit(path.suffix, self.pdf_limits)
         before = path.stat()
         if before.st_size > limit:
@@ -295,11 +427,25 @@ class KnowledgeService:
         print(f"[{self.config.name}] 知识来源已撤下：{path} | reason={reason} | archived={archived}；不再用于回复。", flush=True)
 
     def _scan_files(self):
+        self._check_root()
         files = []
         def scan_failed(error):
             # An incomplete census must not look like source deletion. Keep
             # the previous published snapshots until a complete scan succeeds.
             raise GovernedError("knowledge_directory_scan_failed") from None
+
+        def permitted(path):
+            try:
+                if path.is_symlink() or path.is_junction():
+                    return False
+                validate_managed_path(path, "knowledge material")
+                return True
+            except PathPolicyError as error:
+                if error.code in {"onedrive_path_forbidden", "linked_path_forbidden"}:
+                    return False
+                raise GovernedError("knowledge_directory_scan_failed") from None
+            except OSError:
+                raise GovernedError("knowledge_directory_scan_failed") from None
 
         for directory, subdirectories, names in os.walk(self.root, topdown=True, followlinks=False,
                                                        onerror=scan_failed):
@@ -309,11 +455,12 @@ class KnowledgeService:
             # remain ordinary source folders. Never traverse directory aliases.
             subdirectories[:] = [name for name in subdirectories
                                  if not (parent == self.root and name.casefold() in RESERVED_ROOT_DIRECTORIES)
-                                 and not (parent / name).is_symlink()
-                                 and not (parent / name).is_junction()]
+                                 and permitted(parent / name)]
             for name in names:
                 path = parent / name
                 if path.suffix.lower() not in SUPPORTED_SUFFIXES:
+                    continue
+                if not permitted(path):
                     continue
                 try:
                     info = path.lstat()
@@ -370,6 +517,16 @@ class KnowledgeService:
         hold = self.store.db.execute("SELECT digest FROM knowledge_migration_hold WHERE scope=? AND path=?", (self.scope, relative)).fetchone()
         if hold and hold[0] == digest:
             return
+        quarantined = self.store.db.execute("SELECT source_id,reason FROM knowledge_root_quarantine WHERE scope=? AND path=? AND digest=?",
+                                           (self.scope, relative, digest)).fetchone()
+        if quarantined is not None:
+            # Neither disappearance nor reappearance can reset unknown usage.
+            if not self.store.db.execute("""SELECT 1 FROM knowledge_file_audit WHERE scope=? AND path=?
+                    AND source_id=? AND state='archived' AND error='knowledge_root_quarantined_unknown_usage'""",
+                    (self.scope, relative, quarantined[0])).fetchone():
+                self._audit_file(path, source_id=quarantined[0], state="archived", stage="root_binding",
+                                 error="knowledge_root_quarantined_unknown_usage", remote_usage_unknown=True)
+            return
         is_pdf = path.suffix.lower() == ".pdf"
         text = "" if is_pdf else content
         source_id = "kb:" + uuid.uuid4().hex
@@ -419,6 +576,7 @@ class KnowledgeService:
         happen in a thread while all SQLite mutations remain on its owner loop.
         No prepared batch retains more than one original PDF in memory.
         """
+        self._check_root()
         if prepared is not None:
             action, value = prepared
             if action == "begin":
@@ -470,6 +628,7 @@ class KnowledgeService:
         usage, elapsed time and source identity are preserved. Unknown remote
         usage cannot be retried through this bounded operation.
         """
+        self._check_root()
         if path is not None and (not isinstance(path, str) or not path or Path(path).is_absolute()
                                  or ".." in Path(path).parts):
             raise ValueError("retry path must be a relative knowledge path")

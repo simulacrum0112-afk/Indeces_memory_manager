@@ -4,10 +4,14 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from .path_policy import validate_managed_path
+
 
 class InstanceLock:
     def __init__(self, state_dir: Path):
+        state_dir = validate_managed_path(state_dir, "state_dir")
         state_dir.mkdir(parents=True, exist_ok=True)
+        validate_managed_path(state_dir / "runtime.lock", "runtime lock")
         self.stream = (state_dir / "runtime.lock").open("a+b")
         self.stream.seek(0)
         if os.name == "nt":

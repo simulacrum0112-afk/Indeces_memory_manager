@@ -254,7 +254,8 @@ class ReadOnlyJob:
 
 class ConsoleSession:
     def __init__(self, config_path, instance):
-        self.path = config_path.resolve()
+        from .path_policy import validate_config_path
+        self.path = validate_config_path(config_path)
         self.instance = instance
         self.reader = CommandReader()
         self.panel = "home"
@@ -620,6 +621,8 @@ class DetachedReader:
 
 
 def run_console(config_path, initial="console"):
+    from .path_policy import validate_config_path
+    config_path = validate_config_path(config_path)
     # A competing launcher can win between route_existing and acquiring lease.
     while True:
         verb, _, path = initial.partition(" ")

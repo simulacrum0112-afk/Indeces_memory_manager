@@ -23,6 +23,7 @@ from .discord_wizard import configure_discord
 from .knowledge import KnowledgeService
 from .knowledge_directory import prepare_knowledge_directory, show_knowledge_directory
 from .knowledge_progress import show_knowledge_progress
+from .path_policy import PathPolicyError, validate_config_path, validate_runtime_paths, validate_managed_path
 from .lock import InstanceLock
 from .observer import ObserverServer, observe, prepare_scratch_directory, show_logs
 from .observer_data import npmi_diagnostics
@@ -61,6 +62,7 @@ async def _maintain_scratch(scratch):
 
 
 async def serve(config, key, token, *, lease=None, knowledge_ready=None):
+    validate_runtime_paths(config)
     if not config.discord.guild_id:
         raise ValueError("set discord.guild_id before starting")
     owns_lease = lease is None
@@ -77,6 +79,9 @@ async def serve(config, key, token, *, lease=None, knowledge_ready=None):
         _retention_receipt(scratch, getattr(scratch, "startup_retention", None), phase="startup")
         try:
             prepare_knowledge_directory(config)
+        except ValueError:
+            # A rejected path is a startup failure, never permission to ingest it.
+            raise
         except Exception as error:
             print(f"Knowledge directory guide unavailable: {type(error).__name__}; source ingestion still uses the configured directory.")
         store = Store(config.state_dir)
@@ -174,6 +179,7 @@ async def serve(config, key, token, *, lease=None, knowledge_ready=None):
 
 
 def initialize(path):
+    path = validate_config_path(path)
     if path.exists():
         print(f"Configuration already exists: {path}")
         return
@@ -185,8 +191,9 @@ def initialize(path):
 
 
 def status(config, config_path=None):
+    validate_runtime_paths(config)
     if config_path is not None:
-        config_path = Path(config_path).resolve()
+        config_path = validate_config_path(config_path)
     print(f"{config.name} {__version__}; model {config.adapter.model}; one model request slot")
     print(f"Discord guild={config.discord.guild_id or '<not configured>'}; channels={config.discord.channel_ids or 'all explicitly mentioned channels'}")
     print(f"Knowledge: {config.knowledge_dir}; scratch: {config.scratch_dir}")
@@ -205,6 +212,7 @@ def status(config, config_path=None):
     for stage, budget in config.adapter.budgets.items():
         print(f"  {stage}: in={budget.input_tokens}, out={budget.output_tokens}, seconds={budget.seconds}, effort={budget.reasoning}")
     database = config.state_dir / "memory.sqlite3"
+    validate_managed_path(database, "status database")
     if database.exists():
         with sqlite3.connect(database.as_uri() + "?mode=ro", uri=True) as db:
             tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -216,12 +224,13 @@ def status(config, config_path=None):
 
 
 def run(config, config_path=None):
+    validate_runtime_paths(config)
     if not config.discord.guild_id:
         raise ValueError("use discord setup to configure the Guild ID first")
     if config_path is not None:
         # Match the canonical location used by both setup wizards, including
         # when --config names a symlink or a parent path alias.
-        config_path = Path(config_path).resolve()
+        config_path = validate_config_path(config_path)
     # The lease covers hidden credential input as well as the async service,
     # preventing setup in another Console from changing its configuration.
     try:
@@ -383,8 +392,11 @@ def main():
     if args.keep_window and args.command not in {"start", "observe", "knowledge"}:
         parser.error("--keep-window requires start, observe or knowledge")
     logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
-    args.config = args.config.resolve()
     try:
+        args.config = validate_config_path(args.config)
+        if args.config.exists() and args.command not in {"apikey", "discord"}:
+            # Validate before routing to an older Console or writing credentials.
+            load_config(args.config)
         if not args.once and not args.headless:
             receipt = route_existing(args.config, args.command, path=args.path)
             if receipt is not None:
@@ -424,6 +436,9 @@ def main():
             {"logs": show_logs, "npmi": npmi, "retry": retry_knowledge}[args.command](config)
         else:
             check_scratch(config)
+    except PathPolicyError as error:
+        print(f"Path rejected: {error.code}. Indeces knowledge must use the project's knowledge directory; OneDrive and links are forbidden.")
+        raise SystemExit(2) from None
     except CredentialError as error:
         print(f"Credential error: {error.code}. Use discord setup for the Bot token, or apikey for the OpenAI key, before starting.")
         raise SystemExit(2) from None

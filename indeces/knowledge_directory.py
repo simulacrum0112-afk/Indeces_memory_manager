@@ -7,6 +7,7 @@ import stat
 import tempfile
 
 from .config import PdfConfig
+from .path_policy import PathPolicyError, validate_knowledge_root
 
 
 MANAGED_DIRECTORY = ".indeces"
@@ -49,7 +50,7 @@ state 目录下 `pdf_markdown/`，不会回写或替换这里的原始 PDF。
 原材料与知识历史不受 scratch 滚动 24 小时清理；scratch 的保留策略是独立的。
 
 知识文件是私有运行数据，不应提交或上传 GitHub。仓库默认排除 `knowledge/`
-中的资料；若使用另一个目录，需确保该目录也不进入版本控制。不要强制添加原材料。
+中的资料；仅使用项目的 knowledge 子目录；OneDrive、外部目录和目录链接会被拒绝。不要强制添加原材料。
 """
 
 
@@ -135,7 +136,10 @@ def _write_fixed_guide(target: Path, content: bytes):
 
 
 def _configured_root(config) -> Path:
-    root = Path(config.knowledge_dir).resolve()
+    try:
+        root = validate_knowledge_root(config)
+    except PathPolicyError as error:
+        raise KnowledgeDirectoryError(error.code) from None
     if any(ord(character) < 32 or ord(character) == 127 for character in str(root)):
         raise KnowledgeDirectoryError("knowledge_directory_invalid_path")
     return root
@@ -155,7 +159,7 @@ def _existing_safe_root(config) -> Path:
 
 
 def prepare_knowledge_directory(config) -> Path:
-    """Resolve an explicitly configured alias; create only the fixed directory guide."""
+    """Validate the project knowledge root; create only the fixed directory guide."""
     root = _configured_root(config)
     content = GUIDE.encode("utf-8")
     if len(content) > MAX_GUIDE_BYTES:

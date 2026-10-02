@@ -32,7 +32,9 @@ class FakeThread:
 
 class ObserverWaitTests(unittest.TestCase):
     def setUp(self):
-        self.config = SimpleNamespace(scratch_dir=Path("synthetic-scratch-no-io"))
+        self.config = SimpleNamespace(scratch_dir=Path("synthetic-scratch-no-io"),
+                                      state_dir=Path("synthetic-state-no-io"),
+                                      knowledge_dir=Path("synthetic-project-no-io/knowledge"))
 
     def observe(self, thread, *, start_error=None):
         server = SimpleNamespace(

@@ -1,8 +1,8 @@
 # 原始材料目录管理
 
-文档基线：0.11.0；2026-10-01 核对。远端代码与验证边界见 [CHECKPOINT.md](CHECKPOINT.md)。
+文档基线：0.12.5；2026-10-02 核对。路径边界与旧来源隔离见 [PATH_BOUNDARY.md](PATH_BOUNDARY.md)，交付状态见 [CHECKPOINT.md](CHECKPOINT.md)。
 
-默认原材料入口为 `D:\Indeces\knowledge`，原始 PDF、Markdown、文本都放在这个目录体系内。项目根目录的 `Indeces-Knowledge.cmd`、Console `knowledge` 和 `python -m indeces knowledge` 复用同一 Console 的内部进度面板，并按实际配置打开目录；已有 Console 时切换到该面板，不重启任务或弹出额外交互控制台。其他安装位置以配置路径为准。新服务行为在新进程加载时生效，不自动停止或重启已有服务。
+默认原材料入口为 `D:\Indeces\knowledge`，原始 PDF、Markdown、文本都放在这个目录体系内。项目根目录的 `Indeces-Knowledge.cmd`、Console `knowledge` 和 `python -m indeces knowledge` 复用同一 Console 的内部进度面板，并按实际配置打开目录；已有 Console 时切换到该面板，不重启任务或弹出额外交互控制台。知识目录只允许项目配置旁的 knowledge；外目录、OneDrive和链接拒绝。便携安装需把配置放在该项目目录。新服务行为在新进程加载时生效，不自动停止或重启已有服务。
 
 可按主题、年份自行建立目录，例如：
 
