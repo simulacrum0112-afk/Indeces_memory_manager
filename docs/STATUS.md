@@ -8,7 +8,7 @@
 
 [OFFLINE_0121.json](../verification/OFFLINE_0121.json)：815 项、0 失败、0 错误、14 跳过、76.495 秒，CLI/Console、依赖与只读 npmi 检查通过。新增 31 项覆盖完整检索/audit/数据库等价、批量失败回滚、边工作次数、日志逐字节兼容、独立冻结及真实 SQLite 中断/清理/后续消息恢复。[WHEEL_0121.json](../verification/WHEEL_0121.json) 的隔离构建/安装、版本与资源/入口验证通过，本机源码及 editable 安装版本均为 0.12.1。
 
-提交与 CI 状态见 [CHECKPOINT.md](CHECKPOINT.md)。没有启动、停止或热加载真实服务，没有调用真实模型或发送 Discord 消息。当前用户启动的旧 Console 保持原进程模块；用户须显式 stop，等待清理结束后 quit，再重新打开 Console 并 start，才加载 0.12.1。真实 Discord 往返、模型收尾判断和召回相关性仍待验收。
+运行源码 [`75e90f7`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/75e90f7851df9f917b6385437641f3dc54d03ff3) 已推送 main，绑定精确提交的 [CI 36954818516](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36954818516) Windows/Ubuntu job与unittest/CLI check步骤均 success，见 [CI_0121.json](../verification/CI_0121.json)（未读取远端测试日志，不推断其测试数量）；[公开范围有限审计](../verification/REPOSITORY_AUDIT_0121.json) 无未知发现或禁止路径。提交与 CI 状态见 [CHECKPOINT.md](CHECKPOINT.md)。没有启动、停止或热加载真实服务，没有调用真实模型或发送 Discord 消息。当前用户启动的旧 Console 保持原进程模块；用户须显式 stop，等待清理结束后 quit，再重新打开 Console 并 start，才加载 0.12.1。真实 Discord 往返、模型收尾判断和召回相关性仍待验收。
 
 # 0.12.0 历史交付
 

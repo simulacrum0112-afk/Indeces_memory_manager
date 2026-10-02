@@ -4,7 +4,9 @@
 
 本机 [OFFLINE_0121.json](../verification/OFFLINE_0121.json) 为815项、0失败、0错误、14跳过、76.495秒；新增31项，含冻结的原算法完整结果/审计/DB兼容、日志逐字节兼容、快照隔离、真实SQLite中断和后续消息恢复。CLI/Console/依赖与只读 npmi 检查通过。[WHEEL_0121.json](../verification/WHEEL_0121.json) 的隔离构建/安装和资源/入口检查通过。源码与本机安装包均为0.12.1；测试仅使用合成数据，没有真实模型或Discord请求。
 
-0.12.1 当前尚未推送，远端 CI 未核验；以下 0.12.0 CI 仅属于历史代码，不能作为本次修复的证据。公开范围有限审计将在提交前核验 main 可达历史与本次 staged 内容。
+0.12.1 运行源码提交为 [`75e90f7851df9f917b6385437641f3dc54d03ff3`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/75e90f7851df9f917b6385437641f3dc54d03ff3)，已推送 main。[Offline checks / 36954818516](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/36954818516) 绑定该精确提交，整体 success；Windows 与 Ubuntu 的 job、unittest 和 CLI check 步骤均 success，见 [CI_0121.json](../verification/CI_0121.json)。只读取公共元数据，没有读取 job 日志，不推断远端测试数量。[REPOSITORY_AUDIT_0121.json](../verification/REPOSITORY_AUDIT_0121.json) 核验提交前 main 可达22个提交/415个唯一blob与151个公开文件，194个有限规则命中均按精确历史blob或已声明unittest限定名称分类，未知发现和禁止路径为零；不扫描或推送私有运行数据与本地工具引用。
+
+最终交付文档/CI 元数据补扫见 [REPOSITORY_AUDIT_0121_DELIVERY.json](../verification/REPOSITORY_AUDIT_0121_DELIVERY.json)；后续交付提交不改变运行源码，只推送 main。
 
 现有 Console 不会因磁盘源码更新加载新模块；没有自动停止/重启服务。用户显式 stop，等后台清理结束后 quit，重新打开 Console 并 start 才加载新版本。任意规模或高负载的硬时间保证、真实磁盘路径/模型/Discord往返、收尾判断质量和召回相关性仍未验收。
 

@@ -1,0 +1,44 @@
+{
+  "version": "0.12.1",
+  "recorded_at_utc": "2026-10-02T02:19:51.336992+00:00",
+  "implementation_commit": "75e90f7851df9f917b6385437641f3dc54d03ff3",
+  "source_unchanged_since_verified_commit": true,
+  "original_audit": "verification/REPOSITORY_AUDIT_0121.json",
+  "scope": "Exactly staged delivery documentation and public CI metadata listed in scanned_files; main/source audit retained in original. Audit output is metadata only and excluded from recursive self-scan.",
+  "scanned_files": [
+    {
+      "path": "AGENTS.md",
+      "blob": "0f85d060f2e62b9be98b7e9729191cd49773e50c",
+      "worktree_sha256": "2b76e22ad35d6c070bb72b616d0b9b30af2064b6d2dd1cc33e59e6df1371a13f"
+    },
+    {
+      "path": "docs/CHECKPOINT.md",
+      "blob": "45f92133c91f12b6b489d8364d6603d9bc50f79b",
+      "worktree_sha256": "49557f50947c35bebff9a6dc3e3aed0503bb2d36bbf844065b597ba9ffa84989"
+    },
+    {
+      "path": "docs/STATUS.md",
+      "blob": "85563654e8cb1a3b4698f8cdfbe4fb04f0c4599b",
+      "worktree_sha256": "140e09c1e3d4fcf5696198a9368c47e48c4b78b225918a092a82606ecbdf04b2"
+    },
+    {
+      "path": "verification/CI_0121.json",
+      "blob": "eaf6eab00e551a4a8eff2446ed6c03c0aabcabef",
+      "worktree_sha256": "a2b991d74d7f1567f995dc1389ea9cb5837247b40dc82312e310da621bb0726f"
+    }
+  ],
+  "rules": [
+    "provider_key_shape",
+    "github_token_shape",
+    "private_key_header",
+    "discord_token_shape"
+  ],
+  "findings": [],
+  "unclassified_findings": 0,
+  "index_worktree_content_matches": true,
+  "private_runtime_paths_in_scope": false,
+  "private_runtime_data_included": false,
+  "secret_values_recorded": false,
+  "ci_exact_source_commit_verified": true,
+  "passed": true
+}
