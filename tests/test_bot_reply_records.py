@@ -14,7 +14,7 @@ import discord
 from indeces.adapter import OpenAIAdapter
 from indeces.bot_conversations import BotConversationGate
 from indeces.config import AdapterConfig, Budget, DiscordConfig, KnowledgeConfig, RuntimeConfig
-from indeces.contracts import DeliveryReceipt, IncomingMessage
+from indeces.contracts import DeliveryReceipt, FailureNotice, IncomingMessage
 from indeces.discord_bridge import DiscordBridge, discord_reply_text, select_messages
 from indeces.memory import MemoryGraph
 from indeces.observer_data import _scratch_view
@@ -59,6 +59,8 @@ class BotReplyRecordTests(unittest.IsolatedAsyncioTestCase):
                             "content": [{"type": "output_text", "text": output}]}]}
 
         async def deliver(reply):
+            if isinstance(reply, FailureNotice):
+                reply = reply.text
             deliveries.append(reply)
             return DeliveryReceipt(("synthetic-delivery",), discord_reply_text(reply))
 
@@ -282,13 +284,16 @@ class BotReplyRecordTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(warnings, [])
         self.assertEqual(view["traces"][0]["status"], "skipped")
 
-    async def test_invalid_decision_is_silent_failed_turn_with_no_fabricated_skip(self):
+    async def test_invalid_decision_returns_fixed_failure_notice_without_fabricated_skip(self):
         path, entries, deliveries, _ = await self.run_turn(raw='{"action":"skip","text":"not empty"}')
         report = verify_runs([path])
         self.assertEqual(report["counts"]["failed"], 1, report)
         self.assertEqual(report["counts"]["skipped"], 0)
         self.assertEqual(report["issues"], [])
-        self.assertEqual(deliveries, [])
+        self.assertEqual(len(deliveries), 1)
+        self.assertIn("invalid_bot_reply_decision", deliveries[0])
+        self.assertNotIn("<@", deliveries[0])
+        self.assertEqual(self.event(entries, "failure_notice_delivered")["receipt"]["text"], deliveries[0])
         self.assertNotIn("bot_reply_decision", {item["event"] for item in entries})
 
     async def test_bridge_runtime_adapter_five_rounds_include_one_skip_and_reject_sixth(self):

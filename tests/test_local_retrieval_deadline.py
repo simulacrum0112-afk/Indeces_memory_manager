@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import redirect_stdout
+from dataclasses import replace
 import io
 import json
 import sqlite3
@@ -9,7 +10,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from indeces.contracts import DeliveryReceipt, IncomingMessage
+from indeces.contracts import DeliveryReceipt, FailureNotice, IncomingMessage
 from indeces.runtime import Runtime
 from tests.test_context import SummaryAdapter
 from tests.test_run_records import RecordFixture
@@ -39,6 +40,9 @@ class LocalClock:
 class LocalRetrievalDeadlineTests(RecordFixture, unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.setup_fixture()
+        # Leave synthetic turn time after the local cap so the fixed failure
+        # receipt can be exercised independently of turn-time exhaustion.
+        self.config.runtime = replace(self.config.runtime, turn_seconds=30)
         self.seed()
         self.adapter = SummaryAdapter([
             "A synthetic human answer [M1].",
@@ -57,6 +61,8 @@ class LocalRetrievalDeadlineTests(RecordFixture, unittest.IsolatedAsyncioTestCas
                                "alpha topic", "2026-09-30T12:00:00+00:00", author_is_bot=bot)
 
     async def deliver(self, text):
+        if isinstance(text, FailureNotice):
+            text = text.text
         self.deliveries.append(text)
         return DeliveryReceipt(("synthetic-" + str(len(self.deliveries)),), text)
 
@@ -80,15 +86,17 @@ class LocalRetrievalDeadlineTests(RecordFixture, unittest.IsolatedAsyncioTestCas
         self.clock.elapsed = self.config.runtime.local_seconds + 1.0
         return self.query(_SCAN)
 
-    def assert_bot_failed_silently(self, *, code, phase=None, sqlite_code=None, sqlite_name=None):
+    def assert_bot_failed_with_notice(self, *, code, phase=None, sqlite_code=None, sqlite_name=None):
         fields = self.last_failure()
         self.assertEqual(fields["code"], code)
         self.assertEqual(fields["status"], "failed")
         self.assertEqual(self.adapter.calls, [])
-        self.assertEqual(self.deliveries, [])
-        self.assertTrue(any(event == "failure_notice_skipped" and item["reason"] == "bot_reply_failed"
+        self.assertEqual(len(self.deliveries), 1)
+        self.assertIn(code, self.deliveries[0])
+        self.assertNotIn("<@", self.deliveries[0])
+        self.assertTrue(any(event == "failure_notice_delivered"
+                            and item["receipt"]["text"] == self.deliveries[0]
                             for event, item in self.scratch.events))
-        self.assertFalse(any(event == "failure_notice_delivered" for event, _ in self.scratch.events))
         if phase is not None:
             self.assertEqual(fields["phase"], phase)
             self.assertEqual(fields["local_seconds"], self.config.runtime.local_seconds)
@@ -104,7 +112,7 @@ class LocalRetrievalDeadlineTests(RecordFixture, unittest.IsolatedAsyncioTestCas
             await self.run_turn()
         self.assertEqual(len(self.sqlite_failures), 1)
         self.assertEqual(self.sqlite_failures[0].sqlite_errorcode, sqlite3.SQLITE_INTERRUPT)
-        self.assert_bot_failed_silently(code="local_memory_timeout", phase="retrieval",
+        self.assert_bot_failed_with_notice(code="local_memory_timeout", phase="retrieval",
                                        sqlite_code=sqlite3.SQLITE_INTERRUPT, sqlite_name="SQLITE_INTERRUPT")
         self.assertEqual(self.store.db.execute("SELECT status FROM turns").fetchone()[0], "local_memory_timeout")
 
@@ -112,7 +120,7 @@ class LocalRetrievalDeadlineTests(RecordFixture, unittest.IsolatedAsyncioTestCas
         with patch("indeces.runtime.time", self.clock), \
                 patch("indeces.runtime.freeze_retrieval", side_effect=self.deadline_scan):
             await self.run_turn()
-        self.assert_bot_failed_silently(code="local_memory_timeout", phase="freeze_retrieval",
+        self.assert_bot_failed_with_notice(code="local_memory_timeout", phase="freeze_retrieval",
                                        sqlite_code=sqlite3.SQLITE_INTERRUPT, sqlite_name="SQLITE_INTERRUPT")
         self.assertTrue(any(event == "memory_observation" for event, _ in self.scratch.events))
 
@@ -126,7 +134,7 @@ class LocalRetrievalDeadlineTests(RecordFixture, unittest.IsolatedAsyncioTestCas
 
         with patch("indeces.runtime.time", self.clock), patch.object(self.scratch, "write", side_effect=observe):
             await self.run_turn()
-        self.assert_bot_failed_silently(code="local_memory_timeout", phase="memory_observation",
+        self.assert_bot_failed_with_notice(code="local_memory_timeout", phase="memory_observation",
                                        sqlite_code=sqlite3.SQLITE_INTERRUPT, sqlite_name="SQLITE_INTERRUPT")
 
     async def test_external_sqlite_interrupt_before_deadline_keeps_operational_error(self):
@@ -139,7 +147,7 @@ class LocalRetrievalDeadlineTests(RecordFixture, unittest.IsolatedAsyncioTestCas
                 patch.object(self.runtime.graph, "retrieve", side_effect=externally_interrupted):
             await self.run_turn()
         self.assertEqual(self.clock.elapsed, 0.0)
-        self.assert_bot_failed_silently(code="OperationalError", sqlite_code=sqlite3.SQLITE_INTERRUPT,
+        self.assert_bot_failed_with_notice(code="OperationalError", sqlite_code=sqlite3.SQLITE_INTERRUPT,
                                        sqlite_name="SQLITE_INTERRUPT")
 
     async def test_other_sqlite_failure_reports_code_without_logging_exception_text(self):
@@ -149,7 +157,7 @@ class LocalRetrievalDeadlineTests(RecordFixture, unittest.IsolatedAsyncioTestCas
         with patch("indeces.runtime.time", self.clock), \
                 patch.object(self.runtime.graph, "retrieve", side_effect=bad_sql):
             output = await self.run_turn()
-        self.assert_bot_failed_silently(code="OperationalError", sqlite_code=sqlite3.SQLITE_ERROR,
+        self.assert_bot_failed_with_notice(code="OperationalError", sqlite_code=sqlite3.SQLITE_ERROR,
                                        sqlite_name="SQLITE_ERROR")
         self.assertNotIn(_PRIVATE_SQL_NAME, repr(self.scratch.events))
         self.assertNotIn(_PRIVATE_SQL_NAME, output)
@@ -166,7 +174,7 @@ class LocalRetrievalDeadlineTests(RecordFixture, unittest.IsolatedAsyncioTestCas
             await self.run_turn()
         self.assertEqual([error.sqlite_errorcode for error in self.sqlite_failures],
                          [sqlite3.SQLITE_INTERRUPT, sqlite3.SQLITE_ERROR])
-        self.assert_bot_failed_silently(code="OperationalError", sqlite_code=sqlite3.SQLITE_ERROR,
+        self.assert_bot_failed_with_notice(code="OperationalError", sqlite_code=sqlite3.SQLITE_ERROR,
                                        sqlite_name="SQLITE_ERROR")
 
     async def test_non_integer_interrupt_code_cannot_convert_failure_or_enter_sqlite_metadata(self):
@@ -183,7 +191,7 @@ class LocalRetrievalDeadlineTests(RecordFixture, unittest.IsolatedAsyncioTestCas
         with patch("indeces.runtime.time", self.clock), \
                 patch.object(self.runtime.graph, "retrieve", side_effect=invalid_sqlite_metadata):
             output = await self.run_turn()
-        fields = self.assert_bot_failed_silently(code="OperationalError")
+        fields = self.assert_bot_failed_with_notice(code="OperationalError")
         self.assertEqual(fields["error_type"], "OperationalError")
         self.assertNotIn("sqlite_errorcode", fields)
         self.assertNotIn("sqlite_errorname", fields)
@@ -202,7 +210,7 @@ class LocalRetrievalDeadlineTests(RecordFixture, unittest.IsolatedAsyncioTestCas
         with patch("indeces.runtime.time", self.clock), \
                 patch.object(self.runtime.graph, "retrieve", side_effect=externally_interrupted_after_elapsed):
             await self.run_turn()
-        self.assert_bot_failed_silently(code="OperationalError", sqlite_code=sqlite3.SQLITE_INTERRUPT,
+        self.assert_bot_failed_with_notice(code="OperationalError", sqlite_code=sqlite3.SQLITE_INTERRUPT,
                                        sqlite_name="SQLITE_INTERRUPT")
 
     async def test_python_work_past_local_deadline_is_rejected_without_sqlite_interrupt(self):
@@ -216,7 +224,7 @@ class LocalRetrievalDeadlineTests(RecordFixture, unittest.IsolatedAsyncioTestCas
         with patch("indeces.runtime.time", self.clock), \
                 patch("indeces.runtime.freeze_retrieval", side_effect=slow_python_freeze):
             await self.run_turn()
-        fields = self.assert_bot_failed_silently(code="local_memory_timeout", phase="freeze_retrieval")
+        fields = self.assert_bot_failed_with_notice(code="local_memory_timeout", phase="freeze_retrieval")
         self.assertEqual(fields["error_type"], "GovernedError")
         self.assertNotIn("sqlite_errorcode", fields)
         self.assertNotIn("sqlite_errorname", fields)
@@ -226,7 +234,7 @@ class LocalRetrievalDeadlineTests(RecordFixture, unittest.IsolatedAsyncioTestCas
         with patch("indeces.runtime.time", self.clock), \
                 patch.object(self.runtime.graph, "retrieve", side_effect=self.deadline_scan):
             await self.run_turn()
-        self.assert_bot_failed_silently(code="local_memory_timeout", phase="retrieval",
+        self.assert_bot_failed_with_notice(code="local_memory_timeout", phase="retrieval",
                                        sqlite_code=sqlite3.SQLITE_INTERRUPT, sqlite_name="SQLITE_INTERRUPT")
         # The old callback would immediately abort this statement at its first
         # progress checkpoint because its synthetic elapsed time remains > cap.
@@ -234,7 +242,7 @@ class LocalRetrievalDeadlineTests(RecordFixture, unittest.IsolatedAsyncioTestCas
         await self.run_turn(self.message("healthy-human", bot=False))
         await self.run_turn(self.message("healthy-bot"))
         self.assertEqual([call["stage"] for call in self.adapter.calls], ["reply", "reply"])
-        self.assertEqual(self.deliveries, ["A synthetic human answer [M1].", "A synthetic bot answer [M1]."])
+        self.assertEqual(self.deliveries[1:], ["A synthetic human answer [M1].", "A synthetic bot answer [M1]."])
         turns = dict(self.store.db.execute("SELECT message_id,status FROM turns"))
         self.assertEqual(turns, {"failed-bot": "local_memory_timeout", "healthy-human": "delivered",
                                  "healthy-bot": "delivered"})

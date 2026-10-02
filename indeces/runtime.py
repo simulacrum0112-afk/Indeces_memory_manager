@@ -9,9 +9,10 @@ from dataclasses import asdict
 
 from .adapter import reservation
 from .context import compaction_prefix, encode, groups, history_cost, history_data, raw_capacity, reply_messages
-from .contracts import GovernedError
+from .contracts import FailureNotice, GovernedError
 from .memory import MemoryGraph
 from .run_records import answer_record, digest, freeze_retrieval
+from .scratch import CanonicalSnapshot
 from . import prompts
 
 
@@ -147,11 +148,21 @@ class Runtime:
                                                       event_id=message.message_id, audit=graph_audit,
                                                       ranking_mode="static")
                         local_phase = "memory_observation"
-                        self.scratch.write("memory_observation", trace_id=trace_id, audit=graph_audit,
-                                           audit_sha256=digest(graph_audit))
+                        # One immutable JSON snapshot binds the committed graph
+                        # receipt to both scratch and the recalled materials.
+                        # Reuse its bytes, never a hash cached on a mutable dict.
+                        audit_snapshot = CanonicalSnapshot(graph_audit)
+                        snapshot_writer = getattr(self.scratch, "write_snapshot", None)
+                        if callable(snapshot_writer):
+                            snapshot_writer("memory_observation", trace_id=trace_id,
+                                            snapshots={"audit": audit_snapshot},
+                                            audit_sha256=audit_snapshot.sha256)
+                        else:
+                            self.scratch.write("memory_observation", trace_id=trace_id, audit=graph_audit,
+                                               audit_sha256=audit_snapshot.sha256)
                         local_phase = "freeze_retrieval"
                         retrieval = freeze_retrieval(self.store.db, self.knowledge_scope, message.message_id,
-                                                     message.text, records, graph_audit)
+                                                     message.text, records, audit_snapshot)
                         knowledge = retrieval["model_materials"]
                     except sqlite3.OperationalError as error:
                         # Only this deadline's actual VM interruption is a local
@@ -236,9 +247,6 @@ class Runtime:
                     failure_fields.update(phase=local_phase, local_seconds=self.config.runtime.local_seconds)
                 self.scratch.write("turn_end", trace_id=trace_id, status="failed", code=code, **failure_fields)
                 print(f"[{self.config.name}] turn failed: {code}; trace={trace_id}", flush=True)
-                if message.author_is_bot and not delivered:
-                    self.scratch.write("failure_notice_skipped", trace_id=trace_id, reason="bot_reply_failed")
-                    return
                 if not delivered:
                     # A fixed failure receipt adds no model request. It is traced
                     # and kept separate from assistant conversational history.
@@ -249,7 +257,7 @@ class Runtime:
                             return
                         notice = f"本轮未完成（{code}）。审计编号：{trace_id[:12]}"
                         async with asyncio.timeout(min(self.config.discord.delivery_seconds, remaining)):
-                            receipt = await deliver(notice)
+                            receipt = await deliver(FailureNotice(notice) if message.author_is_bot else notice)
                         self.scratch.write("failure_notice_delivered", trace_id=trace_id, receipt={"ids": receipt.message_ids, "text": receipt.text})
                     except Exception as error:
                         self.scratch.write("failure_notice_unknown", trace_id=trace_id, error_type=type(error).__name__)

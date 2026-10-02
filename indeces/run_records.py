@@ -13,7 +13,7 @@ import math
 from pathlib import Path
 import re
 
-from .scratch import canonical, read_records, retention_checkpoint
+from .scratch import CanonicalSnapshot, canonical, read_records, retention_checkpoint
 from .contracts import validated_token_usage
 
 
@@ -92,6 +92,8 @@ def freeze_retrieval(db, scope, event_id, query, records, graph_audit):
 
     Full source text belongs only in scratch. The exact bounded model payload
     is kept separately; version metadata is never fetched again after delivery.
+    An internal CanonicalSnapshot owns immutable, validated audit bytes; decode
+    them into an independent receipt while preserving the fresh digest check.
     """
     model_materials, materials, sources = [], [], {}
     tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -147,11 +149,18 @@ def freeze_retrieval(db, scope, event_id, query, records, graph_audit):
             material.update(pdf_page_occurrences=occurrences, pdf_page_numbers=_occurrence_pages(occurrences))
             payload["pdf_page_numbers"] = deepcopy(material["pdf_page_numbers"])
         materials.append(material)
-    audit_content = canonical(graph_audit)
-    audit_snapshot = json.loads(audit_content) if _native_json_tree(graph_audit) else deepcopy(graph_audit)
+    if type(graph_audit) is CanonicalSnapshot:
+        audit_snapshot = graph_audit.decode()
+        if type(audit_snapshot) is not dict:
+            raise ValueError("graph audit snapshot must contain an object")
+        audit_sha256 = graph_audit.sha256
+    else:
+        audit_content = canonical(graph_audit)
+        audit_snapshot = json.loads(audit_content) if _native_json_tree(graph_audit) else deepcopy(graph_audit)
+        audit_sha256 = hashlib.sha256(audit_content).hexdigest()
     result = {"version": 1, "scope": scope, "event_id": event_id, "query": query,
               "model_materials": model_materials, "materials": materials, "sources": sources,
-              "graph_audit": audit_snapshot, "graph_audit_sha256": hashlib.sha256(audit_content).hexdigest()}
+              "graph_audit": audit_snapshot, "graph_audit_sha256": audit_sha256}
     validate_retrieval(result)
     return result
 

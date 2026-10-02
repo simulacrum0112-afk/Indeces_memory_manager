@@ -7,6 +7,7 @@ Retention removes expired prefixes without rewriting the retained evidence rows.
 from __future__ import annotations
 
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
 import io
@@ -51,6 +52,31 @@ def _nonfinite(value):
 
 def _decode(line):
     return json.loads(line, object_pairs_hook=_unique_object, parse_constant=_nonfinite)
+
+
+@dataclass(frozen=True, init=False, slots=True)
+class CanonicalSnapshot:
+    """Freeze a JSON value, not Python-specific object identity or raw JSON.
+
+    Normalization matches the scratch writer: tuples become arrays and numeric
+    object keys become strings before the final canonical bytes are produced.
+    Only this constructor creates the immutable payload; callers cannot supply
+    an unchecked byte buffer and digest as separate constructor arguments.
+    """
+
+    content: bytes
+    sha256: str
+
+    def __init__(self, value):
+        encoded = canonical(value)
+        normalized = _decode(encoded.decode("utf-8"))
+        content = canonical(normalized)
+        object.__setattr__(self, "content", content)
+        object.__setattr__(self, "sha256", hashlib.sha256(content).hexdigest())
+
+    def decode(self):
+        """Return an independent strict JSON tree on every call."""
+        return _decode(self.content.decode("utf-8"))
 
 
 def _utc_timestamp(timestamp):
@@ -527,6 +553,56 @@ class ScratchLog:
             raise
 
     def write(self, event: str, **fields):
+        item, sequence, now = self._begin_write(event, fields)
+        # Fully validate and freeze caller-owned values before attempting I/O.
+        content = canonical(item)
+        item = _decode(content.decode("utf-8"))
+        _validate(item, sequence, includes_hash=False)
+        # After strict decoding, fields have their frozen JSON representation
+        # (including stringified object keys). Encode that large payload once
+        # more and reuse it in both the hash input and the appended record.
+        # _validate fixes the top-level key set; canonical sorting puts hash
+        # immediately after fields and before the remaining metadata keys.
+        prefix = canonical({"event": item["event"], "fields": item["fields"]})[:-1]
+        suffix = b"," + canonical({key: item[key] for key in
+                                    ("previous_hash", "sequence", "timestamp", "version")})[1:]
+        self._append_record(prefix, suffix, sequence, now)
+
+    def write_snapshot(self, event: str, *, snapshots: dict[str, CanonicalSnapshot], **fields):
+        """Append frozen JSON field values without decoding/encoding them again.
+
+        Ordinary fields keep the existing strict scratch normalization. Frozen
+        payloads may only come from CanonicalSnapshot's value constructor; raw
+        bytes, arbitrary objects and overlapping field names are rejected.
+        """
+        item, sequence, now = self._begin_write(event, fields)
+        if not isinstance(snapshots, dict):
+            raise TypeError("scratch snapshots must be a dict")
+        snapshot_fields = dict(snapshots)
+        if any(not isinstance(key, str) for key in snapshot_fields):
+            raise TypeError("scratch snapshot field names must be strings")
+        if set(snapshot_fields) & set(fields):
+            raise ValueError("scratch snapshot fields overlap ordinary fields")
+        if any(type(value) is not CanonicalSnapshot for value in snapshot_fields.values()):
+            raise TypeError("scratch snapshot values must be CanonicalSnapshot")
+        # Preserve the first canonical/decode boundary for caller-owned values.
+        # _validate checks metadata and the complete outer fields dictionary;
+        # each snapshot's JSON payload was strictly validated at construction.
+        item = _decode(canonical(item).decode("utf-8"))
+        item["fields"].update(snapshot_fields)
+        _validate(item, sequence, includes_hash=False)
+        encoded_fields = {
+            key: snapshot_fields[key].content if key in snapshot_fields else canonical(value)
+            for key, value in item["fields"].items()
+        }
+        field_content = b",".join(canonical(key) + b":" + encoded_fields[key]
+                                  for key in sorted(encoded_fields))
+        prefix = b'{"event":' + canonical(item["event"]) + b',"fields":{' + field_content + b"}"
+        suffix = b"," + canonical({key: item[key] for key in
+                                    ("previous_hash", "sequence", "timestamp", "version")})[1:]
+        self._append_record(prefix, suffix, sequence, now)
+
+    def _begin_write(self, event, fields):
         if self._poisoned:
             raise OSError("scratch writer unavailable after an I/O failure")
         if self.stream.closed:
@@ -541,18 +617,9 @@ class ScratchLog:
         sequence = self.sequence + 1
         item = {"version": 1, "sequence": sequence, "timestamp": now.isoformat(),
                 "event": event, "fields": fields, "previous_hash": self.previous}
-        # Fully validate and freeze caller-owned values before attempting I/O.
-        content = canonical(item)
-        item = _decode(content.decode("utf-8"))
-        _validate(item, sequence, includes_hash=False)
-        # After strict decoding, fields have their frozen JSON representation
-        # (including stringified object keys). Encode that large payload once
-        # more and reuse it in both the hash input and the appended record.
-        # _validate fixes the top-level key set; canonical sorting puts hash
-        # immediately after fields and before the remaining metadata keys.
-        prefix = canonical({"event": item["event"], "fields": item["fields"]})[:-1]
-        suffix = b"," + canonical({key: item[key] for key in
-                                    ("previous_hash", "sequence", "timestamp", "version")})[1:]
+        return item, sequence, now
+
+    def _append_record(self, prefix, suffix, sequence, now):
         digest_builder = hashlib.sha256(prefix)
         digest_builder.update(suffix)
         digest = digest_builder.hexdigest()

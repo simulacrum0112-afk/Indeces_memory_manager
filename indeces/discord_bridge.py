@@ -15,7 +15,7 @@ import time
 from typing import Any
 
 from .bot_conversations import BotConversationGate, ROUND_LIMIT
-from .contracts import DeliveryReceipt, GovernedError, IncomingMessage
+from .contracts import DeliveryReceipt, FailureNotice, GovernedError, IncomingMessage
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -226,7 +226,7 @@ class DiscordBridge:
                     continue
                 self.scratch.write("discord_runtime_started", message_id=incoming.message_id)
 
-                async def deliver(text: str, _envelope: _Envelope = envelope) -> DeliveryReceipt:
+                async def deliver(text: str | FailureNotice, _envelope: _Envelope = envelope) -> DeliveryReceipt:
                     return await self._deliver(_envelope, text)
 
                 await self.runtime.process(incoming, deliver)
@@ -247,17 +247,19 @@ class DiscordBridge:
                 # transport. A local audit failure cannot undo remote delivery.
                 raise RuntimeError("Discord confirmed-delivery audit failed") from self._delivery_audit_error
 
-    async def _deliver(self, envelope: _Envelope, text: str) -> DeliveryReceipt:
+    async def _deliver(self, envelope: _Envelope, text: str | FailureNotice) -> DeliveryReceipt:
         if self._shutdown_requested:
             raise GovernedError("discord_stopping")
         incoming = envelope.incoming
-        allowed_mentions = self._allowed_mentions
+        is_notice = isinstance(text, FailureNotice)
+        text = text.text if is_notice else text
+        allowed_mentions = self._discord.AllowedMentions.none() if is_notice else self._allowed_mentions
         mention_peer = False
         transport_text = text
         if incoming.author_is_bot:
             if type(envelope.bot_round) is not int or not 1 <= envelope.bot_round <= ROUND_LIMIT:
                 raise GovernedError("bot_round_missing")
-            mention_peer = envelope.bot_round < ROUND_LIMIT
+            mention_peer = not is_notice and envelope.bot_round < ROUND_LIMIT
             # A disallowed literal mention can still trigger a raw-text peer.
             # Keep the continuation token under transport control.
             transport_text = re.sub(r"<@!?" + re.escape(incoming.author_id) + r">", "", text).strip()
@@ -270,9 +272,11 @@ class DiscordBridge:
                     roles=False, everyone=False, replied_user=False,
                 )
         sent_text = discord_reply_text(transport_text)
+        delivery_fields = ({"delivery_kind": "failure_notice", "notice_text": text} if is_notice
+                           else {"model_output": text})
         self.scratch.write(
             "discord_delivery_started", message_id=incoming.message_id,
-            channel_id=incoming.channel_id, model_output=text, sent_text=sent_text,
+            channel_id=incoming.channel_id, sent_text=sent_text, **delivery_fields,
             truncated=sent_text != transport_text, timeout_seconds=self.config.delivery_seconds,
             author_is_bot=incoming.author_is_bot, bot_round=envelope.bot_round,
             mentioned_peer_id=incoming.author_id if mention_peer else None,
@@ -287,6 +291,7 @@ class DiscordBridge:
                 "discord_delivery_failed", message_id=incoming.message_id,
                 channel_id=incoming.channel_id, status="delivery_unknown",
                 error_type="TimeoutError", retry=False,
+                **({"delivery_kind": "failure_notice"} if is_notice else {}),
             )
             raise
         except asyncio.CancelledError:
@@ -294,6 +299,7 @@ class DiscordBridge:
                 "discord_delivery_failed", message_id=incoming.message_id,
                 channel_id=incoming.channel_id, status="delivery_unknown",
                 error_type="CancelledError", retry=False,
+                **({"delivery_kind": "failure_notice"} if is_notice else {}),
             )
             raise
         except Exception as error:
@@ -306,6 +312,7 @@ class DiscordBridge:
                 channel_id=incoming.channel_id, status=status,
                 error_type=type(error).__name__, error=str(error),
                 http_status=status_code, discord_code=getattr(error, "code", None), retry=False,
+                **({"delivery_kind": "failure_notice"} if is_notice else {}),
             )
             raise
         receipt = DeliveryReceipt(message_ids=(str(sent.id),), text=sent_text)
@@ -314,6 +321,7 @@ class DiscordBridge:
                 "discord_delivery_finished", message_id=incoming.message_id,
                 channel_id=incoming.channel_id, sent_message_ids=list(receipt.message_ids),
                 sent_text=sent_text,
+                **({"delivery_kind": "failure_notice"} if is_notice else {}),
             )
         except Exception as error:
             self._delivery_audit_error = error

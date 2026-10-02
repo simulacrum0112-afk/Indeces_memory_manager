@@ -27,7 +27,14 @@ class DeliveryReceipt:
     text: str
 
 
-Delivery = Callable[[str], Awaitable[DeliveryReceipt]]
+@dataclass(frozen=True)
+class FailureNotice:
+    """A fixed failure receipt, never a model answer or continuation prompt."""
+
+    text: str
+
+
+Delivery = Callable[[str | FailureNotice], Awaitable[DeliveryReceipt]]
 
 
 def validated_token_usage(usage):

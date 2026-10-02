@@ -1,14 +1,18 @@
-# 可核验运行记录：0.12.0
+# 可核验运行记录：0.12.2
+
+0.12.2 用 `FailureNotice` 标识机器人固定失败回执。`discord_delivery_started` 对此保存 `delivery_kind="failure_notice"` / `notice_text`，不保存 `model_output`；送达完成/失败事件也标注种类。`failure_notice_delivered` 保存实际文字和 ID，但本轮仍是 failed，不创建 assistant 历史、生成答案或模型回答的送达记录。没有增加模型调用、自动重试或轮次退款；模型 `skip` 禁止这类发送。总轮时间耗尽时保持 `failure_notice_skipped=turn_time_exhausted`。现有运行校验区分 failed 与 skipped，不据此声称独立核验所有 Discord 失败回执事件的语义关联。
+
+不可变审计快照共享规范化 bytes 与 hash；日志字段/schema 保持，材料冻结仍独立生成字典并重新计算 hash 校验。旧日志不重写，完整证据与严格重复键/非有限数值校验不削减。
 
 0.12.1 的失败 `turn_end` 增加 `error_type`，SQLite 异常记录库提供的整数 `sqlite_errorcode` / `sqlite_errorname`；本地检索失败记录 `phase`（`retrieval`、`memory_observation`、`freeze_retrieval`）及原 `local_seconds`。仅由本轮时间门禁实际触发的 `SQLITE_INTERRUPT` 转为 `local_memory_timeout`；锁、SQL 错误和外部中断仍保持数据库错误类别，不记录任意异常原文。Python 同步工作末尾仍检查累计时间；这是协作式限制，不是硬抢占。scratch 优化保持原规范 JSON 字节、hash 链、严格输入校验和 flush/fsync 合同。
 
-0.12.0 的机器人输入在 `turn_start.input` 标识 `author_is_bot=true`，`reply_context.response_schema` 绑定实际 Responses 请求的结构化决策合同。`bot_reply_decision` 保存 `action=reply|skip`、解码文字、原始模型 JSON、计量与召回关联。选择 `skip` 时只出现 `turn_end.status=skipped`，没有生成答案、assistant 历史或送达记录；校验器单独统计 skipped，并核验决策、实际请求/响应及用量，不能把静默等同于未发生模型费用或已发送空回复。选择 reply 则冻结解码答案与实际 Discord 文字，受控 @ 和截断属于传输差异，仍分别核验引用。模型失败保持 failed，机器人不发送固定错误提示。
+0.12.0 的机器人输入在 `turn_start.input` 标识 `author_is_bot=true`，`reply_context.response_schema` 绑定实际 Responses 请求的结构化决策合同。`bot_reply_decision` 保存 `action=reply|skip`、解码文字、原始模型 JSON、计量与召回关联。选择 `skip` 时只出现 `turn_end.status=skipped`，没有生成答案、assistant 历史或送达记录；校验器单独统计 skipped，并核验决策、实际请求/响应及用量，不能把静默等同于未发生模型费用或已发送空回复。选择 reply 则冻结解码答案与实际 Discord 文字，受控 @ 和截断属于传输差异，仍分别核验引用。模型失败保持 failed；0.12.0/0.12.1 当时对机器人失败静默，0.12.2 按用户要求改为剩余总轮时间内发送固定失败回执。
 
 传输准入记录另保存机器人轮次与最近人类重置 epoch；持久预占最多五次，跳过/失败不退款。完整历史已有旧人类记录继续按旧合同检查；机器人决策或起始记录超出滚动窗口时仍显示 `retention_partial`，不能恢复或伪造过期证据。此记录合同证明可观察关联，不证明模型正确理解所有收尾消息。
 
 0.11.0的`call_start`成对记录`requested_input_limit`与`effective_input_limit`；有效门禁是原阶段input cap与调用者剩余额度中的较小值。`input_gate.limit`绑定有效门禁，`stage_limit`绑定原阶段额度；实际计量和完成usage须满足有效门禁。失败仍保存供应商确认的真实用量，不丢弃或双计。旧记录缺新字段时按原阶段核验，部分保留窗口只校验存留门禁。累计知识额度的批准迁移见[KNOWLEDGE_DIRECTORY.md](KNOWLEDGE_DIRECTORY.md)，不重置历史计量。
 
-2026-10-01 文档核对；本合同对应的远端代码与验证范围见 [CHECKPOINT.md](CHECKPOINT.md)，不重写旧运行记录。
+2026-10-02 文档核对；本合同对应的远端代码与验证范围见 [CHECKPOINT.md](CHECKPOINT.md)，不重写旧运行记录。
 
 运行记录回答三个不同的问题：本轮召回了哪些材料、Hebbian 权重和排序如何变化、模型生成/Discord 实际送达的文字出现了哪些引用标记。它们不自动证明引用段落得到材料的语义支持，也不证明材料本身真实或 Hebbian 治理有效。
 

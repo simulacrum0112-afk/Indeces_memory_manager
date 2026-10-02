@@ -536,6 +536,16 @@ class MemoryGraph:
 
     def _selection(self, records, hits, edges, query, event_id):
         """The existing one-hop/ranking policy, with observable decision data."""
+        context_matches = {}
+
+        def context_hit(mark):
+            # One query owns this cache. Reusing the exact literal matcher
+            # preserves Unicode/token boundaries while avoiding repeated
+            # regex compilation for shared source-context labels.
+            if mark not in context_matches:
+                context_matches[mark] = _hit(mark, query)
+            return context_matches[mark]
+
         frequencies = Counter()
         for record in records:
             frequencies.update(set(record["marks"]) - self.self_marks)
@@ -570,7 +580,7 @@ class MemoryGraph:
                 neighbors.append((neighbor, edge))
             neighbors.sort(key=lambda item: (-item[1]["effective_score"], item[0]))
             for neighbor_rank, (neighbor, edge) in enumerate(neighbors, 1):
-                context_passed = not edge["context"] or any(_hit(m, query) for m in edge["context"])
+                context_passed = not edge["context"] or any(context_hit(m) for m in edge["context"])
                 decision = dict(edge, from_mark=hit, mark=neighbor, neighbor_rank=neighbor_rank,
                     within_neighbor_limit=neighbor_rank <= 5, context_passed=context_passed,
                     considered=neighbor_rank <= 5 and context_passed)
@@ -598,7 +608,7 @@ class MemoryGraph:
         hit_set = set(hits)
         direct_edges = [(a, b, edge) for (a, b), edge in edges.items()
                         if a in hit_set and b in hit_set
-                        and (not edge["context"] or any(_hit(m, query) for m in edge["context"]))]
+                        and (not edge["context"] or any(context_hit(m) for m in edge["context"]))]
         ranked = []
         for record in records:
             present = set(record["marks"]) & allowed
