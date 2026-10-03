@@ -88,6 +88,10 @@ Python 3.12.14，Windows，内存 SQLite、临时磁盘 scratch；各规模／ca
 
 全部 54 次预算链路最大 **2.491 秒**；包含后续落盘与独立验证的更宽完整链路最大 **3.966 秒**，均低于原 5 秒。固定邻域的实际 SQL 语句均为 784；每 100 个 VM 指令一次的回调计数，在每个 cache 模式下跨三个全图规模相同（236/238/240）。这支持查询工作不再随无关全图边数扫描增长；SQLite B-tree seek 及系统抖动仍可改变耗时。
 
+另用实际临时磁盘 SQLite（WAL、synchronous=FULL、foreign_keys=ON）验证固定 415 边；1000/3000/10000 marks 各三次 cold 查询，预算链路中位 **.091/.105/.078 秒**，最大 .093/.127/.084 秒。准备库约 76.9/236.2/790.3 MB；全部 9 次相关字节对照、独立校验和动态表不变检查通过。磁盘和内存合计 **63 个合成样本**；磁盘准备、backup 和初始化已经温热 OS 页面缓存，不能称作存储冷读。
+
+磁盘 wrapper 调用生产 MemoryGraph/KeyedMemoryIndex 及其 schema/SQL，采用 tuple row_factory（生产 Store 是 sqlite3.Row）；没有建立完整 Store/知识版本/PDF 表或启动 Runtime/Gateway。因此它是查询方法的代表性磁盘试算，不能称为完整生产连接或真实服务验收。计时边界、源码 hash 和这些限制另见 [证据说明](../verification/subgraph_evidence_notes_20261003.json)。
+
 每个样本完整返回 records、literal/direct hits、相关边所有字段、候选决定／排序／证据及 selected/hash 均直接比较旧版本在同一冻结状态上的 canonical bytes，全部相同；每个实际新包另独立校验，动态表不变。摄入、替换、撤下、rollback、跨连接发布、稳定 ID／坐标和必要失效由独立测试覆盖。54 次曲线不是 54 个不同真实语义查询，不代表召回质量评测。
 
 同 Python 3.12 的旧 baseline 单次 steady：1000/3000 固定邻域 retrieve 为 1.275/4.819 秒，retrieve＋snapshot＋freeze 为 3.563/13.597 秒；该旧计时不含 observation scratch，且执行旧全 shadow 合同，因此只作范围改变前的成本说明，不混为同一审计包或多次中位数。另保留 Python 3.14 的 10k 历史测量，不作跨解释器精确倍率对比。
@@ -96,4 +100,6 @@ Python 3.12.14，Windows，内存 SQLite、临时磁盘 scratch；各规模／ca
 
 启动／迁移／摄入仍有全图成本并单列：10k 固定图摄入 50.358 秒，cold Graph 初始化中位 5.480 秒、最大 5.977 秒。这些在回复本地预算外，不能报告为小于 5 秒。未测试真实模型、Discord 或私有知识的延迟。
 
-主要证据：[新曲线](../verification/subgraph_after_20261003.json)、[同解释器旧测量](../verification/subgraph_baseline_py312_20261003.json)、[早期旧测量](../verification/subgraph_baseline_20261003.json)、[998 项最终离线回归](../verification/OFFLINE_0130_20261003T181400856152Z.json)、[wheel](../verification/WHEEL_0130.json)。四项交付验证与发布状态见 [CHECKPOINT.md](CHECKPOINT.md)。
+磁盘 10k 准备摄入为 178.262 秒、Graph 初始化中位 11.979 秒，也未计入查询预算。源码绑定见 [SOURCE_0130.json](../verification/SOURCE_0130.json)：性能报告的 source.head 是提交前 checkout HEAD，实际参与源文件 SHA256 与运行源码提交核对；CRLF/LF 规范化单独声明，不冒称 Git blob 和 Windows 工作区原始字节相同。
+
+主要证据：[新曲线](../verification/subgraph_after_20261003.json)、[磁盘曲线](../verification/subgraph_disk_after_20261003.json)、[同解释器旧测量](../verification/subgraph_baseline_py312_20261003.json)、[早期旧测量](../verification/subgraph_baseline_20261003.json)、[998 项最终离线回归](../verification/OFFLINE_0130_20261003T181400856152Z.json)、[wheel](../verification/WHEEL_0130.json)。四项交付验证与发布状态见 [CHECKPOINT.md](CHECKPOINT.md)。

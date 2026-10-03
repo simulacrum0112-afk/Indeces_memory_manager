@@ -1,0 +1,106 @@
+{
+  "recorded_at_utc": "2026-10-03T18:23:10.762286+00:00",
+  "source_commit": "06be07c6444e73833ed4d3eb75c29f51c49b9ac8",
+  "version": "0.13.0",
+  "benchmark_reports": [
+    "subgraph_after_20261003.json",
+    "subgraph_disk_after_20261003.json"
+  ],
+  "scope": "Public tracked code and synthetic verification wrapper only. Both benchmark source.head values are the pre-commit checkout HEAD; source file digests bind the measured production source and shared harnesses to this release commit. The new disk verification wrapper is separately bound by its exact digest and delivered subsequently. CRLF/LF differences are labeled, not represented as raw-byte equality.",
+  "files": [
+    {
+      "path": "indeces/memory.py",
+      "reports": [
+        "subgraph_after_20261003.json",
+        "subgraph_disk_after_20261003.json"
+      ],
+      "measured_source_sha256": "f152c8b39d4df501611773f1ca3f6e7f27eca333c6f260a618bf7ba2533133b9",
+      "working_source_sha256": "f152c8b39d4df501611773f1ca3f6e7f27eca333c6f260a618bf7ba2533133b9",
+      "measured_source_bytes_unchanged": true,
+      "commit_blob_sha256": "f152c8b39d4df501611773f1ca3f6e7f27eca333c6f260a618bf7ba2533133b9",
+      "source_equal_to_commit_after_lf_normalization": true
+    },
+    {
+      "path": "indeces/memory_index.py",
+      "reports": [
+        "subgraph_after_20261003.json",
+        "subgraph_disk_after_20261003.json"
+      ],
+      "measured_source_sha256": "1564802a0429f53546cc23cda43ad598381da0b696b5ebad5b316fb27e1191ae",
+      "working_source_sha256": "1564802a0429f53546cc23cda43ad598381da0b696b5ebad5b316fb27e1191ae",
+      "measured_source_bytes_unchanged": true,
+      "commit_blob_sha256": "1564802a0429f53546cc23cda43ad598381da0b696b5ebad5b316fb27e1191ae",
+      "source_equal_to_commit_after_lf_normalization": true
+    },
+    {
+      "path": "indeces/run_records.py",
+      "reports": [
+        "subgraph_after_20261003.json",
+        "subgraph_disk_after_20261003.json"
+      ],
+      "measured_source_sha256": "9fce97e075bdd40b1b22a4c0751de292822fefed59da255ed6c8acd8ce4625d0",
+      "working_source_sha256": "9fce97e075bdd40b1b22a4c0751de292822fefed59da255ed6c8acd8ce4625d0",
+      "measured_source_bytes_unchanged": true,
+      "commit_blob_sha256": "9fce97e075bdd40b1b22a4c0751de292822fefed59da255ed6c8acd8ce4625d0",
+      "source_equal_to_commit_after_lf_normalization": true
+    },
+    {
+      "path": "indeces/scratch.py",
+      "reports": [
+        "subgraph_after_20261003.json",
+        "subgraph_disk_after_20261003.json"
+      ],
+      "measured_source_sha256": "8d7d495fcc6556792c0b1ddf64ff92477983cffd6b168257b66df414ac993949",
+      "working_source_sha256": "8d7d495fcc6556792c0b1ddf64ff92477983cffd6b168257b66df414ac993949",
+      "measured_source_bytes_unchanged": true,
+      "commit_blob_sha256": "8d7d495fcc6556792c0b1ddf64ff92477983cffd6b168257b66df414ac993949",
+      "source_equal_to_commit_after_lf_normalization": true
+    },
+    {
+      "path": "indeces/store.py",
+      "reports": [
+        "subgraph_disk_after_20261003.json"
+      ],
+      "measured_source_sha256": "78aa9e7ace3cd5e2195646a07981a18ac620da69deebbd0526707843d32ab778",
+      "working_source_sha256": "78aa9e7ace3cd5e2195646a07981a18ac620da69deebbd0526707843d32ab778",
+      "measured_source_bytes_unchanged": true,
+      "commit_blob_sha256": "78aa9e7ace3cd5e2195646a07981a18ac620da69deebbd0526707843d32ab778",
+      "source_equal_to_commit_after_lf_normalization": true
+    },
+    {
+      "path": "verification/benchmark_dense_retrieval.py",
+      "reports": [
+        "subgraph_after_20261003.json",
+        "subgraph_disk_after_20261003.json"
+      ],
+      "measured_source_sha256": "40e8865c7294eecb9e313c5d237a6b4049fd0d33c0eb1dddcd69be00075ad4e6",
+      "working_source_sha256": "40e8865c7294eecb9e313c5d237a6b4049fd0d33c0eb1dddcd69be00075ad4e6",
+      "measured_source_bytes_unchanged": true,
+      "commit_blob_sha256": "40e8865c7294eecb9e313c5d237a6b4049fd0d33c0eb1dddcd69be00075ad4e6",
+      "source_equal_to_commit_after_lf_normalization": true
+    },
+    {
+      "path": "verification/benchmark_subgraph_disk.py",
+      "reports": [
+        "subgraph_disk_after_20261003.json"
+      ],
+      "measured_source_sha256": "8ee9c899d5edd3dce464e39c8c847c1c836a7e6fdd8b6f08375ca2cf8955d90f",
+      "working_source_sha256": "8ee9c899d5edd3dce464e39c8c847c1c836a7e6fdd8b6f08375ca2cf8955d90f",
+      "measured_source_bytes_unchanged": true,
+      "commit_scope": "New verification wrapper, included in subsequent delivery evidence commit; production code unchanged."
+    },
+    {
+      "path": "verification/benchmark_subgraph_retrieval.py",
+      "reports": [
+        "subgraph_after_20261003.json",
+        "subgraph_disk_after_20261003.json"
+      ],
+      "measured_source_sha256": "4c469ccc0d977d74891caf52404532d944dd212d48c144e8c927a6542518007b",
+      "working_source_sha256": "4c469ccc0d977d74891caf52404532d944dd212d48c144e8c927a6542518007b",
+      "measured_source_bytes_unchanged": true,
+      "commit_blob_sha256": "4c469ccc0d977d74891caf52404532d944dd212d48c144e8c927a6542518007b",
+      "source_equal_to_commit_after_lf_normalization": true
+    }
+  ],
+  "passed": true
+}

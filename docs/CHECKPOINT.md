@@ -4,13 +4,19 @@
 
 固定 415 条相关边、410 条决策，1000/3000/10000 marks、三次中位：cold retrieve 为 .062/.075/.082 秒；含快照、真实合成 observation scratch flush/fsync 和 freeze 的预算链路为 **.100/.107/.119 秒**，steady 为 .048/.061/.072 秒。无关全图正边增至 49,139/151,195/502,499；固定查询 SQL 均784条、相同 cache模式的每100 VM回调计数跨规模相同。增长邻域406/1206/4006边的cold预算链路为.074/.246/2.110秒。全部54样本预算链路最大2.491秒，更宽的后续落盘＋独立校验链路最大3.966秒；在这些所测条件下均通过原5秒，不证明任意枢纽/输出规模或真实Discord时限。
 
+[磁盘 SQLite 曲线](../verification/subgraph_disk_after_20261003.json) 使用实际临时数据库、WAL/FULL/foreign_keys=ON，固定415边的1k/3k/10k各三次cold预算链路中位 **.091/.105/.078秒**，最大.093/.127/.084秒，准备库约76.9/236.2/790.3MB。全部9次同冻结状态字节对照及独立校验通过，与主曲线合计63个合成样本。cold不表示OS页面缓存冷；磁盘10k摄入178.262秒、初始化中位11.979秒，单列且不在回复预算内。
+
 新包 schema=2/audit_scope=direct_hit_neighborhood_v1，频次仅相关端点；完整计数是发布标量。整包/hash与旧版不同，禁止称为全图状态冻结。每个样本完整records、相关边/决定/排序/证据与旧版同冻结状态canonical bytes一致，实际新包独立校验，动态表不变。旧包及原hash保留，旧重放只查不可变事件头；摄入正确更新索引、稳定坐标、失效与事务回滚有独立测试。
 
 最终 [OFFLINE_0130_20261003T181400856152Z.json](../verification/OFFLINE_0130_20261003T181400856152Z.json)：**998项、20跳过、0失败/错误**，CLI/Console/依赖/npmi通过；[WHEEL_0130.json](../verification/WHEEL_0130.json)构建及隔离安装通过，源码/editable均0.13.0。初次 [OFFLINE_0130.json](../verification/OFFLINE_0130.json)误用未装项目依赖的系统Python3.14，不能作为交付；也暴露旧shadow断言，已更新为当前关闭语义并保留历史v1 fixture覆盖。
 
-[主曲线](../verification/subgraph_after_20261003.json)绑定实际运行源文件hash；[Python3.12旧单次成本](../verification/subgraph_baseline_py312_20261003.json)保留原全shadow合同，仅成本对照，不能声称同包相等或与新3次中位完全同条件。[早期Python3.14旧测量](../verification/subgraph_baseline_20261003.json)另存，不作跨解释器精确倍率推断。启动/摄入单列：10k固定图摄入50.358秒，cold初始化中位5.480秒、最大5.977秒，仍全局且不在回复预算内。
+[主曲线](../verification/subgraph_after_20261003.json)绑定实际运行源文件hash；[SOURCE_0130.json](../verification/SOURCE_0130.json)核对测量源与运行源码提交，单独说明提交前HEAD及CRLF/LF差异。[Python3.12旧单次成本](../verification/subgraph_baseline_py312_20261003.json)保留原全shadow合同，仅成本对照，不能声称同包相等或与新3次中位完全同条件。[早期Python3.14旧测量](../verification/subgraph_baseline_20261003.json)另存，不作跨解释器精确倍率推断。内存10k固定图摄入50.358秒，cold初始化中位5.480秒、最大5.977秒，仍全局且不在回复预算内。
 
-本轮未访问真实知识库、私有配置或运行数据，未迁移真实库、未启停/热补丁真实实例，真实模型/Discord未验收。源码提交、推送与精确CI状态将在交付记录补充；不以它们证明真实服务加载或召回质量。
+运行源码 [`06be07c`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/06be07c6444e73833ed4d3eb75c29f51c49b9ac8) 已推送main并核对远端HEAD；精确提交 [CI 37143587991](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37143587991) 整体、Windows/Ubuntu job、unittest与CLI check步骤均success，见 [CI_0130.json](../verification/CI_0130.json)。仅公共run/job/step元数据，未读日志、不推断远端测试数量。后续交付文档／合成磁盘证据提交不改变此运行源码。
+
+公开范围 [REPOSITORY_AUDIT_0130_RELEASE.json](../verification/REPOSITORY_AUDIT_0130_RELEASE.json) 已核验main可达历史和精确暂存文件，有限规则未知发现／禁止路径均零；交付补扫见 [REPOSITORY_AUDIT_0130_DELIVERY.json](../verification/REPOSITORY_AUDIT_0130_DELIVERY.json)。未包含私有材料、配置、运行数据或本地工具引用，只推送main。
+
+本轮未访问真实知识库、私有配置或运行数据，未迁移真实库、未启停/热补丁真实实例，真实模型/Discord未验收。不以源码、CI或离线测量证明真实服务已加载或召回质量。
 
 ## 0.12.6 历史检查点
 

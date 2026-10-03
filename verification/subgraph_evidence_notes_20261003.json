@@ -1,0 +1,79 @@
+{
+  "classification": "Synthetic offline verification only; no private configuration, knowledge, scratch, credentials, live model, or Discord service was read or changed.",
+  "primary_after": {
+    "report": "subgraph_after_20261003.json",
+    "python": "3.12.14",
+    "sizes_known_marks": [1000, 3000, 10000],
+    "scenarios": ["fixed_neighborhood", "growing_star_neighborhood"],
+    "caches": ["cold", "warm", "steady"],
+    "repeats_each": 3,
+    "total_samples": 54,
+    "all_frozen_state_local_byte_checks_and_independent_validators_passed": true,
+    "fixed_relevant_edges": 415,
+    "fixed_cold_local_cap_medians_seconds": [0.099843, 0.106613, 0.119390],
+    "fixed_steady_local_cap_medians_seconds": [0.047879, 0.060661, 0.071949],
+    "fixed_local_cap_sql_statements_all_sizes_and_modes": 784,
+    "fixed_sql_vm_callbacks_every_100_instructions": {
+      "cold_all_sizes": 236,
+      "warm_all_sizes": 238,
+      "steady_all_sizes": 240
+    },
+    "growing_star_relevant_edges": [406, 1206, 4006],
+    "growing_star_cold_local_cap_medians_seconds": [0.073858, 0.245983, 2.110429],
+    "growing_star_steady_local_cap_medians_seconds": [0.065281, 0.303430, 1.914200],
+    "maximum_local_cap_seconds_all_54_samples": 2.491365,
+    "maximum_complete_local_records_and_validation_seconds_all_54_samples": 3.965730,
+    "large_fixed_ingestion_seconds_untimed": 50.357889,
+    "large_fixed_cold_initialization_median_seconds_untimed": 5.479784
+  },
+  "secondary_disk_after": {
+    "report": "subgraph_disk_after_20261003.json",
+    "python": "3.12.14",
+    "scenario": "fixed_neighborhood",
+    "sizes_known_marks": [1000, 3000, 10000],
+    "repeats_each": 3,
+    "total_samples": 9,
+    "journal_mode": "wal",
+    "synchronous": "FULL",
+    "foreign_keys": "ON",
+    "prepared_dbfile_bytes": [76877824, 236232704, 790323200],
+    "fixed_relevant_edges": 415,
+    "cold_local_cap_medians_seconds": [0.091073, 0.104773, 0.077744],
+    "maximum_local_cap_seconds_all_9_samples": 0.127407,
+    "all_frozen_state_local_byte_checks_and_independent_validators_passed": true,
+    "cold_definition": "Fresh graph query caches after constructor; database/OS page caches may be warm after preparation, backup and startup. No OS-cold measurement is claimed.",
+    "large_fixed_ingestion_seconds_untimed": 178.261508,
+    "large_fixed_initialization_median_seconds_untimed": 11.978521,
+    "connection_facade": "Only the main harness's sqlite3 binding is replaced by an explicit named-file connect facade; memory implementation and real sqlite3 module are unmodified. Primary harness bytes/hash were preserved."
+  },
+  "old_before": {
+    "official_python_312_report": "subgraph_baseline_py312_20261003.json",
+    "source_revision": "db04135",
+    "sizes_known_marks": [1000, 3000],
+    "repeats_each": 1,
+    "cache": "steady",
+    "fixed_relevant_edges": 415,
+    "fixed_full_graph_edges": [49139, 151195],
+    "fixed_retrieve_seconds": [1.275164, 4.818630],
+    "fixed_read_snapshot_freeze_seconds": [3.562670, 13.596625],
+    "supplementary_python_314_report": "subgraph_baseline_20261003.json",
+    "supplementary_python_314_sizes_known_marks": [1000, 3000, 10000],
+    "supplementary_python_314_fixed_read_snapshot_freeze_seconds": [4.633611, 19.178884, 56.125353],
+    "comparability": "The old baseline includes active full-graph shadow observation; the approved new static path disables shadow writes. Old baseline read-freeze excludes observation scratch disk writes. One old sample is context, not a robust speedup distribution; Python3.14 values must not be compared by relative percentages with Python3.12 after values."
+  },
+  "byte_comparison": {
+    "oracle": "Exact db04135 full edge decoder/selection, reading identical frozen source and dynamic SQLite state, without invoking old _observe.",
+    "preserved": "Complete returned record bytes, literal/direct-hit match bytes, every related edge statistic, all accepted/rejected expansion decisions, rank order, selected provenance and evidence fields, including stored dynamic scores/event IDs.",
+    "projection": "Filter old edge statistics to direct-hit incident edges and old frequencies to those edge endpoints; remove only explicit scope marker fields. Global active-record/live-edge scalars remain byte-compared. Neither ranking nor evidence fields are normalized or dropped.",
+    "audit_change": "New schema2 declares audit_scope=direct_hit_neighborhood_v1 and endpoint-only mark-frequency scope. Static events do not seed, decay or reinforce shadow. Full audit envelopes and durable hashes intentionally differ; no whole-package byte-equivalence claim is made.",
+    "nonzero_history_unit_test": "tests/test_subgraph_byte_identity.py additionally verifies nonzero retained legacy dynamic history is read exactly and never changed by static queries, plus source add/retirement refresh."
+  },
+  "timing_boundaries": {
+    "actual_5_second_local_cap": "retrieve + CanonicalSnapshot + actual synthetic ScratchLog.write_snapshot(memory_observation) with flush/fsync + freeze_retrieval, matching Runtime.process through its local-cap check.",
+    "old_harness_compatible_read_freeze": "retrieve + CanonicalSnapshot + freeze_retrieval, excluding the observation scratch disk write.",
+    "complete_records_and_validation": "Actual local-cap path plus independent validate_graph_audit and the post-cap retrieval_record/knowledge_retrieved scratch writes with flush/fsync.",
+    "not_query_time": "Ingestion/NPMI publication, database backup, constructor validation, scratch startup and old frozen oracle work are untimed. Startup and ingestion remain global costs and may exceed5seconds.",
+    "instrumentation": "SQL trace and VM progress callbacks every100 instructions are included in query timing. VM callback count is a coarse work measure, not a claim that SQLite tree seeks are mathematically O(1)."
+  },
+  "limits": "All63 final synthetic samples satisfied the measured5second local-cap boundary. Finite in-memory/disk curves do not prove arbitrary-size or live-service deadlines, OS-cold behavior, recall quality, semantic support, or linear cost in local edge count. Complete local contexts/evidence repeat per ranked candidate: growing-star audit bytes are503262/2527608/20444059, so local output cost can grow faster than edge count. Interrupted/source-drift preliminary runs were not saved as final after reports. No running instance was restarted or hot-updated."
+}
