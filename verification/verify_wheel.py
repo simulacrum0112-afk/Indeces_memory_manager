@@ -64,7 +64,8 @@ def main():
             "import inspect",
             "assert inspect.signature(MemoryGraph.retrieve).parameters['ranking_mode'].default == 'static'",
             "from indeces.observer_data import npmi_diagnostics",
-            "print('Installed import, static retrieval default and diagnostic entry point: passed')",
+            "from indeces.reingest import BoundedReingest",
+            "print('Installed import, static retrieval default, diagnostic and bounded maintenance entry points: passed')",
         ])
         imported = checked([sys.executable, "-c", probe], cwd=base, env=env)
         config = base / "config.example.toml"

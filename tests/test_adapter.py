@@ -4,6 +4,7 @@ import asyncio
 from copy import deepcopy
 from collections import deque
 from dataclasses import replace
+import json
 from pathlib import Path
 import tempfile
 import time
@@ -54,9 +55,281 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         scratch = Scratch()
         return OpenAIAdapter(config, scratch, api_key="never-log-this-key", request=transport), scratch
 
-    async def invoke(self, adapter, stage="reply", schema=None, *, input_limit=None):
+    async def invoke(self, adapter, stage="reply", schema=None, *, input_limit=None, audit=None, budget_override=None):
         return await adapter.call(stage, "instructions", [{"role": "user", "content": "source"}], "trace-1", schema,
-                                  input_limit=input_limit)
+                                  input_limit=input_limit, audit=audit, budget_override=budget_override)
+
+    async def test_durable_audit_reserves_before_generation_and_excludes_raw_payload(self):
+        events = []
+
+        def audit(event, **fields):
+            events.append((event, deepcopy(fields)))
+
+        async def transport(path, payload):
+            self.assertEqual(events[-1][0], "request_intent")
+            self.assertEqual(events[-1][1]["path"], path)
+            if path == "/responses":
+                gate = next(fields for event, fields in events if event == "input_gate")
+                self.assertEqual((gate["reserved_input_tokens"], gate["reserved_output_tokens"]), (10, 20))
+                self.assertTrue(gate["admitted"])
+                return completed("raw private answer", inp=11, out=5)
+            return {"input_tokens": 10}
+
+        adapter, scratch = self.adapter(transport)
+        await self.invoke(adapter, audit=audit)
+        intents = [fields for event, fields in events if event == "request_intent"]
+        self.assertEqual(len({fields["client_request_id"] for fields in intents}), 2)
+        self.assertTrue(intents[0]["input_count_is_non_generating"])
+        self.assertFalse(intents[1]["input_count_is_non_generating"])
+        received = [fields for event, fields in events if event == "response_received"]
+        self.assertIsNone(received[0]["known_usage"])
+        self.assertEqual(received[1]["known_usage"], {"input_tokens": 11, "output_tokens": 5})
+        self.assertEqual(received[1]["response_id"], "response-1")
+        terminal = events[-1][1]
+        self.assertEqual((events[-1][0], terminal["status"]), ("call_end", "completed"))
+        self.assertGreaterEqual(terminal["elapsed_seconds"], 0)
+        self.assertNotIn("raw private answer", repr(events))
+        self.assertNotIn("instructions", repr(events))
+        self.assertNotIn("source", repr(events))
+        self.assertEqual(scratch.select("call_end")[0]["result"]["text"], "raw private answer")
+
+    async def test_audit_rejection_before_send_never_issues_generation(self):
+        for rejected_event, rejected_phase, request_count in (("request_intent", "input_count", 0),
+                                                             ("input_gate", None, 1),
+                                                             ("request_intent", "generation", 1)):
+            with self.subTest(event=rejected_event, phase=rejected_phase):
+                transport = SequenceTransport([{"input_tokens": 10}, completed()])
+                adapter, _ = self.adapter(transport, threshold=1)
+
+                def audit(event, **fields):
+                    if event == rejected_event and (rejected_phase is None or fields["phase"] == rejected_phase):
+                        raise GovernedError("audit_reservation_refused")
+
+                with self.assertRaises(GovernedError) as caught:
+                    await self.invoke(adapter, audit=audit)
+                self.assertEqual(caught.exception.code, "audit_reservation_refused")
+                self.assertFalse(caught.exception.remote_usage_unknown)
+                self.assertEqual(len(transport.requests), request_count)
+                self.assertEqual(adapter._circuits["reply"], {"failures": 0, "until": 0.0})
+
+    async def test_usage_receipt_hook_failure_keeps_usage_and_stops_without_retry(self):
+        transport = SequenceTransport([{"input_tokens": 10}, completed(inp=17, out=6)])
+        adapter, scratch = self.adapter(transport)
+        events = []
+
+        def audit(event, **fields):
+            events.append((event, deepcopy(fields)))
+            if event == "response_received" and fields["phase"] == "generation":
+                raise RuntimeError("receipt sink failed")
+
+        with self.assertRaises(RuntimeError) as caught:
+            await self.invoke(adapter, audit=audit)
+        expected = {"input_tokens": 17, "output_tokens": 6}
+        self.assertEqual(caught.exception.known_usage, expected)
+        self.assertFalse(caught.exception.remote_usage_unknown)
+        self.assertEqual(events[-1][0], "call_end")
+        self.assertEqual(events[-1][1]["known_usage"], expected)
+        self.assertEqual(len(transport.requests), 2)
+        self.assertEqual(len(scratch.select("http_response")), 1)
+
+    async def test_usage_is_durable_before_scratch_response_failure(self):
+        transport = SequenceTransport([{"input_tokens": 10}, completed(inp=17, out=6)])
+        adapter, scratch = self.adapter(transport)
+        events = []
+
+        def audit(event, **fields):
+            events.append((event, deepcopy(fields)))
+
+        original_write = scratch.write
+
+        def write(event, **fields):
+            if event == "http_response" and fields["path"] == "/responses":
+                self.assertEqual(events[-1][0], "response_received")
+                self.assertEqual(events[-1][1]["known_usage"], {"input_tokens": 17, "output_tokens": 6})
+                raise RuntimeError("scratch failed")
+            original_write(event, **fields)
+
+        scratch.write = write
+        with self.assertRaises(RuntimeError) as caught:
+            await self.invoke(adapter, audit=audit)
+        self.assertEqual(caught.exception.known_usage, {"input_tokens": 17, "output_tokens": 6})
+        self.assertFalse(caught.exception.remote_usage_unknown)
+        self.assertEqual(events[-1][0], "call_end")
+        self.assertEqual(events[-1][1]["known_usage"], caught.exception.known_usage)
+        self.assertEqual(len(transport.requests), 2)
+
+    async def test_count_scalar_is_durable_before_scratch_count_response_failure(self):
+        transport = SequenceTransport([{"input_tokens": 10}, completed()])
+        adapter, scratch = self.adapter(transport)
+        events = []
+
+        def audit(event, **fields):
+            events.append((event, deepcopy(fields)))
+
+        original_write = scratch.write
+
+        def write(event, **fields):
+            if event == "http_response" and fields["path"] == "/responses/input_tokens":
+                self.assertEqual(events[-1][0], "response_received")
+                self.assertEqual(events[-1][1]["counted_input_tokens"], 10)
+                self.assertIsNone(events[-1][1]["known_usage"])
+                raise RuntimeError("scratch count response failed")
+            original_write(event, **fields)
+
+        scratch.write = write
+        with self.assertRaises(RuntimeError) as caught:
+            await self.invoke(adapter, audit=audit)
+        self.assertIsNone(caught.exception.known_usage)
+        self.assertFalse(caught.exception.remote_usage_unknown)
+        self.assertEqual([path for path, _ in transport.requests], ["/responses/input_tokens"])
+        self.assertNotIn("input_gate", [event for event, _ in events])
+        self.assertFalse(events[-1][1]["generation_request_started"])
+
+    async def test_invalid_output_has_known_usage_in_independent_audit(self):
+        response = completed(inp=17, out=6)
+        response["output"] = "invalid"
+        transport = SequenceTransport([{"input_tokens": 10}, response])
+        adapter, _ = self.adapter(transport)
+        events = []
+
+        def audit(event, **fields):
+            events.append((event, deepcopy(fields)))
+
+        with self.assertRaises(GovernedError) as caught:
+            await self.invoke(adapter, audit=audit)
+        self.assertEqual(caught.exception.code, "invalid_output")
+        self.assertEqual(events[-1][1]["known_usage"], {"input_tokens": 17, "output_tokens": 6})
+        self.assertFalse(events[-1][1]["remote_usage_unknown"])
+
+    async def test_terminal_audit_failure_preserves_usage_on_original_exception(self):
+        transport = SequenceTransport([{"input_tokens": 10}, completed(inp=17, out=6)])
+        adapter, _ = self.adapter(transport)
+
+        def audit(event, **fields):
+            if event == "call_end":
+                raise RuntimeError("terminal sink failed")
+
+        with self.assertRaises(RuntimeError) as caught:
+            await self.invoke(adapter, audit=audit)
+        self.assertEqual(caught.exception.known_usage, {"input_tokens": 17, "output_tokens": 6})
+        self.assertFalse(caught.exception.remote_usage_unknown)
+        self.assertEqual(len(transport.requests), 2)
+
+    async def test_unique_client_headers_and_provider_id_capture_precede_body(self):
+        events = []
+
+        def audit(event, **fields):
+            events.append((event, deepcopy(fields)))
+
+        class Content:
+            def __init__(content_self, payload, provider_id):
+                content_self.payload, content_self.provider_id = payload, provider_id
+
+            async def iter_chunked(content_self, size):
+                self.assertEqual(events[-1][0], "response_headers")
+                self.assertEqual(events[-1][1]["provider_request_id"], content_self.provider_id)
+                yield json.dumps(content_self.payload).encode("utf-8")
+
+        class Response:
+            def __init__(response_self, payload, provider_id):
+                response_self.status = 200
+                response_self.headers = {"x-request-id": provider_id}
+                response_self.content = Content(payload, provider_id)
+
+            async def __aenter__(response_self):
+                return response_self
+
+            async def __aexit__(response_self, *args):
+                return None
+
+        class Session:
+            def __init__(session_self):
+                session_self.requests = []
+
+            def post(session_self, url, **options):
+                self.assertEqual(events[-1][0], "request_intent")
+                self.assertEqual(options["headers"]["X-Client-Request-Id"], events[-1][1]["client_request_id"])
+                session_self.requests.append((url, deepcopy(options)))
+                counting = url.endswith("input_tokens")
+                return Response({"input_tokens": 10} if counting else completed(),
+                                "req-count" if counting else "req-generation")
+
+        adapter, scratch = self.adapter(None)
+        session = Session()
+        adapter._session = session
+        await self.invoke(adapter, audit=audit)
+        request_ids = [options["headers"]["X-Client-Request-Id"] for _, options in session.requests]
+        self.assertEqual(len(set(request_ids)), 2)
+        self.assertEqual(scratch.select("http_response")[-1]["provider_request_id"], "req-generation")
+        self.assertEqual(events[-1][1]["provider_request_id"], "req-generation")
+        self.assertEqual(events[-1][1]["response_id"], "response-1")
+        self.assertNotIn("never-log-this-key", repr(events) + repr(scratch.events))
+
+    async def test_label_deadline_override_is_scoped_and_defaults_remain_unchanged(self):
+        transport = SequenceTransport([{"input_tokens": 10}, completed()] * 2)
+        adapter, scratch = self.adapter(transport, seconds=15.0)
+        configured = adapter.config.budgets["label"]
+        timeouts = []
+        original_timeout = asyncio.timeout
+
+        def tracked_timeout(seconds):
+            timeouts.append(seconds)
+            return original_timeout(seconds)
+
+        with patch("indeces.adapter.asyncio.timeout", side_effect=tracked_timeout):
+            await self.invoke(adapter, "label", budget_override=Budget(100, 20, 45.0))
+            await self.invoke(adapter, "label")
+        self.assertEqual(timeouts, [45.0, 15.0])
+        self.assertIs(adapter.config.budgets["label"], configured)
+        self.assertEqual([row["budget"]["seconds"] for row in scratch.select("call_start")], [45.0, 15.0])
+        self.assertEqual([payload["max_output_tokens"] for path, payload in transport.requests if path == "/responses"],
+                         [20, 20])
+
+    async def test_invalid_budget_override_never_issues_a_request(self):
+        overrides = [("label", "not-a-budget"), ("label", Budget(101, 20, 15.0)),
+                     ("label", Budget(100, 21, 15.0)), ("label", Budget(100, 20, 46.0)),
+                     ("label", Budget(100, 20, 15.0, reasoning="medium")),
+                     ("reply", Budget(100, 20, 45.0))]
+        for stage, override in overrides:
+            with self.subTest(stage=stage, override=override):
+                transport = SequenceTransport([])
+                adapter, scratch = self.adapter(transport, seconds=15.0)
+                with self.assertRaises(GovernedError) as caught:
+                    await self.invoke(adapter, stage, budget_override=override)
+                self.assertEqual(caught.exception.code, "invalid_call_budget_override")
+                self.assertFalse(caught.exception.remote_usage_unknown)
+                self.assertEqual(transport.requests, [])
+                self.assertEqual(scratch.events, [])
+
+    async def test_coroutine_audit_is_rejected_without_issuing(self):
+        transport = SequenceTransport([])
+        adapter, _ = self.adapter(transport)
+
+        async def audit(event, **fields):
+            return None
+
+        with self.assertRaises(GovernedError) as caught:
+            await self.invoke(adapter, audit=audit)
+        self.assertEqual(caught.exception.code, "async_call_audit_not_supported")
+        self.assertFalse(caught.exception.remote_usage_unknown)
+        self.assertEqual(transport.requests, [])
+
+    async def test_circuit_rejection_has_terminal_audit_without_requests(self):
+        transport = SequenceTransport([])
+        adapter, _ = self.adapter(transport)
+        adapter._circuits["label"]["until"] = time.monotonic() + 60
+        events = []
+
+        def audit(event, **fields):
+            events.append((event, deepcopy(fields)))
+
+        with self.assertRaises(GovernedError) as caught:
+            await self.invoke(adapter, "label", audit=audit)
+        self.assertEqual(caught.exception.code, "circuit_open")
+        self.assertEqual([event for event, _ in events], ["call_start", "call_end"])
+        self.assertFalse(events[-1][1]["remote_usage_unknown"])
+        self.assertEqual(events[-1][1]["code"], "circuit_open")
+        self.assertEqual(transport.requests, [])
 
     async def assert_code(self, adapter, code, *, stage="reply"):
         with self.assertRaises(GovernedError) as caught:
@@ -326,15 +599,28 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_generation_timeout_preserves_unknown_usage_and_provider_circuit(self):
         requests = []
+        timeouts = []
+        original_timeout = asyncio.timeout
+
+        def tracked_timeout(seconds):
+            timeout = original_timeout(seconds)
+            timeouts.append(timeout)
+            return timeout
 
         async def transport(path, payload):
             requests.append(path)
             if path.endswith("input_tokens"):
                 return {"input_tokens": 10}
+            # Exercise a real deadline cancellation only once generation has
+            # issued. A 10ms initial deadline could instead expire during local
+            # admission on a busy/coarse-clock Windows runner.
+            timeouts[-1].reschedule(asyncio.get_running_loop().time())
             await asyncio.Event().wait()
 
-        adapter, scratch = self.adapter(transport, seconds=0.01, threshold=1)
-        await self.assert_code(adapter, "stage_timeout")
+        adapter, scratch = self.adapter(transport, seconds=5.0, threshold=1)
+        with patch("indeces.adapter.asyncio.timeout", side_effect=tracked_timeout):
+            await self.assert_code(adapter, "stage_timeout")
+        self.assertTrue(timeouts[0].expired())
         end = scratch.select("call_end")[0]
         self.assertEqual(requests, ["/responses/input_tokens", "/responses"])
         self.assertEqual(end["phase"], "generation")

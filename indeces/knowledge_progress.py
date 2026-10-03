@@ -110,6 +110,76 @@ def _file(row):
             "warnings": warnings}
 
 
+def _latest_reingest_audit(db, scope, path):
+    """Project bounded metadata from later audits without replacing old rows."""
+    if not {"reingest_events", "reingest_documents"} <= _tables(db):
+        return None
+    row = db.execute("""SELECT
+        substr(json_extract(e.details_json,'$.source_id'),1,256) AS source_id,
+        substr(json_extract(e.details_json,'$.suffix'),1,32) AS suffix,
+        json_extract(e.details_json,'$.byte_count') AS byte_count,
+        substr(json_extract(e.details_json,'$.state'),1,64) AS state,
+        substr(json_extract(e.details_json,'$.stage'),1,64) AS stage,
+        substr(json_extract(e.details_json,'$.error'),1,256) AS error,
+        json_extract(e.details_json,'$.remote_usage_unknown') AS remote_usage_unknown,
+        e.recorded_at AS observed_at
+        FROM reingest_events e JOIN reingest_documents d ON d.attempt_id=e.attempt_id
+        WHERE d.scope=? AND d.path=? AND e.event='knowledge_file_audit_successor'
+        AND json_extract(e.details_json,'$.scope')=d.scope
+        AND json_extract(e.details_json,'$.path')=d.path
+        ORDER BY e.seq DESC LIMIT 1""", (scope, path)).fetchone()
+    return dict(row) if row else None
+
+
+def _reingest_snapshot(db, scope, path, desired=None, published=None):
+    """Read only additive maintenance metadata, keeping old failures visible.
+
+    No source text, mark contents, request bodies or credential fields are
+    selected. A published flag alone is not proof of a current publication.
+    """
+    if not {"reingest_documents", "reingest_batches", "reingest_labels", "reingest_calls"} <= _tables(db):
+        return None
+    row = db.execute("""SELECT substr(d.attempt_id,1,256) AS attempt_id,
+        substr(d.batch_id,1,256) AS batch_id,substr(d.digest,1,128) AS digest,
+        substr(d.old_source_id,1,256) AS old_source_id,
+        substr(d.new_source_id,1,256) AS new_source_id,
+        d.total_chunks,d.published,substr(b.status,1,64) AS batch_status,
+        b.pilot_passed,
+        (SELECT COUNT(*) FROM reingest_labels l WHERE l.attempt_id=d.attempt_id) AS labelled_chunks,
+        (SELECT SUM(c.actual_input_tokens) FROM reingest_calls c WHERE c.attempt_id=d.attempt_id) AS actual_input_tokens,
+        (SELECT SUM(c.actual_output_tokens) FROM reingest_calls c WHERE c.attempt_id=d.attempt_id) AS actual_output_tokens,
+        (SELECT SUM(c.elapsed_seconds) FROM reingest_calls c WHERE c.attempt_id=d.attempt_id) AS elapsed_seconds,
+        (SELECT COUNT(*) FROM reingest_calls c WHERE c.attempt_id=d.attempt_id AND c.status='usage_unknown') AS usage_unknown_calls
+        FROM reingest_documents d JOIN reingest_batches b
+            ON b.batch_id=d.batch_id AND b.scope=d.scope
+        WHERE d.scope=? AND d.path=?
+        ORDER BY (d.new_source_id=?) DESC,d.rowid DESC LIMIT 1""",
+        (scope, path, (desired or {}).get("source_id"))).fetchone()
+    if row is None:
+        return None
+    item = dict(row)
+    item["published"] = bool(item["published"])
+    item["pilot_passed"] = bool(item["pilot_passed"])
+    item["current_publication"] = bool(item["published"] and item["pilot_passed"]
+        and desired and published
+        and desired["source_id"] == published["source_id"] == item["new_source_id"]
+        and desired["digest"] == published["digest"] == item["digest"]
+        and desired["status"] == published["status"] == "ready")
+    old = db.execute("""SELECT substr(v.source_id,1,256) AS source_id,
+        substr(v.status,1,64) AS status,substr(v.error,1,256) AS error,
+        (SELECT COUNT(*) FROM knowledge_chunks c WHERE c.source_id=v.source_id) AS total_chunks,
+        (SELECT COUNT(c.marks_json) FROM knowledge_chunks c WHERE c.source_id=v.source_id) AS labelled_chunks
+        FROM knowledge_versions v WHERE v.scope=? AND v.path=? AND v.source_id=?""",
+        (scope, path, item["old_source_id"])).fetchone()
+    item["preserved_failure"] = dict(old) if old else None
+    if old is not None and "knowledge_file_audit" in _tables(db):
+        audit = db.execute("""SELECT remote_usage_unknown FROM knowledge_file_audit
+            WHERE scope=? AND path=? AND source_id=?""",
+            (scope, path, item["old_source_id"])).fetchone()
+        item["preserved_failure"]["remote_usage_unknown"] = audit[0] if audit else None
+    return item
+
+
 def progress_snapshot(config, *, offset=0):
     """Return one short, consistent, scope-isolated, read-only SQLite snapshot."""
     guild_id = getattr(getattr(config, "discord", None), "guild_id", None)
@@ -132,6 +202,8 @@ def progress_snapshot(config, *, offset=0):
             tables = _tables(db)
             has_audit = "knowledge_file_audit" in tables
             paths = _PATHS + (" UNION SELECT path FROM knowledge_file_audit WHERE scope=:scope AND state!='archived'" if has_audit else "")
+            if "reingest_documents" in tables:
+                paths += " UNION SELECT path FROM reingest_documents WHERE scope=:scope"
             parameters = {"scope": scope, "limit": limit, "offset": offset}
             result["total_files"] = db.execute(
                 "SELECT COUNT(*) FROM (" + paths + ")", parameters).fetchone()[0]
@@ -144,8 +216,17 @@ def progress_snapshot(config, *, offset=0):
                         substr(error,1,256) AS error,remote_usage_unknown
                         FROM knowledge_file_audit WHERE scope=? AND path=?""", (scope, item["path"])).fetchone()
                     item["audit"] = dict(audit) if audit else None
+                    current_audit = _latest_reingest_audit(db, scope, item["path"])
+                    if current_audit is not None:
+                        item["preserved_audit"] = item["audit"]
+                        item["audit"] = current_audit
+                        audit = current_audit
                     if item["desired"] is None and item["published"] is None and audit:
                         item["state"] = audit["state"]
+            for item in result["files"]:
+                maintenance = _reingest_snapshot(db, scope, item["path"], item["desired"], item["published"])
+                if maintenance is not None:
+                    item["reingest"] = maintenance
             result["displayed_files"] = len(result["files"])
             result["truncated"] = result["total_files"] > result["displayed_files"]
             result["next_offset"] = offset + len(result["files"]) if offset + len(result["files"]) < result["total_files"] else None
@@ -231,6 +312,20 @@ def _render(snapshot):
             audit = item["audit"]
             lines.append(f"  文件：{_terminal_text(audit['suffix'])}；bytes={audit['byte_count']}；"
                          f"阶段={_terminal_text(audit['stage'])}；code={_terminal_text(audit['error']) if audit['error'] else '无'}")
+        if item.get("reingest"):
+            maintenance = item["reingest"]
+            lines.append(f"  独立重摄入：{_terminal_text(maintenance['attempt_id'])}；"
+                         f"批次={_terminal_text(maintenance['batch_status'])}；"
+                         f"标词块={maintenance['labelled_chunks']}/{maintenance['total_chunks']}；"
+                         f"当前发布={'是' if maintenance['current_publication'] else '否'}；"
+                         f"已确认新增 usage={maintenance['actual_input_tokens']}/{maintenance['actual_output_tokens']}；"
+                         f"未知 usage 调用={maintenance['usage_unknown_calls']}")
+            old = maintenance["preserved_failure"]
+            if old:
+                lines.append(f"  保留旧失败：{_terminal_text(old['source_id'])}；"
+                             f"状态={_terminal_text(old['status'])}；code={_terminal_text(old['error'])}；"
+                             f"旧标词块={old['labelled_chunks']}/{old['total_chunks']}；"
+                             f"未知 usage={old.get('remote_usage_unknown')}")
         lines.append(_version_line("最新版本", item["desired"]))
         label = "可检索发布版本" if item["published_retrievable"] else "发布指针（未确认可检索）"
         lines.append(_version_line(label, item["published"]))

@@ -15,7 +15,7 @@ import stat
 
 from .config import PdfConfig
 from .knowledge_directory import RESERVED_ROOT_DIRECTORIES, SUPPORTED_SUFFIXES
-from .knowledge_progress import _terminal_text
+from .knowledge_progress import _terminal_text, _reingest_snapshot, _latest_reingest_audit
 from .path_policy import PathPolicyError, validate_knowledge_root, validate_managed_path
 from .observer_data import _database, _scope, _tables
 
@@ -191,6 +191,22 @@ def audit_snapshot(config):
                                 row["stored_stage"] = entry["stage"]
                                 if row["current_file_matches_desired"] and row["state"] not in {"rejected", "skipped", "missing", "unavailable"}:
                                     row["stage"] = entry["stage"]
+                    if "reingest_documents" in tables:
+                        for path_row in db.execute("SELECT DISTINCT path FROM reingest_documents WHERE scope=?", (_scope(config),)):
+                            path = path_row[0]
+                            row = files.setdefault(path, {"path": path, "suffix": Path(path).suffix.lower(),
+                                "byte_count": None, "state": "missing", "stage": "discovery", "digest": None})
+                            maintenance = _reingest_snapshot(db, _scope(config), path, row.get("desired"), row.get("published"))
+                            if maintenance is not None:
+                                maintenance["current_file_matches"] = bool(row["digest"] and row["digest"] == maintenance["digest"])
+                                row["reingest"] = maintenance
+                            current_audit = _latest_reingest_audit(db, _scope(config), path)
+                            if current_audit is not None:
+                                row["current_observation"] = current_audit
+                                if row.get("desired") and current_audit.get("source_id") == row["desired"]["source_id"]:
+                                    row["stored_stage"] = current_audit["stage"]
+                                    if row["current_file_matches_desired"] and row["state"] not in {"rejected", "skipped", "missing", "unavailable"}:
+                                        row["stage"] = current_audit["stage"]
                     if "memory_records" in tables:
                         counts = dict(db.execute("""SELECT COUNT(*) AS active_records,
                             COUNT(DISTINCT source_id) AS active_source_versions FROM memory_records
@@ -232,6 +248,22 @@ def render_audit(report):
         if observation and observation.get("error"):
             line += (f" | last_observation={_terminal_text(observation['state'])}"
                      f"/{_terminal_text(observation['stage'])}/{_terminal_text(observation['error'])}")
+        current = row.get("current_observation")
+        if current and current.get("error"):
+            line += (f" | current_observation={_terminal_text(current['state'])}"
+                     f"/{_terminal_text(current['stage'])}/{_terminal_text(current['error'])}")
+        if row.get("reingest"):
+            maintenance = row["reingest"]
+            line += (f" | reingest={_terminal_text(maintenance['batch_status'])}"
+                     f"/{maintenance['labelled_chunks']}/{maintenance['total_chunks']}"
+                     f" | current_reingest_publication={maintenance['current_publication']}"
+                     f" | confirmed_new_usage={maintenance['actual_input_tokens']}/{maintenance['actual_output_tokens']}"
+                     f" | new_usage_unknown_calls={maintenance['usage_unknown_calls']}")
+            old = maintenance["preserved_failure"]
+            if old:
+                line += (f" | preserved_old_failure={_terminal_text(old['status'])}/{_terminal_text(old['error'])}"
+                         f" | old_labelled_chunks={old['labelled_chunks']}/{old['total_chunks']}"
+                         f" | old_remote_usage_unknown={old.get('remote_usage_unknown')}")
         if row.get("pointer_warnings"):
             line += " | " + _terminal_text(",".join(row["pointer_warnings"]))
         lines.append(line)

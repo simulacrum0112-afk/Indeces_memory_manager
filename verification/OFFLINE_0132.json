@@ -1,0 +1,175 @@
+{
+  "version": "0.13.2",
+  "recorded_at_utc": "2026-10-03T23:34:37.816645+00:00",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python_version": "3.12.14",
+  "live_model_calls": false,
+  "live_discord_connection": false,
+  "private_config_or_runtime_read_in_this_test_run": false,
+  "private_runtime_data_included": false,
+  "service_started_stopped_or_hotpatched": false,
+  "scientific_model_or_budget_changes": false,
+  "scope": "Synthetic offline fixtures and an isolated example config only.",
+  "unit_tests": {
+    "runner": "unittest discovery: tests (file entry point with main guard)",
+    "tests_run": 1039,
+    "failures": 0,
+    "errors": 0,
+    "skips": 20,
+    "failed_cases": [],
+    "error_cases": [],
+    "elapsed_seconds": 202.12,
+    "passed": true,
+    "skipped_cases": [
+      {
+        "test": "test_no_plaintext_fallback_on_other_platforms (test_credentials.NativePlatformTests.test_no_plaintext_fallback_on_other_platforms)",
+        "reason": "Non-Windows behavior"
+      },
+      {
+        "test": "test_symlink_target_is_neither_read_nor_replaced (test_credentials.PersistenceTests.test_symlink_target_is_neither_read_nor_replaced)",
+        "reason": "symlink creation unavailable for this Windows account"
+      },
+      {
+        "test": "test_explicit_root_symlink_alias_is_refused_before_writing_actual_directory (test_knowledge_directory.KnowledgeDirectoryTests.test_explicit_root_symlink_alias_is_refused_before_writing_actual_directory)",
+        "reason": "directory symlink creation unavailable on this host"
+      },
+      {
+        "test": "test_management_symlink_is_refused_without_following_it (test_knowledge_directory.KnowledgeDirectoryTests.test_management_symlink_is_refused_without_following_it)",
+        "reason": "directory symlink creation unavailable on this host"
+      },
+      {
+        "test": "test_external_directory_symlink_is_not_traversed (test_knowledge_directory_scan.DirectoryScanTests.test_external_directory_symlink_is_not_traversed)",
+        "reason": "directory symlink unavailable on this host"
+      },
+      {
+        "test": "test_real_database_symlink_is_refused_without_following (test_observer_data.ObserverDataTests.test_real_database_symlink_is_refused_without_following)",
+        "reason": "symlink creation unavailable on this host"
+      },
+      {
+        "test": "test_real_state_directory_symlink_is_refused_without_following (test_observer_data.ObserverDataTests.test_real_state_directory_symlink_is_refused_without_following)",
+        "reason": "symlink creation unavailable on this host"
+      },
+      {
+        "test": "test_save_on_other_platforms_leaves_no_credential_file (test_openai_credentials.OpenAiNativePlatformTests.test_save_on_other_platforms_leaves_no_credential_file)",
+        "reason": "Non-Windows durable-save behavior"
+      },
+      {
+        "test": "test_replaced_target_between_check_and_open_is_rejected (test_openai_credentials.OpenAiPersistenceTests.test_replaced_target_between_check_and_open_is_rejected)",
+        "reason": "Windows prevents replacing this open credential handle"
+      },
+      {
+        "test": "test_symlink_parent_is_rejected (test_openai_credentials.OpenAiPersistenceTests.test_symlink_parent_is_rejected)",
+        "reason": "directory symlink creation unavailable for this Windows account"
+      },
+      {
+        "test": "test_symlink_target_is_neither_read_nor_replaced (test_openai_credentials.OpenAiPersistenceTests.test_symlink_target_is_neither_read_nor_replaced)",
+        "reason": "symlink creation unavailable for this Windows account"
+      },
+      {
+        "test": "test_config_file_symlink_rejected_before_open (test_path_policy.PathPolicyTests.test_config_file_symlink_rejected_before_open)",
+        "reason": "file symlink creation unavailable"
+      },
+      {
+        "test": "test_dangling_link_is_rejected (test_path_policy.PathPolicyTests.test_dangling_link_is_rejected)",
+        "reason": "directory symlink creation unavailable"
+      },
+      {
+        "test": "test_directory_link_ancestor_rejected_before_resolving (test_path_policy.PathPolicyTests.test_directory_link_ancestor_rejected_before_resolving)",
+        "reason": "directory symlink creation unavailable"
+      },
+      {
+        "test": "test_normalized_path_also_checks_ancestors_after_missing_dot_segments (test_path_policy.PathPolicyTests.test_normalized_path_also_checks_ancestors_after_missing_dot_segments)",
+        "reason": "directory symlink creation unavailable"
+      },
+      {
+        "test": "test_raw_link_ancestor_cannot_be_hidden_with_parent_traversal (test_path_policy.PathPolicyTests.test_raw_link_ancestor_cannot_be_hidden_with_parent_traversal)",
+        "reason": "directory symlink creation unavailable"
+      },
+      {
+        "test": "test_runtime_rejects_any_linked_managed_directory (test_path_policy.PathPolicyTests.test_runtime_rejects_any_linked_managed_directory)",
+        "reason": "directory symlink creation unavailable"
+      },
+      {
+        "test": "test_directory_link_is_rejected_without_creating_logs_in_its_target (test_scratch.RetentionTests.test_directory_link_is_rejected_without_creating_logs_in_its_target)",
+        "reason": "directory symlink creation is not permitted on this platform"
+      },
+      {
+        "test": "test_symlink_managed_log_and_reserved_temp_are_rejected_without_following (test_scratch.RetentionTests.test_symlink_managed_log_and_reserved_temp_are_rejected_without_following)",
+        "reason": "symlink creation is not permitted on this platform"
+      },
+      {
+        "test": "test_symlink_is_rejected_by_snapshot_and_opened_handle (test_scratch_observer.ScratchObserverTests.test_symlink_is_rejected_by_snapshot_and_opened_handle)",
+        "reason": "symlink creation unavailable on this host"
+      }
+    ]
+  },
+  "checks": [
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "check",
+        "--config",
+        "config.example.toml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.995,
+      "output": "Offline configuration/import check OK; Indeces 0.13.2; discord.py 2.7.1; pypdf 6.19.0.\nLive Discord and model calls were not made.",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "pip",
+        "check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.751,
+      "output": "No broken requirements found.",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "--help"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.302,
+      "output": "usage: __main__.py [-h] [--config CONFIG] [--once] [--headless] [--path PATH]\n                   [{apikey,audit,check,console,discord,init,knowledge,logs,npmi,observe,retry,scratch,service,start,status,stop}]\n\nIndeces: single Discord runtime console\n\npositional arguments:\n  {apikey,audit,check,console,discord,init,knowledge,logs,npmi,observe,retry,scratch,service,start,status,stop}\n\noptions:\n  -h, --help            show this help message and exit\n  --config CONFIG\n  --once                read-only command: output one snapshot/report directly\n                        and exit\n  --headless            start: explicit foreground runtime without interactive\n                        Console\n  --path PATH           retry: retry only this relative material path (case is\n                        preserved)",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "console",
+        "--config",
+        "config.example.toml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.417,
+      "output": "Indeces 0.13.2 console: discord | apikey | knowledge | start | status | npmi | scratch | observe | logs | audit | retry | service | stop | home | refresh | quit\n全部功能在当前 Console 切换；重复入口复用此实例。start 后菜单可继续操作；stop/Ctrl+C 停止本实例任务，quit 不会停止运行中的服务。\nCommands: discord | apikey | knowledge | start | status | npmi | scratch | observe | logs | audit | retry | service | stop | home | refresh | quit\nIndeces>",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "indeces",
+        "npmi",
+        "--config",
+        "config.example.toml"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.389,
+      "output": "静态 NPMI：当前回复按静态边扩展和排序；动态权重仅作观察历史。\n尚无可读取的知识图；材料完成发布后才进入统计。",
+      "stderr": ""
+    }
+  ],
+  "passed": true
+}

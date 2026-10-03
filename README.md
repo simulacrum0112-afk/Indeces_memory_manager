@@ -2,6 +2,8 @@
 
 一个名为 **Indeces** 的小型 Python 无头智能体：一个 Discord Bot 连接、一个串行消息 worker、GPT-6-Luna adaptor、本地知识库、静态 NPMI 检索与动态观察历史，以及可检查的输入输出 scratch log。项目仓库名保留 `Indeces_memory_manager`。
 
+0.13.2 增加须经 operator 明确授权的四篇有界维护入口：独立新账、发送前请求 ID、实际 usage 落盘、未知计量停整批、12 块试跑及完整事务发布。旧失败记录不重置；全局配置、模型、切块、标词和图规则保持。任务专属额度与恢复边界见 [维护合同](docs/BOUNDED_REINGEST.md)。
+
 0.13.0 将静态检索接到持久数字 ID、按有向 ID 对建键的边、邻接/前缀/材料倒排索引。每次查询只读取命中标注词、一跳相关边和实际候选材料；选择、快照及审计冻结使用同一邻域树。NPMI、来源门控、一跳/top-k、去重、[M]、5 秒预算、并发和五轮规则保持。新 schema 与摄入维护见 [存储合同](docs/MEMORY_STORAGE.md)，交付验证见 [检查点](docs/CHECKPOINT.md)。摄入时的 NPMI 重算、启动迁移与独立全图观察仍可有完整 scope 成本；不能由查询路径的改变推断任意规模或真实 Discord 延迟已验收。
 
 新图审计为 `schema_version=2`、`audit_scope=direct_hit_neighborhood_v1`，只冻结相关边、端点频次和原有的一跳接受/拒绝及排名证据；全图记录数/边数为摄入维护的标量。用户已明确批准关闭静态回复链的 dynamic/shadow 更新，旧动态行与旧事件保持；相关结果与证据在同一冻结动态状态下逐字节对照。审计整包和 hash 因范围与观察合同改变，不能声称整包逐字节相同。时间戳及 lazy decay 函数只作未激活的结构预留，不接入在线排序。详见 [运行记录](docs/RUN_RECORDS.md)。

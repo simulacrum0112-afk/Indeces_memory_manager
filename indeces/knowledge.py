@@ -338,6 +338,48 @@ class KnowledgeService:
                 byte_count = (self.root / relative).stat().st_size
             except OSError:
                 pass
+        tables = {row[0] for row in self.store.db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        if {"reingest_documents", "reingest_events"} <= tables:
+            protected = self.store.db.execute("""SELECT m.batch_id,m.attempt_id,a.source_id,a.remote_usage_unknown
+                FROM knowledge_file_audit a JOIN reingest_documents m
+                ON m.scope=a.scope AND m.path=a.path AND m.old_source_id=a.source_id
+                WHERE a.scope=? AND a.path=? ORDER BY m.rowid DESC LIMIT 1""",
+                (self.scope, relative)).fetchone()
+            if protected is not None:
+                # The path-keyed failure is part of the preserved old ledger.
+                # Later ordinary-file observations remain append-only and are
+                # projected by readers, so new failures are still visible.
+                previous = self.store.db.execute("""SELECT details_json FROM reingest_events
+                    WHERE attempt_id=? AND event='knowledge_file_audit_successor'
+                    ORDER BY seq DESC LIMIT 1""", (protected["attempt_id"],)).fetchone()
+                last = json.loads(previous[0]) if previous is not None else None
+                if remote_usage_unknown is None:
+                    if last is not None and last["source_id"] == source_id:
+                        remote_usage_unknown = last["remote_usage_unknown"]
+                    elif protected["source_id"] == source_id:
+                        remote_usage_unknown = protected["remote_usage_unknown"]
+                observation = {"scope": self.scope, "path": relative, "source_id": source_id,
+                    "suffix": Path(relative).suffix.lower(), "byte_count": byte_count,
+                    "state": state, "stage": stage, "error": error,
+                    "details": details or {}, "remote_usage_unknown": remote_usage_unknown}
+                if last != observation:
+                    with self.store.db:
+                        if remote_usage_unknown and source_id is not None:
+                            # Ordinary retry reads the original path audit.
+                            # Preserve a lasting no-replay digest for later
+                            # unknown calls that live in successor events.
+                            self.store.db.execute("""INSERT OR IGNORE INTO knowledge_root_quarantine
+                                (scope,path,digest,source_id,reason)
+                                SELECT scope,path,digest,source_id,? FROM knowledge_versions
+                                WHERE scope=? AND path=? AND source_id=?""",
+                                (error or "interrupted_unknown_usage", self.scope, relative, source_id))
+                        self.store.db.execute("""INSERT INTO reingest_events
+                            (batch_id,attempt_id,call_key,event,recorded_at,details_json)
+                            VALUES(?,?,NULL,'knowledge_file_audit_successor',?,?)""",
+                            (protected["batch_id"], protected["attempt_id"], time.time(),
+                             json.dumps(observation, sort_keys=True)))
+                return
         with self.store.db:
             self.store.db.execute("""INSERT INTO knowledge_file_audit
                 (scope,path,source_id,suffix,byte_count,state,stage,error,details_json,observed_at,remote_usage_unknown)
@@ -596,6 +638,28 @@ class KnowledgeService:
                 self.scratch.write("knowledge_scope_suspended", scope=self.scope,
                                    reason="knowledge_file_count_limit", retired_heads=len(heads))
             raise GovernedError("knowledge_file_count_limit")
+    def _certified_reingest_publication(self, path, digest, source_id):
+        """Recognise only an exact, fully published maintenance source.
+
+        This does not release an old digest quarantine or admit a new request.
+        The maintenance publisher owns the additive ledger and transaction.
+        """
+        tables = {row[0] for row in self.store.db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        if not {"reingest_documents", "reingest_batches"} <= tables:
+            return False
+        return self.store.db.execute("""SELECT 1 FROM reingest_documents m
+            JOIN reingest_batches b ON b.batch_id=m.batch_id AND b.scope=m.scope
+            JOIN knowledge_versions v ON v.source_id=m.new_source_id
+                AND v.scope=m.scope AND v.path=m.path AND v.digest=m.digest
+            JOIN knowledge_desired d ON d.source_id=v.source_id
+                AND d.scope=v.scope AND d.path=v.path
+            JOIN knowledge_published p ON p.source_id=v.source_id
+                AND p.scope=v.scope AND p.path=v.path
+            WHERE m.scope=? AND m.path=? AND m.digest=? AND m.new_source_id=?
+                AND m.published=1 AND b.pilot_passed=1 AND v.status='ready'""",
+            (self.scope, path, digest, source_id)).fetchone() is not None
+
     def _apply_snapshot(self, path, snapshot, error=None):
         relative = path.relative_to(self.root).as_posix()
         if error is not None:
@@ -616,6 +680,11 @@ class KnowledgeService:
         content, digest = snapshot
         head = self.store.db.execute("SELECT v.digest,v.source_id,v.status,v.error FROM knowledge_desired h JOIN knowledge_versions v ON v.source_id=h.source_id WHERE h.scope=? AND h.path=?", (self.scope, relative)).fetchone()
         if head and head[0] == digest:
+            # A separately authorised maintenance publication retains the old
+            # failure audit at this path. Its new receipt lives in the additive
+            # reingest ledger; ordinary watcher backfill must not replace it.
+            if self._certified_reingest_publication(relative, digest, head[1]):
+                return
             # Backfill legacy metadata without overwriting a recorded failure
             # stage or repeatedly writing unchanged observations on every poll.
             if not self.store.db.execute("SELECT 1 FROM knowledge_file_audit WHERE scope=? AND path=? AND source_id=?", (self.scope, relative, head[1])).fetchone():
