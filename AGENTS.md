@@ -1,5 +1,7 @@
 # Indeces 项目协作约定
 
+0.12.5最终运行源码 `0d78ddbb1b379e43caf252756b19f26476b757bc` 已推main，精确提交CI `37080507076` 整体与Windows/Ubuntu job、unittest/CLI check步骤success。最终本机945项、20跳过、0失败/错误及wheel通过，源码/editable均0.12.5；最终CI仅公共元数据，未读日志/不推断测试数，早期失败诊断单独记录。v2禁发迁移先备份，同根目录不跳过；未知/未核验旧用量按digest阻止自动重放，不改变预算或模型。活动施工中间实例未由本轮重启，最终真实库迁移未执行，须由用户显式重开/start；交付补扫及证据见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)。
+
 0.12.5 新增知识库路径防护与来源根目录绑定：本机唯一材料目录为 `D:\Indeces\knowledge`，禁止任何 Indeces 配置/知识/state/scratch/凭据/管理说明与 OneDrive 路径或链接关联。知识路径只能在项目配置旁的 knowledge 子目录；不得给其他文献目录生成管理结构或整理原文件。目录安全拒绝必须阻断启动/入库。旧未绑定来源在打开Gateway前按当前文件完整digest验证，未确认来源撤下归档，原文/PDF/标词/计量与未知usage禁发保护保留，迁移先一致备份。具体边界、事故未定因及活动实例加载限制见 [docs/PATH_BOUNDARY.md](docs/PATH_BOUNDARY.md)。本轮源码/离线验证交付状态见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)；另chat的运行实例不能据源码版本号推定已加载最终修复。
 
 0.12.4运行源码 `3a422d1dcdc9006e7879d147aa3801809e6b1902` 已推main，精确提交CI `37067919192` 整体与Windows/Ubuntu job、unittest/CLI check步骤success，仅公共元数据、未读日志/不推断远端测试数。公开范围审计无未知发现/禁止路径；最终交付补扫与版本合同见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)。真实模型/Discord仍未验收，新Console显式start才加载新版。

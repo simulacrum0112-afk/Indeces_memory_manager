@@ -1,5 +1,7 @@
 # 0.12.5 路径边界修复
 
+最终运行源码 [`0d78ddb`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/0d78ddbb1b379e43caf252756b19f26476b757bc) 已推main，精确提交 [CI 37080507076](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37080507076) 整体、Windows/Ubuntu、unittest和CLI check均success。最终945项与wheel通过；此轮只读公共CI元数据，未读日志/推断测试数量。公开审计、历史失败证据与活动实例加载限制见 [CHECKPOINT.md](CHECKPOINT.md)，实际旧库最终迁移未在本轮执行。
+
 首轮远端 [CI 37076777661](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37076777661) 的Ubuntu回归因旧scratch测试匹配错误文字而失败：真实链接已被正确拒绝，但新诊断少了旧的 must not be a link 子串。此用例在本机Windows因链接创建权限而跳过，远端暴露了兼容性遗漏。读取失败job的公开测试诊断（未保存原始日志），恢复兼容诊断文字，不放宽拒绝规则；[首次CI失败证据](../verification/CI_0125_INITIAL.json)保留，相关73项重测通过（8跳过）。新版最终CI须绑定后续修正提交；历史主能量/模型/预算/方法参数无变化。
 
 第二轮远端 [CI 37077154547](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37077154547) Ubuntu成功，Windows失败；[CI_0125_SECOND.json](../verification/CI_0125_SECOND.json)保存失败测试的公开诊断摘要。10项错误由新增中文归档通知在cp1252输出中编码失败；PDF的3项错误和1项恢复断言失败由TEMP的8.3短名与resolve后的长名不等造成。修复编码通知和先安全校验、再规范化的路径比较，并补短名不能隐藏OneDrive名称或同步根的回归。未保存原始job日志，失败证据不删除。
