@@ -97,9 +97,16 @@ class KnowledgeService:
         self._backfill_root_quarantine(conservative_archives=missing_quarantine)
         self._bind_source_root()
         # An interrupted HTTP request has unknown usage; do not retry it silently.
+        interrupted = store.db.execute("SELECT source_id,path,digest FROM knowledge_versions WHERE status='labelling' AND scope=?",
+                                       (self.scope,)).fetchall()
         with store.db:
             store.db.execute("UPDATE knowledge_versions SET status='failed',error='interrupted_unknown_usage' WHERE status='labelling' AND scope=?", (self.scope,))
             store.db.execute("UPDATE knowledge_file_audit SET state='failed',stage='label',error='interrupted_unknown_usage',remote_usage_unknown=1 WHERE scope=? AND source_id IN (SELECT source_id FROM knowledge_versions WHERE scope=? AND error='interrupted_unknown_usage')", (self.scope, self.scope))
+        for version in interrupted:
+            counts = store.db.execute("SELECT COUNT(*),COUNT(marks_json) FROM knowledge_chunks WHERE source_id=?",
+                                      (version["source_id"],)).fetchone()
+            self._receipt("cancelled", version, code="interrupted_unknown_usage", failure_stage="label",
+                          total_chunks=counts[0], labelled_chunks=counts[1], remote_usage_unknown=True)
         # Reconcile any interrupted/older publication before opening Discord.
         # Current publication is one transaction, but recovery also handles an
         # existing partial snapshot without deleting raw knowledge or usage.
@@ -471,7 +478,10 @@ class KnowledgeService:
 
     def _receipt(self, event, version, **fields):
         stage = fields.get("failure_stage") or ("published" if event == "completed" else "label")
-        self._audit_version(version, stage=stage, remote_usage_unknown=fields.get("remote_usage_unknown"))
+        self._audit_version(version, stage=stage, remote_usage_unknown=fields.get("remote_usage_unknown"),
+                            details={key: fields[key] for key in
+                                     ("failed_chunk_index", "labelled_chunks", "total_chunks") if key in fields})
+        self._failure_notice(event, version, stage, fields)
         current = self._published(version["path"])
         self.scratch.write("knowledge_receipt", receipt=event, scope=self.scope,
                            path=version["path"], source_id=version["source_id"], digest=version["digest"],
@@ -480,10 +490,22 @@ class KnowledgeService:
     def _conversion_receipt(self, event, version, **fields):
         self._audit_version(version, stage="chunk" if event == "converted" else "conversion",
                             remote_usage_unknown=False)
+        self._failure_notice(event, version, "conversion", fields)
         current = self._published(version["path"])
         self.scratch.write("knowledge_pdf_receipt", receipt=event, scope=self.scope,
                            path=version["path"], source_id=version["source_id"], digest=version["digest"],
                            reply_source_id=current, **fields)
+
+    def _failure_notice(self, event, version, stage, fields):
+        if event not in {"failed", "cancelled"}:
+            return
+        from .knowledge_progress import _terminal_text
+        unknown = fields.get("remote_usage_unknown", False)
+        progress = f"{fields.get('labelled_chunks', 0)}/{fields.get('total_chunks', 0)}"
+        recovery = "远端用量未知，禁止直接 retry；须核验用量" if unknown else "请 audit 检查；retry 仍受当前版本及剩余额度限制"
+        _console_notice(f"[{_terminal_text(self.config.name)}] 摄入未完成：{_terminal_text(version['path'])} | "
+                        f"stage={_terminal_text(stage)} | code={_terminal_text(fields.get('code') or 'interrupted')} | "
+                        f"标词块={progress} | {recovery}；本次未发布新版本。")
 
     def _supersede_desired(self, path):
         row = self.store.db.execute("SELECT source_id FROM knowledge_desired WHERE scope=? AND path=?", (self.scope, path)).fetchone()
@@ -911,6 +933,7 @@ class KnowledgeService:
         request_failed = False
         request_usage_unknown = None
         stage = "label"
+        failed_chunk_index = None
         records = []
         chunks = self.store.db.execute("SELECT * FROM knowledge_chunks WHERE source_id=? ORDER BY chunk_index", (source_id,)).fetchall()
         with self.store.db:
@@ -929,6 +952,7 @@ class KnowledgeService:
                         raise GovernedError("knowledge_version_superseded")
                     if chunk["marks_json"] is not None:
                         continue
+                    failed_chunk_index = chunk["chunk_index"]
                     remaining_input = limits.version_input_tokens - version["input_tokens"]
                     if remaining_input <= 0 or version["output_tokens"] + budget.output_tokens > limits.version_output_tokens:
                         raise GovernedError("knowledge_version_token_limit")
@@ -974,14 +998,16 @@ class KnowledgeService:
                     raise GovernedError("knowledge_version_time_limit")
                 chunks = self.store.db.execute("SELECT * FROM knowledge_chunks WHERE source_id=? ORDER BY chunk_index", (source_id,)).fetchall()
                 stage = "publication"
+                failed_chunk_index = None
                 facts = [{"text": c["text"], "quote": c["text"], "marks": json.loads(c["marks_json"])} for c in chunks]
                 records, previous = self._publish(version, facts, deadline)
                 outcome = "completed"
         except asyncio.CancelledError:
             usage_unknown = request_usage_unknown if type(request_usage_unknown) is bool else request_failed
+            error_code = "interrupted_unknown_usage" if usage_unknown else "interrupted"
             with self.store.db:
                 self.store.db.execute("UPDATE knowledge_versions SET status='failed',error=? WHERE source_id=? AND status='labelling'",
-                                      ("interrupted_unknown_usage" if usage_unknown else "interrupted", source_id))
+                                      (error_code, source_id))
             self.scratch.write("label_job_end", trace_id=trace_id, source_id=source_id, status="cancelled", remote_usage_unknown=usage_unknown)
             outcome = "cancelled"
             raise
@@ -1007,6 +1033,7 @@ class KnowledgeService:
             self._receipt(outcome, version, labelled_chunks=labelled, total_chunks=len(chunks), records=len(records),
                           input_tokens=accounting[1], output_tokens=accounting[2], elapsed_seconds=accounting[3],
                           code=error_code, trace_id=trace_id,
+                          failed_chunk_index=failed_chunk_index,
                           failure_stage=stage if outcome != "completed" else "published",
                           remote_usage_unknown=(request_usage_unknown if type(request_usage_unknown) is bool else
                               request_failed and error_code not in {"input_token_limit", "circuit_open", "missing_openai_key",

@@ -188,7 +188,7 @@ class PdfKnowledgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([record["quote"] for record in labelled], [chunk["text"] for chunk in chunks])
         self.assertEqual([call["stage"] for call in self.adapter.calls], ["label"] * len(chunks))
 
-    async def test_real_pdf_conversion_failure_is_console_silent_and_preserves_audit_and_old_version(self):
+    async def test_real_pdf_conversion_failure_is_visible_and_preserves_audit_and_old_version(self):
         old = await self.ready()
         self.file(text_pdf(["alpha inaccessible encrypted paper"], encrypted=True))
         self.service.pdf_limits = replace(self.config.pdf, seconds=10)
@@ -203,7 +203,9 @@ class PdfKnowledgeTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(await self.service.label_next())
         finally:
             self.printed = self.quiet.start()
-        self.assertEqual(output.getvalue(), "")
+        self.assertIn("摄入未完成", output.getvalue())
+        self.assertIn("stage=conversion", output.getvalue())
+        self.assertIn("code=pdf_encrypted", output.getvalue())
         self.assertEqual((self.version(new)["status"], self.version(new)["error"]), ("failed", "pdf_encrypted"))
         self.assertEqual(self.published()["source_id"], old)
         self.assertEqual(len(self.adapter.calls), calls_before)

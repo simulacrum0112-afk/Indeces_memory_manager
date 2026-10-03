@@ -892,7 +892,7 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((done["input_tokens"], done["output_tokens"], done["elapsed_seconds"]),
                          (version["input_tokens"], version["output_tokens"], version["elapsed_seconds"]))
 
-    async def test_partial_label_failure_keeps_audit_and_old_publication_without_console_receipts(self):
+    async def test_partial_label_failure_reports_error_and_keeps_audit_and_old_publication(self):
         old = await self.ready_source()
         self.file("alpha topic replacement material " * 8)
         self.adapter.outcomes.extend([labels(), GovernedError("provider_network_error")])
@@ -906,7 +906,9 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(await self.service.label_next())
         finally:
             self.printed = self.quiet.start()
-        self.assertEqual(output.getvalue(), "")
+        self.assertIn("摄入未完成", output.getvalue())
+        self.assertIn("source.md", output.getvalue())
+        self.assertIn("code=provider_network_error", output.getvalue())
         self.assertEqual((self.version(new)["status"], self.version(new)["error"]),
                          ("failed", "provider_network_error"))
         self.assertEqual(self.published()["source_id"], old)
@@ -1136,7 +1138,8 @@ class KnowledgeTests(unittest.IsolatedAsyncioTestCase):
                     await task
         finally:
             self.printed = self.quiet.start()
-        self.assertEqual(output.getvalue(), "")
+        self.assertIn("摄入未完成", output.getvalue())
+        self.assertIn("code=interrupted_unknown_usage", output.getvalue())
         self.assertEqual(self.version(new)["status"], "failed")
         self.assertEqual(self.version(new)["error"], "interrupted_unknown_usage")
         self.assertEqual(self.published()["source_id"], old)

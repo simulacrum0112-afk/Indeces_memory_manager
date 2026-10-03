@@ -129,6 +129,25 @@ class IngestionRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM knowledge_versions").fetchone()[0], 1)
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM memory_records WHERE active=1").fetchone()[0], records)
 
+    async def test_generation_timeout_reports_file_and_persists_failed_chunk_without_replay(self):
+        self.file("alpha first block".ljust(100, ".") + "alpha second block")
+        self.service.scan_once()
+        self.adapter.outcomes.extend((labels(), GovernedError("stage_timeout", remote_usage_unknown=True)))
+        with redirect_stdout(io.StringIO()) as output:
+            await self.service.label_next()
+        message = output.getvalue()
+        for value in ("摄入未完成", "paper.md", "stage=label", "code=stage_timeout", "标词块=1/2", "禁止直接 retry"):
+            self.assertIn(value, message)
+        audit = self.audit()
+        self.assertEqual((audit["state"], audit["error"], audit["remote_usage_unknown"]), ("failed", "stage_timeout", 1))
+        self.assertEqual(json.loads(audit["details_json"]),
+                         {"failed_chunk_index": 1, "labelled_chunks": 1, "total_chunks": 2})
+        self.service.scan_once()
+        self.assertFalse(await self.service.label_next())
+        self.assertEqual(self.service.retry_failed()["blocked"][0]["code"], "knowledge_retry_unknown_usage")
+        self.assertEqual(len(self.adapter.calls), 2)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM memory_records WHERE active=1").fetchone()[0], 0)
+
     async def test_retry_after_restart_retains_stage_and_confirmed_partial_labels(self):
         self.file("alpha first".ljust(100, ".") + "alpha second")
         self.service.scan_once()
@@ -142,6 +161,23 @@ class IngestionRecoveryTests(unittest.IsolatedAsyncioTestCase):
             await restarted.label_next()
             self.assertEqual(self.current()["status"], "ready")
             self.assertEqual(len(self.adapter.calls), 3)
+        finally:
+            await restarted.close()
+
+    async def test_interrupted_restart_creates_missing_file_audit_and_visible_failure(self):
+        self.file("alpha interrupted paper")
+        self.service.scan_once()
+        source_id = self.current()["source_id"]
+        with self.store.db:
+            self.store.db.execute("UPDATE knowledge_versions SET status='labelling' WHERE source_id=?", (source_id,))
+            self.store.db.execute("DELETE FROM knowledge_file_audit WHERE source_id=?", (source_id,))
+        with redirect_stdout(io.StringIO()) as output:
+            restarted = KnowledgeService(self.config, self.store, self.graph, self.adapter, self.scratch)
+        try:
+            self.assertIn("code=interrupted_unknown_usage", output.getvalue())
+            self.assertEqual((self.audit()["state"], self.audit()["remote_usage_unknown"]), ("failed", 1))
+            self.assertEqual(restarted.retry_failed()["blocked"][0]["code"], "knowledge_retry_unknown_usage")
+            self.assertEqual(self.adapter.calls, [])
         finally:
             await restarted.close()
 

@@ -1,5 +1,7 @@
 # Indeces 项目协作约定
 
+0.13.1 已修复摄入失败／取消的逐篇 Console 通知，持久审计保存失败块位置与完成计数；重开后遗留 labelling 补建审计、明确未知usage且禁止自动重放。模型、阶段/累计预算、切块、并发、图规则不变。本机1000项、20跳过、0失败/错误及wheel隔离安装通过。真实诊断按本次用户请求限定只读，私有材料/运行数据不入公开提交；真实实例仍持有租约，未启停/热更新/迁移或重摄入，未知usage恢复仍需核验或明确例外授权。源码0.13.1，活动环境安装元数据仍0.13.0。交付证据见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)。
+
 0.13.0 已实现持久数字标注词 ID、有向边键/邻接/倒排/trie 与按命中邻域的静态检索/审计冻结。用户已明确批准静态 shadow 关闭及同冻结动态状态的相关证据字节合同；不再沿用0.12.6的新事件全shadow更新要求。NPMI/context gate/去重/一跳/[M]/预算/并发/五轮不变；lazy仅时间戳与未调用纯函数，未启用有向推理。998项离线、20跳过、0失败/错误与wheel通过，源码/editable0.13.0。固定415边，1k/3k/10k cold含观察落盘+freeze中位.100/.107/.119秒；另磁盘WAL/FULL为.091/.105/.078秒。共63合成样本相关字节对照/独立校验通过，预算链路最大2.491秒、更宽完整链路最大3.966秒。运行源码06be07c已推main，精确CI37143587991整体、Windows/Ubuntu及unittest/CLI check步骤success，仅公共元数据、不读日志/推断测试数。SQL访问工作量跨无关全图规模相同，但不保证任意增长邻域/输出字节5秒；启动/摄入仍全局。新schema、迁移备份/ID与索引损失防护、字节对照及证据见 [docs/MEMORY_STORAGE.md](docs/MEMORY_STORAGE.md) 与 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)。真实库未迁移、实例未启停/热更新。
 
 历史0.12.6静态密集查询已改为物化/审计全部direct-hit incident edges，相关结果、排序及接受/拒绝证据与旧版规范字节一致；旧全量审计/重放和动态路径保留。最终本机958项、20跳过、0失败/错误及wheel通过，源码/editable均0.12.6。运行源码db04135已推main，精确CI37092790001整体与Windows/Ubuntu、unittest/CLI check均success，仅公共元数据、未读日志/推断测试数。固定415条相关边，1k/3k retrieve为0.802/4.448秒，含snapshot/freeze仍2.057/11.217秒，当时整链路尚未实现仅随邻域增长/任意规模5秒。用户当时选择设计shadow延迟更新和审计方案，先报告再应用；该待审方案及授权状态已被本轮明确请求和关闭shadow的确认替代，真实库仍未迁移。未启停/热更新真实实例。源码/精确CI与证据见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)，历史方案见 [docs/MEMORY_QUERY_SCOPE.md](docs/MEMORY_QUERY_SCOPE.md)。

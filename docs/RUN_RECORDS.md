@@ -42,6 +42,8 @@
 
 新增 `call_start.usage_receipt_version=1` 声明用量回执合同：失败调用收到合法生成 usage 时，`call_end.known_usage` 必须保存输入/输出 token，并与该次实际 HTTP 响应及请求绑定。合法 usage 后的格式错误、超限、取消或本地审计异常仍计入已知用量，不能把已发生费用当成零或再次计入。旧无此声明的记录保持兼容，不补写历史；已发生成但没有合法 usage 的失败仍标为未知。
 
+0.13.1 将知识转换／标词失败与取消的逐篇通知显示在 Console 的 service/logs 输出中：文件、失败阶段、code、已标词块数与恢复限制。成功与普通进度仍只写回执。`knowledge_receipt` 增加 `failed_chunk_index`（零基；没有当前失败块时为 null），逐文件持久审计的 details 保存块位置和完成计数，便于 scratch 到期后定位；不补造旧失败的位置。重开服务发现遗留 labelling 时，创建／更新持久失败审计并显示 `interrupted_unknown_usage`，不自动重放。通知转义文件名中的终端控制字符，不显示异常原文或认证信息。模型、时限、累计额度、单槽与整篇事务发布规则不变。
+
 0.8.0 增加 `call_start.verbosity`，绑定计量与生成请求中的 `text.verbosity`；`reasoning.effort` 继续绑定该阶段预算。默认话量为 `high`、三阶段推理为 `low`，生成仍受原输出/时间上限。旧记录两端均没有 verbosity 时保持旧合同兼容，声明与实际请求不一致列为 invalid；API key 的设置/解密不进入 scratch。
 
 ## 文件与版本
