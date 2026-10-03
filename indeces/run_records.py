@@ -19,6 +19,8 @@ from .contracts import validated_token_usage
 
 MAX_PDF_METADATA_BYTES = 512 * 1024
 MODEL_PROJECTION = "citation_material_v1"
+NEIGHBORHOOD_AUDIT_SCOPE = "direct_hit_neighborhood_v1"
+NEIGHBORHOOD_FREQUENCY_SCOPE = "edge_endpoints_v1"
 _MODEL_MATERIAL_FIELDS = (
     "id", "source_id", "scope", "text", "text_truncated", "quote", "marks",
     "direct_marks", "expanded_marks", "ranking_mode", "weight_basis",
@@ -96,9 +98,11 @@ def _native_json_tree(value):
 def freeze_retrieval(db, scope, event_id, query, records, graph_audit):
     """Called synchronously immediately after retrieval, before any await.
 
-    Full source-version catalogs and graph evidence belong in scratch. The
+    Source-version catalogs and the declared graph evidence belong in scratch. The
     model view retains complete selected quotes, separately from that audit;
     version metadata is never fetched again after delivery.
+    Schema-2 graph bytes cover only the direct-hit neighborhood; freezing this
+    receipt does not fetch or reconstruct an omitted global graph snapshot.
     An internal CanonicalSnapshot owns immutable, validated audit bytes; decode
     them into an independent receipt while preserving the fresh digest check.
     """
@@ -640,6 +644,8 @@ def _validate_partial_turn(events, report):
     if observation:
         _require(digest(observation["audit"]) == observation["audit_sha256"], "retained graph observation digest mismatch")
         validate_graph_audit(observation["audit"])
+        if observation["audit"]["schema_version"] == 2:
+            report["warnings"].append("graph_audit_hit_neighborhood_only")
     retrieval_fields = by_event.get("retrieval_record")
     retrieval = retrieval_fields["record"] if retrieval_fields else None
     if retrieval is not None:
@@ -798,6 +804,8 @@ def verify_runs(paths: list[Path]):
                 _require(graph["event_id"] == starts[0]["message_id"] and graph["scope"] == starts[0]["knowledge_scope"]
                          and graph["request"]["query"] == starts[0]["input"]["text"], "graph observation input mismatch")
                 validate_graph_audit(graph)
+                if graph["schema_version"] == 2:
+                    report["warnings"].append("graph_audit_hit_neighborhood_only")
             if retrievals:
                 retrieval = retrievals[0]["record"]
                 validate_retrieval(retrieval)
@@ -882,7 +890,14 @@ def verify_runs(paths: list[Path]):
 
 
 def validate_graph_audit(audit, retrieval=None):
-    _require(audit["schema_version"] == 1, "graph audit version mismatch")
+    version = audit["schema_version"]
+    _require(type(version) is int and version in (1, 2), "graph audit version mismatch")
+    neighborhood = version == 2
+    if neighborhood:
+        _require(audit.get("audit_scope") == NEIGHBORHOOD_AUDIT_SCOPE,
+                 "unknown graph audit scope")
+    else:
+        _require("audit_scope" not in audit, "legacy graph audit cannot declare neighborhood scope")
     if retrieval is not None:
         projected = _has_model_projection(retrieval)
         _require(audit["scope"] == retrieval["scope"] and audit["event_id"] == retrieval["event_id"]
@@ -894,6 +909,22 @@ def validate_graph_audit(audit, retrieval=None):
     else:
         _require(audit["original_event"]["payload_sha256"] == durable, "replayed graph audit link mismatch")
     observation, selection = audit["observation"], audit["selection"]
+    if neighborhood:
+        _require(selection.get("mark_frequencies_scope") == NEIGHBORHOOD_FREQUENCY_SCOPE,
+                 "unknown mark frequency scope")
+        _require(selection.get("edge_statistics_scope") == "direct_hit_incident_v1",
+                 "unknown edge statistics scope")
+        _require(observation.get("dynamic_shadow_enabled") is False
+                 and observation["applied"] is False and not observation["changed_edges"]
+                 and observation["seeded_edges"] == 0
+                 and observation["seeded_after"] == observation["seeded_before"],
+                 "neighborhood audit cannot update dynamic shadow")
+        statuses = ("replay", "legacy_replay") if audit["replay"] else ("disabled",)
+        _require(observation["status"] in statuses, "neighborhood observation status mismatch")
+    else:
+        _require("mark_frequencies_scope" not in selection
+                 and "dynamic_shadow_enabled" not in observation,
+                 "legacy graph audit cannot declare neighborhood fields")
     # Older immutable schema-1 records predate the static wiring repair and
     # used dynamic ranking. Preserve their historical arithmetic contract.
     if "ranking_mode" not in selection and "weight_basis" not in selection:
@@ -903,6 +934,8 @@ def validate_graph_audit(audit, retrieval=None):
         _require(ranking_mode in ("static", "dynamic"), "invalid graph ranking mode")
         expected_basis = "static_npmi" if ranking_mode == "static" else "dynamic_or_static"
         _require(selection.get("weight_basis") == expected_basis, "graph weight basis mismatch")
+    if neighborhood:
+        _require(ranking_mode == "static", "neighborhood audit requires static ranking")
     if audit.get("original_event", {}).get("ranking_mode") is not None:
         _require(audit["original_event"]["ranking_mode"] == ranking_mode, "replayed graph ranking mode mismatch")
     hits = audit["match"]["direct_hits"]
@@ -956,8 +989,12 @@ def validate_graph_audit(audit, retrieval=None):
     else:
         _require(not transitions and observation["seeded_edges"] == 0, "nonmutating event has weight changes")
     n, frequencies = selection["active_record_count"], selection["mark_frequencies"]
-    _require(type(n) is int and n >= 0 and all(type(v) is int and 0 < v <= n for v in frequencies.values()),
+    _require(type(n) is int and n >= 0 and isinstance(frequencies, dict)
+             and all(type(k) is str and type(v) is int and 0 < v <= n for k, v in frequencies.items()),
              "invalid static frequency counts")
+    if neighborhood:
+        endpoints = {edge[key] for edge in selection["edge_statistics"] for key in ("a", "b")}
+        _require(set(frequencies) == endpoints, "neighborhood frequency endpoints mismatch")
     scoped_edges = "edge_statistics_scope" in selection
     if scoped_edges:
         _require(selection["edge_statistics_scope"] == "direct_hit_incident_v1",
@@ -974,6 +1011,8 @@ def validate_graph_audit(audit, retrieval=None):
         pair = (edge["a"], edge["b"])
         _require(pair[0] < pair[1] and pair not in live_edges, "live edge identity mismatch")
         live_edges[pair] = edge
+        _require(edge["a"] in frequencies and edge["b"] in frequencies,
+                 "static edge frequency missing")
         count = edge["co_count"]
         _require(edge["active_source_support"] is True and count == len(edge["source_record_ids"])
                  and 0 < count <= min(frequencies[edge["a"]], frequencies[edge["b"]]), "static source count mismatch")

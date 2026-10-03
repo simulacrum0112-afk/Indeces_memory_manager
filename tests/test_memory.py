@@ -8,7 +8,11 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from indeces.memory import DECAY, MemoryGraph
+from indeces.memory import DECAY
+from tests.test_memory_selection_performance import _CachedLegacyMemoryGraph as MemoryGraph
+# These fixtures preserve the historical v1 eager/shadow audit contract.
+# Production static-v2 behavior is tested in test_subgraph_byte_identity and
+# test_neighborhood_audit, including frozen legacy values and no shadow writes.
 from indeces.run_records import digest, validate_graph_audit
 
 

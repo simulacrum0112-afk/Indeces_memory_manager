@@ -210,7 +210,26 @@ class ScopedEdgeAuditTests(unittest.TestCase):
                     "SELECT payload_json FROM memory_event_audits WHERE scope=? AND event_id=?",
                     ("scope", event)).fetchone()[0].encode(), stored.encode())
                 self.assertEqual(canonical(records), canonical(expected_records))
-                self.assertEqual(canonical(actual), canonical(self.scoped_audit(full_replay)))
+                # The replay's fresh receipt explicitly adopts neighborhood
+                # v2 while retaining the immutable legacy original event.
+                # Compare all local evidence with the same frozen dynamic
+                # state, and separately declare the new observation contract.
+                projected = self.scoped_audit(full_replay)
+                projected.update(schema_version=2, audit_scope="direct_hit_neighborhood_v1")
+                selection = projected["selection"]
+                endpoints = {edge[key] for edge in selection["edge_statistics"] for key in ("a", "b")}
+                selection["mark_frequencies"] = {mark: count for mark, count in selection["mark_frequencies"].items()
+                                                  if mark in endpoints}
+                selection["mark_frequencies_scope"] = "edge_endpoints_v1"
+                old_observation = projected["observation"]
+                projected["observation"] = {
+                    "status": "replay", "applied": False,
+                    "original_changes_known": old_observation["original_changes_known"],
+                    "seeded_before": old_observation["seeded_before"],
+                    "seeded_after": old_observation["seeded_after"], "seeded_edges": 0,
+                    "changed_edges": [], "dynamic_shadow_enabled": False,
+                    "reason": "static_shadow_disabled"}
+                self.assertEqual(canonical(actual), canonical(projected))
                 validate_graph_audit(actual)
                 if retired:
                     self.assertFalse(any(candidate["source_id"] == "retiring-synthetic-source"

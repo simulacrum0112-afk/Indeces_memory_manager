@@ -1,16 +1,16 @@
 # Indeces 架构与调试合同
 
-文档基线：0.12.4；2026-10-02 核对。远端提交、CI 与验证范围见 [CHECKPOINT.md](CHECKPOINT.md)。
+文档基线：0.13.0；2026-10-03 核对。远端提交、CI 与验证范围见 [CHECKPOINT.md](CHECKPOINT.md)。
 
-本页描述 0.12.4 的实际职责、状态归属和验证边界。Indeces 是一个有检索增强的固定对话工作流；模型负责标词、必要的连续性摘要与回答，以及是否回复当前机器人消息；代码决定准入、证据版本、预算和交付。
+本页描述 0.13.0 的实际职责、状态归属和验证边界。Indeces 是一个有检索增强的固定对话工作流；模型负责标词、必要的连续性摘要与回答，以及是否回复当前机器人消息；代码决定准入、证据版本、预算和交付。
 
-材料冻结负责两种明确用途：完整图/来源证据供 scratch 审计，固定字段的 `citation_material_v1` 视图供模型回答。视图保留原 quote、来源 ID、引用与 PDF 页码；支持记录清单等随图增长的证据不进入模型。独立校验从材料/候选重建该视图，并核对实际输入；旧完整视图保持历史验证兼容。检索选择、图公式、完整审计、预算和摘要策略保持，不能将省去审计元数据解释成提高模型额度。
+材料冻结负责两种明确用途：本轮命中邻域及已选来源的完整版本证据供 scratch 审计，固定字段的 `citation_material_v1` 视图供模型回答。视图保留原 quote、来源 ID、引用与 PDF 页码；支持记录清单等图证据不进入模型。独立校验从材料/候选重建视图，并核对实际输入；旧完整视图与 v1 图审计保持历史验证兼容。NPMI、corroboration/context gate、去重、一跳语义、[M]、预算及摘要策略保持。当前 v2 显式把图状态审计收窄到命中邻域，并按用户批准关闭静态路径的动态/shadow 更新；整包/hash 不再与历史全图包相同。详见 [存储合同](MEMORY_STORAGE.md) 和 [运行记录](RUN_RECORDS.md)。
 
 机器人准入使用 `BotConversationGate` 的 SQLite 事务：先只读检查，写入 scratch 排队记录成功后，在无 await 的路径内持久预占，再交给单 worker。每个频道/机器人最多五次机会，跳过、失败、排队过期或停止也占次；新接受的人类显式 @ 输入重置同频道全部机器人，重复输入不重置。首次迁移先备份旧 SQLite，重连/重启保留去重与额度。数据库或排队审计失败关闭准入并触发服务故障，不继续消耗模型。scratch 与 SQLite 不属于同一事务，进程崩溃可留下排队记录缺少后续处理；已有预占不自动重放。
 
 机器人回复使用既有 reply 阶段的单次 JSON schema 输出（`action=reply|skip`、`text`），同一次请求完成是否回复的判断，未增加预算或请求槽。静默跳过仅保存输入、决策、模型用量和 `skipped` 结束记录，不保存 assistant 回答或伪造送达；输入可继续用于频道短期上下文。检索或模型失败仍为 failed；剩余总轮时间允许时，机器人通过 `FailureNotice` 发送固定失败回执。传输层以类型区分回执与模型回答，不按文本前缀猜测；回执关闭全部提及且不添加对方 @，不触发下一轮。轮次不退还，送达尝试失败不重发；已经尝试发送模型回答时不再补发回执。总轮时间耗尽则记录回执跳过，不扩大预算。前四次交付由传输层插入唯一对方提及，第五次剔除对方字面提及并关闭所有通知；实际文字与模型原输出分别记录。完整审计独立绑定原始模型 JSON 与已解码答案/静默结果，跨 24 小时仍适用原有 partial 合同。模型能选择跳过不证明实际收尾判断质量已验收。
 
-0.12.2 的本地检索只生成一次规范化不可变 `CanonicalSnapshot`：scratch 将同一份审计 bytes 嵌入原 JSON 字段，材料冻结独立解码到新字典并复用原摘要，再独立重新编码校验摘要。普通 scratch 写入和普通字典冻结保留原路径；完整日志字节/hash 链、图排序/公式/来源门禁及 5 秒预算不变。context 字面匹配缓存仅在当前 `_selection` 调用内存在，保留原 `_hit` 规则，不跨消息或 scope 缓存。
+自 0.12.2 保留的本地检索快照只生成一次规范化不可变 `CanonicalSnapshot`：scratch 将同一份审计 bytes 嵌入 JSON 字段，材料冻结独立解码到新字典并复用原摘要，再独立重新编码校验摘要。0.13.0 传入的是显式 v2 邻域审计树，快照/冻结不补建全图。普通 scratch 写入与普通字典冻结保留兼容路径；外层 hash 链算法、图排序/公式/来源门禁及 5 秒预算不变。context 字面匹配缓存仅在当前 `_selection` 调用内存在，保留原 `_hit` 规则，不跨消息或 scope 缓存。
 
 行业参考采用 [Anthropic 的简单可组合工作流原则](https://www.anthropic.com/engineering/building-effective-agents) 与 [OpenTelemetry 对指标、日志和 trace 的区分](https://opentelemetry.io/docs/concepts/observability-primer/)。这是设计取舍，不是已证明提高真实召回效果的实验结论。本版不引入新的框架或遥测依赖。
 
@@ -23,13 +23,14 @@ flowchart TD
     S --> K[KnowledgeService 文件版本 / 后台发布]
     S --> O[Observer 独立只读投影]
     D --> R[Runtime 一轮事务 / 冻结证据]
-    R --> M[MemoryGraph 静态 NPMI 检索]
+    R --> M[MemoryGraph 按键静态邻域检索]
     R --> C[Context 连续性摘要 / 上下文编译]
     R --> A[Adapter 单模型请求槽]
     K --> A
     K --> P[SQLite 完整版本原子发布]
-    P --> M
-    M --> H[动态字面 shadow / 历史]
+    P --> X[KeyedMemoryIndex 稳定数字 ID / 邻接与倒排]
+    X --> M
+    H[旧动态权重 / 不可变历史] -.只读兼容字段.-> M
     R --> L[scratch 必需运行记录]
     A --> L
     K --> L
@@ -45,11 +46,12 @@ flowchart TD
 | `DiscordBridge` / `BotConversationGate` | 显式提及门禁、机器人五次持久准入、有界队列、worker、远端交付回执 | 忽略自身/webhook；重复不占次；人类新准入重置同频道；未知交付不自动重发 |
 | `Runtime` | 每轮 scope、证据冻结、上下文、生成与交付的状态关联 | 已确认回执不能被后续审计失败改成未知；失败提示不调用模型 |
 | `KnowledgeService` | 目标版本、逐块标词、已发布指针 | 有效更新失败保留上一完整版本；删除/非法输入遵循撤下合同 |
+| `MemoryGraph` / `KeyedMemoryIndex` | 摄入事务维护 NPMI、稳定 ID 与 keyed 边/邻接/材料倒排；静态查询仅选命中邻域 | 脏索引或来源修订不一致时拒绝；在发布/启动维护修复，查询不回退为全图加载 |
 | `OpenAIAdapter` | label/summary/reply 三阶段准入与计量；一个请求槽 | 各阶段独立熔断，不换模型、不借预算、不隐式重试 |
 | `Observer` / `observer_data` | 持久状态、全范围统计、受限图与最近 trace 的只读投影 | 读取故障标为不可用；不变更业务状态，不占用模型槽 |
 | `knowledge_audit` / `knowledge_progress` | 完整当前文件审计 / 有界持久状态进度 | 保存错误与当前校验预测分开；不迁移、调用模型或把存储状态当在线证明 |
 
-`Store` 是事实持久化实现，`MemoryGraph` 负责统计和来源门控，`Context` 编译输入。SQLite 写事务在共享 event loop 中同步完成，不在事务中等待模型。scratch 是用户要求的可核验运行合同，不能按可丢弃的普通遥测处理；指标与图页面也不能替代它。
+`Store` 是事实持久化实现，`MemoryGraph` 负责统计和来源门控，`KeyedMemoryIndex` 负责可按键读取的派生存储，`Context` 编译输入。SQLite 写事务在共享 event loop 中同步完成，不在事务中等待模型。scratch 是用户要求的可核验运行合同，不能按可丢弃的普通遥测处理；指标与图页面也不能替代它。
 
 模型槽等待仍计入原阶段总时限。纯等待超时记录 `model_slot_timeout` 和实际等待时间；没有发出生成时不误报未知生成 usage，也不把本地拥塞当供应商故障。已发生成但无合法 usage 时保留未知标记；合法 usage 已返回而输出失败时，实际用量仍必须入版本累计，不发布不合格标签或回答。这修正计量分类，不解决长回复占槽造成标词等待耗尽的策略取舍，不扩大时间或并发。
 
@@ -69,19 +71,23 @@ Console 以规范化配置路径区分 owner，内核租约判定存活；临时
 
 没有活动服务时，显式 `retry` 启动选定失败/未完成来源的维护线程，不启动 Discord 或新文件监听；有本 Console Gateway 时，把请求送回原知识 loop 和模型槽。正常完成的 ready 版本不重做，成功块不重标，累计输入/输出/时间不重置。运行中的维护任务不会因导航或重复 retry 追加目标。
 
-0.12.3 的私有检索索引缓存每个 scope 的完整活动记录、已知词、按记录计数的频次、mark→原记录序号和边→原插入序号/邻接/审计字典序。静态邻居顺序仅在材料变更后构建，显式动态模式仍使用本轮新权重排序。两个前缀树从 query 寻找候选标签，Latin 保留 Python IGNORECASE 的 Unicode 特例，非 Latin 保留 casefold 子串规则；候选仍由原 `_hit` 确认，最终 literal 排序与原实现相同。一跳扩展仍只遍历原 direct hits，保留全部邻居决策审计，前五邻居/两额外词/三出处限制不变，未新增二跳或提前截掉审计候选。
+## 按键存储与局部查询
 
-材料缓存由连接内 TEMP revision/触发器按 scope 跟踪 records/static/support 的变更，覆盖发布、归档、同连接其他 Graph 与直接 SQL、跨 scope REPLACE；不新增持久表或修改历史证据。其他连接提交由 data_version 检查，DDL、连接和 self marks 改变也失效。读取在原 BEGIN IMMEDIATE 内验证；事务回滚/异常清空，提交期间材料再变更则不保留索引。聊天状态与 shadow 写入不使静态缓存失效。输出复制 marks/context/来源 ID，调用者不能污染后续查询。
+0.13.0 的静态路径不先载入完整活动记录或全图边。摄入/归档事务维护 `memory_query_*` 派生索引：标注词有稳定数字 ID，边以 `(scope,i,j)` 建键，另存邻接、标注词频次、材料倒排与前缀节点。对称 NPMI 两个有向坐标保存同值，原来源边顺序独立保留；没有增加有向推理。原文、已发布版本和旧审计仍是保留的基线数据，已有 ID 不因摄入重分配。新 schema 与维护/迁移条件见 [MEMORY_STORAGE.md](MEMORY_STORAGE.md)。
 
-完整 edge_statistics、mark_frequencies、changed_edges 与 ranked_candidates 仍保持原字段/数量/顺序及规范字节；逐轮全动态边 decay、Python round、last_event_id 和源门禁不变。完整审计字节数 B 与动态边 D 仍要求至少 O(B+D) 工作；前缀查询在 trie 上按查询长度和最长匹配前缀访问，候选选择只触达命中邻接与 allowed postings。这是局部查找复杂度的减少，不等于全链路无全局工作。材料发布额外 TEMP revision 写入有已测成本，性能证据必须同时报告冷/暖查询和摄入。
+持久前缀节点从当前 query 查找候选，Latin 保留 Python IGNORECASE 的 Unicode 特例，非 Latin 保留 casefold 子串规则；候选仍由原 `_hit` 确认，literal 排序与直接命中上限不变。查询随后按键读取 direct-hit incident edges，包含前五邻居之外和 context gate 拒绝的全部局部决策，再按原策略选择最多两额外词和三出处。只通过允许标注词的 postings 读取候选记录；边的来源支持、频次和 context 一并来自该发布修订。未增加二跳、改变 top-k 或提前截掉相关拒绝证据。
 
-0.12.6 静态暖查询进一步用 `_query_edges` 只物化全部 direct-hit incident edges，`edge_statistics_scope=direct_hit_incident_v1` 声明相关统计范围；全部接受/拒绝的一跳决策和排名证据保持字节一致。完整频次/全图数量与全 shadow transitions 仍保留，显式 dynamic 和历史类型 fallback 保留旧全图路径。审计整包/hash 因范围声明改变；旧事件不重写，独立校验按范围声明或旧完整合同分支。范围、证据和全链路尚存成本见 [MEMORY_QUERY_SCOPE.md](MEMORY_QUERY_SCOPE.md)。
+源 records/static/support 的持久 revision 触发器使修改可见；静态读取在 `BEGIN IMMEDIATE` 中验证发布 revision 与 self marks，提交前再次核对。脏索引必须由发布或显式启动维护重建，不在查询中扫描全图修复。摄入事务同时更新 NPMI/派生索引；回滚不能暴露半发布状态。全图统计与索引初建、NPMI 重算、旧事件 header 迁移属于摄入/启动工作；全范围只读观察可独立扫描，但不进入回复链。固定重放 header 链接旧不可变 JSON/hash，静态重放不解码旧全图审计包。
+
+新审计声明 `schema_version=2`、`audit_scope=direct_hit_neighborhood_v1`；`edge_statistics_scope=direct_hit_incident_v1` 和 `mark_frequencies_scope=edge_endpoints_v1` 明确局部边/频次。完整 `active_record_count`/`live_edge_count` 是发布时维护的标量。下游选择、快照、冻结、规范编码及验证只消费邻域树；选中来源的完整版本/quote/PDF 页码仍冻结。局部结果/排序/证据在同一冻结动态状态下与旧完整选择器对照，整包/hash 因范围与 shadow 关闭声明改变。内部局部校验不证明全图成员完整性；索引工作量与旧选择器对照另外验证读取范围。完整性能和摄入证据以交付报告为准，不能推断任意规模硬时限。
+
+历史 0.12.3 的 TEMP revision/缓存和 0.12.6 的 `_query_edges` 只减少局部查找/物化；当时仍冻结全频次和全 shadow 转换。它们保留在显式低层兼容路径，不是当前静态查询架构。[MEMORY_QUERY_SCOPE.md](MEMORY_QUERY_SCOPE.md) 保存当时测量和未应用的 lazy shadow 方案；0.13.0 只保留未激活的时间戳/访问结算结构，并未实现该全动态 lazy 方案。
 
 ## 静态检索与动态观察
 
-自 0.10.0 起，`Runtime.process` 明确指定 `ranking_mode="static"`；低层 `retrieve` 默认也为静态。0.11.0 保留这项行为：只用已保存的正 NPMI 边做有来源支持的一跳扩展及排序，直接命中仍优先。`dynamic_score` 只表示字面共触发的 shadow 观察值，不能影响当前扩展或排名；仅有共现支持但无可用正静态权重的词对也不能从动态层绕过门控。原始正值舍入为零时也属于无可用正权重，未改既有四位舍入规则。
+自 0.10.0 起，`Runtime.process` 明确指定 `ranking_mode="static"`；低层 `retrieve` 默认也为静态。0.13.0 只用已保存的正 NPMI 边做有来源支持的一跳扩展及排序，直接命中仍优先。经用户明确批准，静态回复链的 dynamic/shadow 更新关闭；`dynamic_score` 只读既有历史值，不能影响当前扩展或排名。仅有共现支持但无可用正静态权重的词对也不能从动态层绕过门控。原始正值舍入为零时也属于无可用正权重，未改既有四位舍入规则。
 
-动态权重、历史、η=1、λ=.99、事件幂等和已有数据库均保留。低层显式动态接口仍用于离线兼容测试；产品配置和回复路径没有动态启用开关。将来上线需要代表性对照评估和新的用户决定。
+旧动态权重、历史、η=1、λ=.99、事件幂等和原动态舍入合同均保留。显式低层动态接口仍用于离线兼容测试；产品配置和回复路径没有动态启用开关。时间戳字段与 `lazy_decay` 函数只作结构预留，不被当前查询调用；时间周期必须由未来工作另行明确，不能把旧检索周期偷换为按日或连续时间衰减。将来上线需要代表性对照评估和新的用户决定。
 
 审计发现 ≤0.9.3 的实现接线与当时“仅静态”文档不一致：`retrieve` 会选择动态有效权重。旧记录必须按其实际动态算术解释，不能作为静态检索实验。新审计与每份冻结模型材料同时记录 `ranking_mode`、`weight_basis`；旧无模式记录按旧合同兼容校验，不修改历史。同事件 ID 不允许跨静态/动态模式重放；旧无模式事件属于 legacy dynamic。新代码只在新进程加载后生效，不热补丁运行实例。
 

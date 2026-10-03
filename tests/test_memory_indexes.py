@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from indeces import memory
-from indeces.memory import MemoryGraph
+from tests.test_memory_selection_performance import _CachedLegacyMemoryGraph as MemoryGraph
 from indeces.scratch import canonical
 from tests import test_memory_selection_performance as oracle
 

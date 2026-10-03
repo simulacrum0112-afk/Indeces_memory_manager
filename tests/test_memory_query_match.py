@@ -104,7 +104,7 @@ class MemoryQueryMatchTests(unittest.TestCase):
                 original_db, current_db = sqlite3.connect(":memory:"), sqlite3.connect(":memory:")
                 self.addCleanup(original_db.close)
                 self.addCleanup(current_db.close)
-                original, current = oracle._LegacyMemoryGraph(original_db), MemoryGraph(current_db)
+                original, current = oracle._LegacyMemoryGraph(original_db), oracle._CachedLegacyMemoryGraph(current_db)
                 for graph in (original, current):
                     for source, marks in (("retired", ["alpha", "beta", "gate"]),
                                           ("retained", ["alpha", "beta", "gate"]),

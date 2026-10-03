@@ -1,6 +1,20 @@
 # 当前与历史代码检查点
 
-当前源码版本 **0.12.6**；2026-10-02（用户时区）完成密集静态查询的相关边物化与显式审计范围。NPMI、来源/context gate、top-k、去重/[M]、static/dynamic 分层、全 shadow 轨迹和 5 秒预算保持。相关结果/排序/证据规范 bytes 与独立旧版对照一致；旧完整事件及 hash 保留，详情及用户要求的延迟更新待审方案见 [MEMORY_QUERY_SCOPE.md](MEMORY_QUERY_SCOPE.md)。
+当前源码版本 **0.13.0**；2026-10-03（用户时区）完成存储层持久索引和静态命中邻域查询。用户明确批准关闭静态 shadow 更新，并在同一冻结动态状态下比较相关边全部字段／结果／排序／来源证据。NPMI、门控、去重、一跳、[M]、5 秒预算、并发与五轮不变。新 schema 和完整边界见 [MEMORY_STORAGE.md](MEMORY_STORAGE.md)；旧 lazy ledger 方案没有激活，仅留纯函数与时间戳结构。
+
+固定 415 条相关边、410 条决策，1000/3000/10000 marks、三次中位：cold retrieve 为 .062/.075/.082 秒；含快照、真实合成 observation scratch flush/fsync 和 freeze 的预算链路为 **.100/.107/.119 秒**，steady 为 .048/.061/.072 秒。无关全图正边增至 49,139/151,195/502,499；固定查询 SQL 均784条、相同 cache模式的每100 VM回调计数跨规模相同。增长邻域406/1206/4006边的cold预算链路为.074/.246/2.110秒。全部54样本预算链路最大2.491秒，更宽的后续落盘＋独立校验链路最大3.966秒；在这些所测条件下均通过原5秒，不证明任意枢纽/输出规模或真实Discord时限。
+
+新包 schema=2/audit_scope=direct_hit_neighborhood_v1，频次仅相关端点；完整计数是发布标量。整包/hash与旧版不同，禁止称为全图状态冻结。每个样本完整records、相关边/决定/排序/证据与旧版同冻结状态canonical bytes一致，实际新包独立校验，动态表不变。旧包及原hash保留，旧重放只查不可变事件头；摄入正确更新索引、稳定坐标、失效与事务回滚有独立测试。
+
+最终 [OFFLINE_0130_20261003T181400856152Z.json](../verification/OFFLINE_0130_20261003T181400856152Z.json)：**998项、20跳过、0失败/错误**，CLI/Console/依赖/npmi通过；[WHEEL_0130.json](../verification/WHEEL_0130.json)构建及隔离安装通过，源码/editable均0.13.0。初次 [OFFLINE_0130.json](../verification/OFFLINE_0130.json)误用未装项目依赖的系统Python3.14，不能作为交付；也暴露旧shadow断言，已更新为当前关闭语义并保留历史v1 fixture覆盖。
+
+[主曲线](../verification/subgraph_after_20261003.json)绑定实际运行源文件hash；[Python3.12旧单次成本](../verification/subgraph_baseline_py312_20261003.json)保留原全shadow合同，仅成本对照，不能声称同包相等或与新3次中位完全同条件。[早期Python3.14旧测量](../verification/subgraph_baseline_20261003.json)另存，不作跨解释器精确倍率推断。启动/摄入单列：10k固定图摄入50.358秒，cold初始化中位5.480秒、最大5.977秒，仍全局且不在回复预算内。
+
+本轮未访问真实知识库、私有配置或运行数据，未迁移真实库、未启停/热补丁真实实例，真实模型/Discord未验收。源码提交、推送与精确CI状态将在交付记录补充；不以它们证明真实服务加载或召回质量。
+
+## 0.12.6 历史检查点
+
+历史源码版本 **0.12.6**；2026-10-02（用户时区）完成密集静态查询的相关边物化与显式审计范围。NPMI、来源/context gate、top-k、去重/[M]、static/dynamic 分层、全 shadow 轨迹和 5 秒预算保持。相关结果/排序/证据规范 bytes 与独立旧版对照一致；旧完整事件及 hash 保留，详情及用户要求的延迟更新待审方案见 [MEMORY_QUERY_SCOPE.md](MEMORY_QUERY_SCOPE.md)。
 
 固定 415 条相关边、410 条决策，3 次 steady 中位数：1000/3000 marks 的 retrieve 从 1.458/5.807→0.802/4.448 秒；retrieve＋snapshot＋freeze 从 3.973/14.303→2.057/11.217 秒。新相关材料化＋选择约 5.63/9.28 毫秒。全图 49,139→151,195 条边；局部路径已收窄，但**整链路仍随全 shadow/频次/审计字节增长，3000 marks 尚未满足 5 秒**。冷索引重建也保留全图成本，不宣称全链路目标已达成。
 

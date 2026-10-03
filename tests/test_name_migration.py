@@ -144,7 +144,9 @@ class NameMigrationTests(unittest.TestCase):
                 legacy.add("scope", "legacy-source", "author", [{"text": "original Indices and Indeces material",
                     "quote": "original Indices and Indeces material", "marks": ["alpha", "beta", previously_indexed_alias]}], 1)
                 old_audit = {}
-                legacy.retrieve("scope", [], "alpha beta", 2, event_id="legacy-event", audit=old_audit)
+                # Preserve an actual historical v1 shadow event under its
+                # former self-name policy; new static queries do not learn.
+                legacy._retrieve_legacy("scope", [], "alpha beta", 2, event_id="legacy-event", audit=old_audit)
                 validate_graph_audit(old_audit)
                 before = {table: self.durable_rows(db, table) for table in
                           ("memory_records", "memory_dynamic", "memory_events", "memory_cycles", "memory_event_audits")}
@@ -169,10 +171,12 @@ class NameMigrationTests(unittest.TestCase):
                 self.assertEqual(selected[0]["source_id"], "legacy-source")
                 self.assertEqual(selected[0]["direct_marks"], ["alpha", "beta"])
                 validate_graph_audit(audit)
-                archived_alias_changes = [edge for edge in audit["observation"]["changed_edges"]
-                                          if previously_indexed_alias in (edge["a"], edge["b"])]
-                self.assertTrue(archived_alias_changes)
-                self.assertTrue(all(not edge["active_source_support"] for edge in archived_alias_changes))
+                self.assertEqual(audit["schema_version"], 2)
+                self.assertFalse(audit["observation"]["dynamic_shadow_enabled"])
+                self.assertEqual(audit["observation"]["changed_edges"], [])
+                self.assertEqual(self.durable_rows(db, "memory_dynamic"), before["memory_dynamic"])
+                self.assertFalse(any(previously_indexed_alias in (edge["a"], edge["b"])
+                                     for edge in audit["selection"]["edge_statistics"]))
                 self.assertEqual(db.execute("SELECT payload_json FROM memory_event_audits WHERE event_id='legacy-event'").fetchone()[0],
                                  before["memory_event_audits"][0][2])
 
@@ -209,7 +213,9 @@ class NameMigrationTests(unittest.TestCase):
         audit = {}
         result = migrated.retrieve("scope", [], "alpha beta", 2, event_id="context-rebuilt", audit=audit)
         self.assertEqual(result[0]["ranking_score"], 1.0)
-        self.assertEqual(result[0]["dynamic_score"], 1.99)
+        self.assertEqual(result[0]["dynamic_score"], 0.0)
+        self.assertEqual(audit["observation"]["changed_edges"], [])
+        self.assertEqual(db.execute("SELECT count(*) FROM memory_dynamic").fetchone()[0], 0)
         validate_graph_audit(audit)
 
     def test_saved_credentials_are_name_neutral_and_do_not_need_reencryption(self):

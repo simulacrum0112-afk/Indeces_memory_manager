@@ -80,6 +80,20 @@ def assert_database_compatible(test, original_db, current_db):
     current = MemorySelectionPerformanceTests.database_state(current_db)
     test.assertEqual(set(original), set(current))
     for table, original_rows in original.items():
+        if table == "memory_query_event_headers":
+            test.assertEqual([row[:-1] for row in current[table]], [row[:-1] for row in original_rows])
+            for db, rows in ((original_db, original_rows), (current_db, current[table])):
+                for row in rows:
+                    stored = db.execute("SELECT payload_json FROM memory_event_audits WHERE scope=? AND event_id=?",
+                                        row[:2]).fetchone()[0]
+                    test.assertEqual(row[-1], hashlib.sha256(stored.encode()).hexdigest())
+            continue
+        if table == "memory_query_edges":
+            # New publication timestamps are derived metadata, outside the
+            # old graph/result byte contract. Coordinates/evidence stay exact.
+            test.assertEqual([row[:10] + row[11:] for row in current[table]],
+                             [row[:10] + row[11:] for row in original_rows])
+            continue
         if table != "memory_event_audits":
             test.assertEqual(current[table], original_rows, table)
             continue
@@ -353,7 +367,16 @@ def _legacy_edges(self, scope, ranking_mode):
     return {pair: edge for pair, edge in edges.items() if edge["effective_score"] > 0}
 
 
-class _LegacyMemoryGraph(MemoryGraph):
+class _CachedLegacyMemoryGraph(MemoryGraph):
+    """Retained v1 eager/shadow path; production static uses neighborhood v2."""
+
+    retrieve = MemoryGraph._retrieve_legacy
+
+
+class _LegacyMemoryGraph(_CachedLegacyMemoryGraph):
+    # Freeze the historical full-graph event path as well as selection; the
+    # product's new static dispatcher deliberately emits neighborhood v2.
+    retrieve = MemoryGraph._retrieve_legacy
     _observe = _legacy_observe
     _selection = _legacy_selection
     _edges = _legacy_edges
@@ -404,7 +427,7 @@ class _CountedConnection:
 class MemorySelectionPerformanceTests(unittest.TestCase):
     def setUp(self):
         self.db = sqlite3.connect(":memory:")
-        self.graph = MemoryGraph(self.db)
+        self.graph = _CachedLegacyMemoryGraph(self.db)
         self.addCleanup(self.db.close)
 
     @staticmethod
@@ -547,7 +570,7 @@ class MemorySelectionPerformanceTests(unittest.TestCase):
                 original_db, current_db = sqlite3.connect(":memory:"), sqlite3.connect(":memory:")
                 self.addCleanup(original_db.close)
                 self.addCleanup(current_db.close)
-                original, current = _LegacyMemoryGraph(original_db), MemoryGraph(current_db)
+                original, current = _LegacyMemoryGraph(original_db), _CachedLegacyMemoryGraph(current_db)
                 for graph in (original, current):
                     graph.add("synthetic", "cluster", "author", [{"text": "cluster", "quote": "cluster",
                               "marks": ["alpha", "beta", "gamma", "theta"]}], 1.0)
@@ -584,7 +607,7 @@ class MemorySelectionPerformanceTests(unittest.TestCase):
                 original_db, current_db = sqlite3.connect(":memory:"), sqlite3.connect(":memory:")
                 self.addCleanup(original_db.close)
                 self.addCleanup(current_db.close)
-                original, current = _LegacyMemoryGraph(original_db), MemoryGraph(current_db)
+                original, current = _LegacyMemoryGraph(original_db), _CachedLegacyMemoryGraph(current_db)
                 facts = [
                     ("cluster-old", ["alpha", "beta", "gamma", "delta"]),
                     ("cluster-retained", ["alpha", "beta", "gamma", "delta"]),

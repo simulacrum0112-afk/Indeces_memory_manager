@@ -635,12 +635,16 @@ def _verify_retained(rows, truncated, checkpoints, trace_id, view_partial):
         try:
             if row["event"] == "memory_observation":
                 validate_graph_audit(fields["audit"])
+                if fields["audit"]["schema_version"] == 2:
+                    report["warnings"].append("graph_audit_hit_neighborhood_only")
                 if digest(fields["audit"]) != fields["audit_sha256"]:
                     raise ValueError("graph observation digest mismatch")
                 report["checked_records"] += 1
             elif row["event"] == "retrieval_record":
                 validate_retrieval(fields["record"])
                 validate_graph_audit(fields["record"]["graph_audit"], fields["record"])
+                if fields["record"]["graph_audit"]["schema_version"] == 2:
+                    report["warnings"].append("graph_audit_hit_neighborhood_only")
                 if digest(fields["record"]) != fields["record_sha256"]:
                     raise ValueError("retrieval digest mismatch")
                 retrievals[fields["record_sha256"]] = fields["record"]

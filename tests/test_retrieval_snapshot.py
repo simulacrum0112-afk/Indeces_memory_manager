@@ -162,7 +162,7 @@ class RetrievalSnapshotTests(RecordFixture, unittest.TestCase):
         full_audit_encodes = []
 
         def counted(value):
-            if isinstance(value, dict) and value.get("schema_version") == 1 and "observation" in value:
+            if isinstance(value, dict) and value.get("schema_version") in (1, 2) and "observation" in value:
                 full_audit_encodes.append(value)
             return canonical(value)
 

@@ -2,6 +2,8 @@
 from contextlib import redirect_stdout
 from copy import deepcopy
 import io
+import hashlib
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -11,9 +13,9 @@ from unittest.mock import AsyncMock, Mock, patch
 from indeces import console
 from indeces.config import AdapterConfig, Budget, DiscordConfig, KnowledgeConfig, RuntimeConfig
 from indeces.contracts import DeliveryReceipt, IncomingMessage, ModelResult
-from indeces.run_records import verify_runs
+from indeces.run_records import validate_graph_audit, verify_runs
 from indeces.runtime import Runtime
-from indeces.scratch import ScratchLog, verify
+from indeces.scratch import ScratchLog, read_records, verify
 from indeces.store import Store
 
 
@@ -84,15 +86,32 @@ class AuditFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.sent), 1)
         self.assertEqual(self.store.history(self.message.scope)[-1]["content"], self.sent[0])
 
-    async def test_failed_material_freeze_still_records_committed_weight_transition(self):
+    async def test_failed_material_freeze_preserves_committed_v2_audit_without_shadow_writes(self):
         scratch = ScratchLog(Path(self.directory.name) / "scratch")
         self.addCleanup(scratch.close)
         runtime, adapter = self.runtime(scratch)
+        before = list(self.store.db.execute("SELECT * FROM memory_dynamic ORDER BY scope,a,b"))
         with patch("indeces.runtime.freeze_retrieval", side_effect=ValueError("synthetic freeze failure")), redirect_stdout(io.StringIO()):
             await runtime.process(self.message, self.deliver)
         self.assertEqual(adapter.calls, [])
-        self.assertEqual(self.store.db.execute("SELECT weight FROM memory_dynamic").fetchone()[0], 1.99)
+        self.assertEqual(list(self.store.db.execute("SELECT * FROM memory_dynamic ORDER BY scope,a,b")), before)
         self.assertEqual(self.store.db.execute("SELECT count(*) FROM memory_event_audits").fetchone()[0], 1)
+        serialized = self.store.db.execute("SELECT payload_json FROM memory_event_audits").fetchone()[0]
+        header = runtime.graph.query_index.event_header(runtime.knowledge_scope, self.message.message_id)
+        self.assertEqual(header["payload_sha256"], hashlib.sha256(serialized.encode()).hexdigest())
+        self.assertEqual(header["observation_status"], "disabled")
+        self.assertEqual(header["changed_edges_count"], 0)
+        observations = [record["fields"]["audit"] for record in read_records(scratch.path)
+                        if record["event"] == "memory_observation"]
+        self.assertEqual(len(observations), 1)
+        audit = observations[0]
+        self.assertEqual(audit["schema_version"], 2)
+        self.assertEqual(audit["audit_scope"], "direct_hit_neighborhood_v1")
+        self.assertFalse(audit["observation"]["dynamic_shadow_enabled"])
+        self.assertEqual(audit["observation"]["changed_edges"], [])
+        self.assertEqual({key: value for key, value in audit.items() if key != "durable_payload_sha256"},
+                         json.loads(serialized))
+        validate_graph_audit(audit)
         verify(scratch.path)
         report = verify_runs([scratch.path])
         self.assertEqual(report["counts"]["failed"], 1)

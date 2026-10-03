@@ -113,13 +113,16 @@ class RetrievalRecordTests(RecordFixture, unittest.TestCase):
         self.assertNotEqual(source["original_file_bytes_sha256"], source["normalized_text_sha256"])
         self.assertFalse(source["raw_text"].startswith("\ufeff"))
 
-    def test_model_material_explicitly_distinguishes_static_basis_from_shadow_weight(self):
+    def test_model_material_static_basis_and_disabled_shadow_are_explicit(self):
         self.seed()
         retrieval = self.retrieval()
         payload = retrieval["model_materials"][0]
         self.assertEqual((payload["ranking_mode"], payload["weight_basis"]), ("static", "static_npmi"))
         self.assertEqual(payload["ranking_score"], 1.0)
-        self.assertEqual(payload["dynamic_score"], 1.99)
+        self.assertEqual(payload["dynamic_score"], 0.0)
+        self.assertEqual(retrieval["graph_audit"]["schema_version"], 2)
+        self.assertFalse(retrieval["graph_audit"]["observation"]["dynamic_shadow_enabled"])
+        self.assertEqual(retrieval["graph_audit"]["observation"]["changed_edges"], [])
         payload["weight_basis"] = "dynamic_or_static"
         with self.assertRaisesRegex(ValueError, "model material weight basis"):
             validate_graph_audit(retrieval["graph_audit"], retrieval)

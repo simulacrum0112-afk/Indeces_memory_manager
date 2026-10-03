@@ -8,9 +8,10 @@ static edges, remain separate, and use w <- 0.99*w + 1 per co-activated
 pair. A retrieval event is one explicit decay cycle; retries of the same
 event do neither. Historical records and annotation alone never reinforce.
 
-Current retrieval uses only positive static NPMI edges. Dynamic weights
-remain a shadow layer for audit and never affect the default one-hop
-expansion or ranking. The explicit dynamic mode is a deferred extension;
+Current retrieval uses only positive static NPMI edges and persistent keyed
+neighborhood indexes. Static queries leave stored dynamic history unchanged;
+their version-2 audit freezes only hit-incident evidence. The explicit dynamic
+mode retains the historical full-graph cycle contract as a deferred extension;
 where selected, a dynamic weight replaces its static weight. Direct
 matches have priority in either mode.
 The graph is not a probability model: dynamic weights can exceed one.
@@ -39,6 +40,7 @@ from contextlib import contextmanager, nullcontext
 from typing import Any
 
 from .identity import AGENT_NAME, SELF_NAME_ALIASES
+from .memory_index import KeyedMemoryIndex
 
 
 UPSTREAM_COMMIT = "8769b9ed0af3531b9fbc09fb6e084d8e7adf724d"
@@ -182,6 +184,22 @@ class _RetrievalIndex:
                                   pair[1] if pair[0] == mark else pair[0])))
 
 
+class _NeighborhoodRecords(_IndexedRecords):
+    """Query-local frequencies and deferred keyed source reads, never a full list."""
+
+    def __init__(self, index, scope, hits, edges, self_marks, meta):
+        list.__init__(self)
+        self.self_marks = frozenset(self_marks)
+        endpoints = {mark for pair in edges for mark in pair}
+        self.frequencies = index.frequencies(scope, endpoints)
+        self.known = set(hits) | set(self.frequencies)
+        self.active_record_count = meta["active_record_count"]
+        self._index, self._scope = index, scope
+
+    def candidate_records(self, allowed):
+        return self._index.records_for_marks(self._scope, allowed)
+
+
 class MemoryGraph:
     """One caller-owned SQLite connection; methods commit atomic updates.
 
@@ -202,6 +220,10 @@ class MemoryGraph:
         self.self_marks = {_canonical(mark) for mark in self_marks}
         if self.self_marks & SELF_NAME_ALIASES:
             self.self_marks.update(SELF_NAME_ALIASES)
+        pending_query_index = KeyedMemoryIndex(connection, self.self_marks)
+        # Snapshot the committed existing store before any legacy migration,
+        # self-name repair, or new derived-schema installation can change it.
+        pending_query_index.ensure_schema()
         had_support = connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name='memory_support'").fetchone()
         connection.executescript("""
@@ -283,6 +305,78 @@ class MemoryGraph:
             for scope in sorted(affected_scopes):
                 self._rebuild_static(scope)
         self._ensure_cache_tracking()
+        self.query_index = pending_query_index
+        self._install_query_revisions()
+        # Publication/startup owns migration work. Retrieval never repairs a
+        # dirty derived index by loading an entire graph inside its budget.
+        with connection:
+            connection.execute("BEGIN IMMEDIATE")
+            scopes = {row[0] for row in connection.execute("SELECT DISTINCT scope FROM main.memory_records")}
+            scopes.update(row[0] for row in connection.execute("SELECT DISTINCT scope FROM main.memory_support"))
+            scopes.update(row[0] for row in connection.execute("SELECT DISTINCT scope FROM main.memory_static"))
+            for scope in sorted(scopes):
+                meta = self.query_index.meta(scope)
+                if meta is not None and meta["schema_version"] != 1:
+                    raise ValueError("unsupported memory query index version")
+                if (self.query_index.schema_recreated or meta is None
+                        or meta["revision"] != self._query_revision(scope)
+                        or set(meta["self_marks"]) != self.self_marks):
+                    self.refresh_query_index(scope)
+            self.query_index.migrate_missing_event_headers()
+        self._query_schema = self._schema_versions()
+        self._query_definitions = self._query_schema_definitions()
+
+    def _query_schema_definitions(self):
+        return tuple(self.connection.execute(
+            "SELECT name,sql FROM main.sqlite_master WHERE "
+            "(type='table' AND (name IN ('memory_records','memory_static','memory_support','memory_dynamic',"
+            "'memory_events','memory_scopes','memory_event_audits') "
+            "OR name GLOB 'memory_query_*')) OR (type='trigger' AND "
+            "(name GLOB 'memory_query_*' OR name GLOB 'memory_event_audits_*')) "
+            "ORDER BY name"))
+
+    def _check_query_schema(self):
+        current = self._schema_versions()
+        if current != self._query_schema:
+            if self._query_schema_definitions() != self._query_definitions:
+                raise ValueError("memory query schema changed; reopen during maintenance")
+            self._query_schema = current
+
+    def _install_query_revisions(self):
+        self.connection.execute("CREATE TABLE IF NOT EXISTS memory_query_revisions "
+                                "(scope TEXT PRIMARY KEY, revision INTEGER NOT NULL)")
+        for table in ("memory_records", "memory_static", "memory_support"):
+            for operation in ("INSERT", "UPDATE", "DELETE"):
+                row = "OLD" if operation == "DELETE" else "NEW"
+                body = (f"INSERT INTO memory_query_revisions VALUES({row}.scope,1) "
+                        "ON CONFLICT(scope) DO UPDATE SET revision=revision+1;")
+                if operation == "UPDATE":
+                    body += ("INSERT INTO memory_query_revisions SELECT OLD.scope,1 "
+                             "WHERE OLD.scope != NEW.scope "
+                             "ON CONFLICT(scope) DO UPDATE SET revision=revision+1;")
+                self.connection.execute(
+                    f"CREATE TRIGGER IF NOT EXISTS memory_query_{table}_{operation.lower()} "
+                    f"AFTER {operation} ON main.{table} BEGIN {body} END")
+        for operation in ("INSERT", "UPDATE"):
+            self.connection.execute(
+                f"CREATE TRIGGER IF NOT EXISTS memory_query_records_replace_{operation.lower()} "
+                f"BEFORE {operation} ON main.memory_records BEGIN "
+                "INSERT INTO memory_query_revisions SELECT scope,1 FROM memory_records "
+                "WHERE id=NEW.id AND scope!=NEW.scope "
+                "ON CONFLICT(scope) DO UPDATE SET revision=revision+1; END")
+
+    def _query_revision(self, scope):
+        row = self.connection.execute(
+            "SELECT revision FROM main.memory_query_revisions WHERE scope=?", (scope,)).fetchone()
+        return row[0] if row else 0
+
+    def refresh_query_index(self, scope):
+        """Explicit publication/maintenance operation; never called by retrieve."""
+        if not self.connection.in_transaction:
+            raise ValueError("memory query publication requires a caller-owned transaction")
+        self.query_index.rebuild_scope(scope, self._records(scope), self._source_edges(scope),
+                                       revision=self._query_revision(scope))
+        self._retrieval_cache.pop(scope, None)
 
     def _schema_versions(self):
         return (self.connection.execute("PRAGMA main.schema_version").fetchone()[0],
@@ -460,7 +554,7 @@ class MemoryGraph:
                     (scope, source_id, fingerprint)).fetchone()
                 result.append(self._record(row))
             if changed:
-                self._rebuild_static(scope)
+                self._rebuild_static(scope, updated_at=now)
         return result
 
     def deactivate_source(self, scope: str, source_id: str, *, commit: bool = True) -> int:
@@ -478,15 +572,16 @@ class MemoryGraph:
         if not commit and not self.connection.in_transaction:
             raise ValueError("commit=False requires a caller-owned transaction")
         with self.connection if commit else nullcontext():
+            archived_at = time.time()
             count = self.connection.execute(
                 "UPDATE memory_records SET active=0,archived_at=? "
                 "WHERE scope=? AND source_id=? AND active=1",
-                (time.time(), scope, source_id)).rowcount
+                (archived_at, scope, source_id)).rowcount
             if count:
-                self._rebuild_static(scope)
+                self._rebuild_static(scope, updated_at=archived_at)
         return count
 
-    def _rebuild_static(self, scope: str) -> None:
+    def _rebuild_static(self, scope: str, *, updated_at=None) -> None:
         records = self._records(scope)
         n = len(records)
         frequencies: Counter[str] = Counter()
@@ -516,6 +611,10 @@ class MemoryGraph:
                     "INSERT INTO memory_static VALUES(?,?,?,?,?,?,?)",
                     (scope, a, b, round(npmi, 4), _json(sorted(contexts[(a, b)])),
                      _json(evidence[(a, b)]), count))
+        if hasattr(self, "query_index"):
+            self.query_index.rebuild_scope(scope, records, self._source_edges(scope),
+                                           revision=self._query_revision(scope), updated_at=updated_at)
+            self._retrieval_cache.pop(scope, None)
 
     def _observe(self, scope: str, hits: list[str], query: str,
                  now: float, event_id: str, *, audit: dict | None = None,
@@ -747,6 +846,127 @@ class MemoryGraph:
                  now: float, *, event_id: str | None = None,
                  audit: dict | None = None,
                  ranking_mode: str = "static") -> list[dict[str, Any]]:
+        """Static: keyed one-hop query with local audit and no shadow writes.
+
+        Explicit dynamic retains the historical low-level implementation; the
+        product has no configuration or Console switch that enables it.
+        """
+        if ranking_mode != "static":
+            return self._retrieve_legacy(scope, marks, query, now, event_id=event_id,
+                                         audit=audit, ranking_mode=ranking_mode)
+        return self._retrieve_neighborhood(scope, marks, query, now, event_id=event_id, audit=audit)
+
+    def _neighborhood_edges(self, scope, hits, meta):
+        edges, ordinals = self.query_index.incident_edges(scope, hits)
+        for pair, edge in edges.items():
+            row = self.connection.execute(
+                "SELECT weight,last_event_id FROM main.memory_dynamic WHERE scope=? AND a=? AND b=?",
+                (scope, *pair)).fetchone()
+            edge.update(dynamic_score=row[0] if row else 0.0,
+                        dynamic_last_event_id=row[1] if row else None,
+                        effective_score=edge["static_score"])
+        local = _RetrievalIndex([], self.self_marks)
+        local.index_edges(edges)
+        local.index_static_neighbors()
+        local.edge_ordinals = ordinals
+        local.static_live_edge_count = meta["live_edge_count"]
+        return _QueryEdges(edges, local)
+
+    def _retrieve_neighborhood(self, scope, marks, query, now, *, event_id=None, audit=None):
+        """Published keyed indexes only; static queries never mutate shadow."""
+        if self.query_index.connection is not self.connection:
+            raise ValueError("memory query connection changed; recreate graph during maintenance")
+        self._validate_scope_time(scope, now)
+        if not isinstance(query, str):
+            raise ValueError("query must be a string")
+        if audit is not None and not isinstance(audit, dict):
+            raise ValueError("audit must be a dictionary")
+        requested = self._marks(marks)
+        if event_id is None:
+            event_id = hashlib.sha256(_json([scope, query, requested, now]).encode()).hexdigest()
+        if not isinstance(event_id, str) or not event_id:
+            raise ValueError("event_id must be a nonempty string")
+        payload = {"schema_version": 2, "audit_scope": "direct_hit_neighborhood_v1",
+                   "scope": scope, "event_id": event_id,
+                   "request": {"query": query, "requested_marks": requested, "observed_at": now}}
+        with self.connection:
+            self.connection.execute("BEGIN IMMEDIATE")
+            self._check_query_schema()
+            if self.connection.execute(
+                    "SELECT 1 FROM temp.sqlite_master WHERE type='table' "
+                    "AND (name IN ('memory_records','memory_static','memory_support','memory_dynamic',"
+                    "'memory_events','memory_scopes','memory_event_audits') "
+                    "OR name GLOB 'memory_query_*') LIMIT 1").fetchone():
+                raise ValueError("memory query index cannot use temporary shadow tables")
+            meta = self.query_index.meta(scope)
+            revision = self._query_revision(scope)
+            if meta is None and revision == 0:
+                meta = {"active_record_count": 0, "known_marks_count": 0, "live_edge_count": 0,
+                        "revision": 0, "self_marks": sorted(self.self_marks)}
+            if (meta is None or meta.get("schema_version", 1) != 1
+                    or meta["revision"] != revision or set(meta["self_marks"]) != self.self_marks):
+                raise ValueError("memory query index is stale; refresh during publication or maintenance")
+            literal = sorted(self.query_index.literal_matches(scope, query), key=lambda m: (-len(m), m))
+            hits = literal[:MAX_DIRECT]
+            payload["match"] = {"known_marks_count": meta["known_marks_count"], "literal_matches": literal,
+                                "direct_hits": hits, "direct_limit": MAX_DIRECT,
+                                "discarded_direct_matches": literal[MAX_DIRECT:],
+                                "excluded_self_marks": sorted(self.self_marks)}
+            stored = self.connection.execute(
+                "SELECT 1 FROM main.memory_event_audits WHERE scope=? AND event_id=?",
+                (scope, event_id)).fetchone()
+            original = self.query_index.event_header(scope, event_id)
+            if bool(stored) != bool(original):
+                raise ValueError("memory query event header unavailable; reopen during maintenance")
+            legacy = self.connection.execute(
+                "SELECT query FROM main.memory_events WHERE scope=? AND event_id=?", (scope, event_id)).fetchone()
+            if (original and original["query"] != query) or (legacy and legacy[0] != query):
+                raise ValueError("retrieval event ID reused with different input")
+            original_mode = original["ranking_mode"] if original else "dynamic"
+            if (original or legacy) and original_mode != "static":
+                raise ValueError("retrieval event ID reused with different ranking mode")
+            if hits and original and not original["direct_hit_count"]:
+                raise ValueError("retrieval event ID reused with different input")
+            edges = self._neighborhood_edges(scope, hits, meta)
+            records = _NeighborhoodRecords(self.query_index, scope, hits, edges, self.self_marks, meta)
+            result, selection = self._selection(records, hits, edges, query, event_id)
+            selection.update(ranking_mode="static", weight_basis="static_npmi",
+                             mark_frequencies_scope="edge_endpoints_v1")
+            for record in result:
+                record.update(ranking_mode="static", weight_basis="static_npmi")
+            state = self.connection.execute(
+                "SELECT dynamic_seeded FROM main.memory_scopes WHERE scope=?", (scope,)).fetchone()
+            seeded = bool(state[0]) if state else False
+            observation = {"status": "replay" if original else "legacy_replay" if legacy else "disabled",
+                           "applied": False, "original_changes_known": not bool(legacy and not original),
+                           "seeded_before": seeded, "seeded_after": seeded, "seeded_edges": 0,
+                           "changed_edges": [], "dynamic_shadow_enabled": False,
+                           "reason": "static_shadow_disabled"}
+            if original:
+                observation["original_changes_known"] = original["original_changes_known"]
+                payload["original_event"] = {"payload_sha256": original["payload_sha256"],
+                    "observed_at": original["observed_at"], "ranking_mode": original_mode,
+                    "observation_status": original["observation_status"],
+                    "changed_edges_count": original["changed_edges_count"]}
+            payload.update(observation=observation, selection=selection, replay=bool(original or legacy))
+            serialized = None if stored else _json(payload)
+            if not stored:
+                self.connection.execute("INSERT INTO main.memory_event_audits VALUES(?,?,?)",
+                                        (scope, event_id, serialized))
+                self.query_index.publish_event_header(scope, event_id, serialized)
+            if self._query_revision(scope) != revision:
+                raise ValueError("memory sources changed during neighborhood retrieval")
+        payload["durable_payload_sha256"] = (original["payload_sha256"] if original else
+                                             hashlib.sha256(serialized.encode()).hexdigest())
+        if audit is not None:
+            audit.clear()
+            audit.update(payload)
+        return result
+
+    def _retrieve_legacy(self, scope: str, marks: list[str], query: str,
+                 now: float, *, event_id: str | None = None,
+                 audit: dict | None = None,
+                 ranking_mode: str = "static") -> list[dict[str, Any]]:
         """Return at most three sourced references, with <=400 text chars.
 
         Direct hits require literal current-message evidence and known
@@ -827,6 +1047,7 @@ class MemoryGraph:
                 self.connection.execute("INSERT INTO memory_event_audits VALUES(?,?,?)", (scope, event_id, serialized))
             else:
                 serialized = stored[0]
+            self.query_index.publish_event_header(scope, event_id, serialized)
         payload["durable_payload_sha256"] = hashlib.sha256(serialized.encode()).hexdigest()
         if audit is not None:
             audit.clear()
@@ -860,7 +1081,8 @@ class MemoryGraph:
             known = set(frequencies)
             mark_frequencies = dict(sorted(frequencies.items()))
         statistic_pairs = (edges.ordered_pairs if indexed_edges else sorted(edges))
-        selection = {"active_record_count": len(records),
+        record_count = records.active_record_count if isinstance(records, _NeighborhoodRecords) else len(records)
+        selection = {"active_record_count": record_count,
             "live_edge_count": edges.live_edge_count if isinstance(edges, _QueryEdges) else len(edges),
             "mark_frequencies": mark_frequencies, "static_formula_reproducible": True,
             "static_policy": {"formula": "log(p_ab/(p_a*p_b))/-log(p_ab)",
@@ -938,7 +1160,9 @@ class MemoryGraph:
                         if a in hit_set and b in hit_set
                         and (not edge["context"] or any(context_hit(m) for m in edge["context"]))]
         ranked = []
-        if indexed_records:
+        if isinstance(records, _NeighborhoodRecords):
+            candidates = records.candidate_records(allowed)
+        elif indexed_records:
             ordinals = {ordinal for mark in allowed for ordinal in records.postings.get(mark, ())}
             candidates = (records[ordinal] for ordinal in sorted(ordinals))
         else:
@@ -993,6 +1217,6 @@ class MemoryGraph:
                 "text_truncated": record["text_truncated"],
                 "preview_sha256": hashlib.sha256(record["text"].encode()).hexdigest()})
         selection["selected_record_ids"] = [r["id"] for r in result]
-        selection["excluded_record_count"] = len(records) - len(ranked)
+        selection["excluded_record_count"] = record_count - len(ranked)
         selection["used_text_characters"] = used
         return result, selection

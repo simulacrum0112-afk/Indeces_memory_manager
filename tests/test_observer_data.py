@@ -53,6 +53,11 @@ class ObserverDataTests(unittest.TestCase):
         self.knowledge = KnowledgeService(self.config, self.store, self.graph, None, None)
         return self.store.db
 
+    def historical_retrieval(self, *args, **kwargs):
+        # These observer fixtures intentionally create preserved v1 shadow
+        # history. New static production queries leave that history unchanged.
+        return self.graph._retrieve_legacy(*args, **kwargs)
+
     def source(self, source_id, text, marks, *, status="ready", scope="10:knowledge", path="sample.md", publish=True):
         db = self.store.db
         with db:
@@ -88,7 +93,7 @@ class ObserverDataTests(unittest.TestCase):
         db = self.database()
         self.source("one", "alpha beta", ["alpha", "beta"])
         self.source("other", "secret foreign scope", ["foreign"], scope="20:knowledge", path="other.md")
-        self.graph.retrieve("10:knowledge", [], "alpha beta", NOW.timestamp(), event_id="event-1")
+        self.historical_retrieval("10:knowledge", [], "alpha beta", NOW.timestamp(), event_id="event-1")
         before = "\n".join(db.iterdump())
         files_before = {path.name: path.read_bytes() for path in self.config.state_dir.iterdir()}
         result = observer_data.snapshot(self.config)
@@ -136,7 +141,7 @@ class ObserverDataTests(unittest.TestCase):
     def test_unsupported_dynamic_edge_is_historical_only(self):
         self.database()
         self.source("one", "alpha beta", ["alpha", "beta"])
-        self.graph.retrieve("10:knowledge", [], "alpha beta", NOW.timestamp(), event_id="event-1")
+        self.historical_retrieval("10:knowledge", [], "alpha beta", NOW.timestamp(), event_id="event-1")
         self.graph.deactivate_source("10:knowledge", "one")
         edge = observer_data.edge_details(self.config, "beta", "alpha")
         self.assertFalse(edge["edge"]["active_source_support"])
@@ -151,8 +156,8 @@ class ObserverDataTests(unittest.TestCase):
     def test_weight_history_is_newest_first_and_durable(self):
         self.database()
         self.source("one", "alpha beta", ["alpha", "beta"])
-        self.graph.retrieve("10:knowledge", [], "alpha beta", 1, event_id="old-event")
-        self.graph.retrieve("10:knowledge", [], "alpha", NOW.timestamp(), event_id="new-event")
+        self.historical_retrieval("10:knowledge", [], "alpha beta", 1, event_id="old-event")
+        self.historical_retrieval("10:knowledge", [], "alpha", NOW.timestamp(), event_id="new-event")
         history = observer_data.edge_details(self.config, "alpha", "beta")["history"]
         self.assertEqual([item["event_id"] for item in history], ["new-event", "old-event"])
         self.assertEqual(history[0]["change"]["reinforcement_added"], 0)
@@ -221,8 +226,8 @@ class ObserverDataTests(unittest.TestCase):
         self.database()
         self.source("one", "alpha beta", ["alpha", "beta"])
         self.source("two", "gamma delta", ["gamma", "delta"], path="second.md")
-        self.graph.retrieve("10:knowledge", [], "alpha beta", 1, event_id="a")
-        self.graph.retrieve("10:knowledge", [], "alpha beta", 2, event_id="b")
+        self.historical_retrieval("10:knowledge", [], "alpha beta", 1, event_id="a")
+        self.historical_retrieval("10:knowledge", [], "alpha beta", 2, event_id="b")
         with patch.object(observer_data, "MAX_NODES", 2), patch.object(observer_data, "MAX_EDGES", 1):
             graph = observer_data.snapshot(self.config)["graph"]
         self.assertEqual(graph["total_nodes"], 4)
@@ -286,7 +291,7 @@ class ObserverDataTests(unittest.TestCase):
         self.database()
         self.source("one", "alpha beta", ["alpha", "beta"])
         for index in range(3):
-            self.graph.retrieve("10:knowledge", [], "alpha beta", index + 1, event_id=f"event-{index}")
+            self.historical_retrieval("10:knowledge", [], "alpha beta", index + 1, event_id=f"event-{index}")
         with patch.object(observer_data, "MAX_HISTORY_EVENTS", 2):
             result = observer_data.edge_details(self.config, "alpha", "beta")
         self.assertEqual([row["event_id"] for row in result["history"]], ["event-2", "event-1"])
@@ -343,7 +348,7 @@ class ObserverDataTests(unittest.TestCase):
         self.assertIsNone(edge["effective_weight"])
         self.assertLess(edge["npmi_statistics"]["recomputed_npmi"], 0)
         self.assertTrue(edge["active_source_support"])
-        self.graph.retrieve("10:knowledge", [], "alpha beta", 1, event_id="event")
+        self.historical_retrieval("10:knowledge", [], "alpha beta", 1, event_id="event")
         edge = observer_data.edge_details(self.config, "alpha", "beta")["edge"]
         self.assertIsNone(edge["static_weight"])
         self.assertEqual(edge["dynamic_weight"], 1.0)
@@ -498,7 +503,7 @@ class ObserverDataTests(unittest.TestCase):
         self.source("ab", "alpha beta", ["alpha", "beta"], path="ab.md")
         self.source("ag", "alpha gamma", ["alpha", "gamma"], path="ag.md")
         self.source("solo", "delta", ["delta"], path="solo.md")
-        self.graph.retrieve("10:knowledge", [], "alpha beta", 1, event_id="event")
+        self.historical_retrieval("10:knowledge", [], "alpha beta", 1, event_id="event")
         edge = observer_data.edge_details(self.config, "alpha", "beta")["edge"]
         stats = edge["npmi_statistics"]
         self.assertEqual(stats["active_records"], 3)

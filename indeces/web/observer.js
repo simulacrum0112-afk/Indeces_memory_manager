@@ -473,6 +473,7 @@
   }
   function renderObservation(card,audit) {
     const observation=object(audit.observation),match=object(audit.match),selection=object(audit.selection);
+    if(audit.schema_version===2)append(card,el("p","muted","审计范围：直接命中标注词及其一跳邻域。频次只冻结相关边端点；全图状态未在本轮冻结。动态与 shadow 更新关闭，已有动态分数仅作为历史字段读取。"));
     append(card,facts([["更新状态",observation.status],["字面直接命中",list(match.direct_hits).join("、")||"无"],
       ["扩展标注词",list(selection.expanded_marks).join("、")||"无"],["排除本体词",list(match.excluded_self_marks).join("、")||"无"],
       ["变更边数",list(observation.changed_edges).length],["选中材料",list(selection.selected_record_ids).join("、")||"无"]]));

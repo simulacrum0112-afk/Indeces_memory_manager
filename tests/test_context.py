@@ -267,7 +267,12 @@ class RuntimeConversationTests(unittest.IsolatedAsyncioTestCase):
         observations = [fields["audit"] for event, fields in self.scratch.events if event == "memory_observation"]
         self.assertEqual(observations[0]["selection"]["weight_basis"], "static_npmi")
         self.assertEqual(observations[0]["selection"]["edge_statistics"][0]["effective_score"], 1.0)
-        self.assertEqual(observations[0]["selection"]["edge_statistics"][0]["dynamic_score"], 1.99)
+        self.assertEqual(observations[0]["selection"]["edge_statistics"][0]["dynamic_score"], 0.0)
+        self.assertEqual(observations[0]["schema_version"], 2)
+        self.assertEqual(observations[0]["audit_scope"], "direct_hit_neighborhood_v1")
+        self.assertFalse(observations[0]["observation"]["dynamic_shadow_enabled"])
+        self.assertEqual(observations[0]["observation"]["changed_edges"], [])
+        self.assertEqual(self.store.db.execute("SELECT count(*) FROM memory_dynamic").fetchone()[0], 0)
         self.assertEqual(self.deliveries, ["a final reply"])
 
     async def test_failed_reply_notice_does_not_enter_assistant_history(self):

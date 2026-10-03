@@ -1,4 +1,4 @@
-# 可核验运行记录：0.12.4
+# 可核验运行记录
 
 0.12.4 的检索记录仍为 `version=1`，新增 `model_projection="citation_material_v1"`，声明实际送给模型的固定字段视图。每条保留 `id/source_id/scope`、完整 `quote`、原110字符预览及截断声明、`marks/direct_marks/expanded_marks`、排序模式/依据/三个分数、`citation_id/citation_marker` 和可选 PDF 物理页码。完整支持记录 ID、图 context、权重转换和排序证据继续在 `graph_audit`；完整来源版本目录、原文和物理页位置继续冻结在材料与来源目录，不复制进模型请求。
 
@@ -9,6 +9,14 @@
 0.12.3 仅替换内部材料缓存与查找索引；完整全图 edge_statistics、全部频次/邻居/候选决策与 shadow 转换均保留原规范字节，图审计 schema、来源绑定和独立校验不变。缓存私有对象不进入 scratch，仍输出每轮拥有的独立数据树。
 
 0.12.6 静态索引路径声明 `edge_statistics_scope=direct_hit_incident_v1`，只记录与 direct hits 相连的全部活跃边，包含未通过 top-k/context gate 的一跳边。相关行、排名/去重/门控决策及返回材料的规范字节保持；整包/hash 随显式范围改变。全图 `live_edge_count`/频次和全动态 `changed_edges` 仍按原合同记录。校验器保留旧完整记录兼容，拒绝未知范围、范围外或缺失的相关边及不一致证据；重放不重写原事件。详见 [MEMORY_QUERY_SCOPE.md](MEMORY_QUERY_SCOPE.md)。
+
+新的存储层邻域路径使用图审计 `schema_version=2`、`audit_scope="direct_hit_neighborhood_v1"`。`selection.edge_statistics_scope="direct_hit_incident_v1"` 包括直接命中的全部相关 incident edges 和原有的一跳接受/拒绝证据，不能只保留 top-k 接受边。`selection.mark_frequencies_scope="edge_endpoints_v1"` 声明频次仅包含这批边的全部端点；`active_record_count` 和 `live_edge_count` 仍是完整 scope 的标量计数，由摄入索引维护，并非本轮扫描/冻结了全图。NPMI 校验仍使用完整记录数与相关端点的原频次，公式、co_count、舍入及来源支持不变。
+
+此 v2 合同的静态路径不提交动态或 shadow 更新，`observation.dynamic_shadow_enabled=false`、`applied=false`、`changed_edges=[]`、`seeded_edges=0`；已有动态分数只读作历史兼容字段，不作为静态排名依据。新事件状态为 `disabled`，重复事件为 `replay`，无完整旧审计的重复事件可为 `legacy_replay`。重复事件始终链接原不可变 JSON/hash，旧包、旧实际转换及已保存的来源版本不改写。显式低层 dynamic 与历史 v1 全图/相关边合同保持其原有验证分支。
+
+快照、材料冻结、规范编码与独立校验只消费这份已声明的邻域树，不另取全图边或全部标注词频次。来源冻结仍保留实际选中来源的完整版本、原文、标词及 PDF 页码，`[M]` 与模型材料投影不变。Console 运行校验为 v2 添加 `graph_audit_hit_neighborhood_only` 告警，观察页显式显示范围。`complete` 仍只表示已声明范围内的运行记录关联与算术一致，**不表示全图状态、全部动态历史或全图成员完整性已在本轮审计**。
+
+相关边的结果、排序、支持 ID、context、计数及冻结材料可在同一冻结动态状态下与旧全图选择器逐规范字节比较。停止原有 shadow 更新后，新事件动态字段不能与旧版继续逐轮更新的实验声称相同；必须分别报告静态结果/证据对照与这一明确行为变化。审计包因为版本、范围、频次投影及观察声明变化，整体字节和 hash 不同，不能宣称整包逐字节相同。删去/伪造范围标记、把 v2 降级成 v1、范围外边、缺少相关端点频次或动态写入声明均拒绝。内部一致性校验不能单凭局部树证明数据库没有省略边；实现的按键工作量测试和旧选择器对照另外验证摄入与查询索引的范围完整性。
 
 0.12.2 用 `FailureNotice` 标识机器人固定失败回执。`discord_delivery_started` 对此保存 `delivery_kind="failure_notice"` / `notice_text`，不保存 `model_output`；送达完成/失败事件也标注种类。`failure_notice_delivered` 保存实际文字和 ID，但本轮仍是 failed，不创建 assistant 历史、生成答案或模型回答的送达记录。没有增加模型调用、自动重试或轮次退款；模型 `skip` 禁止这类发送。总轮时间耗尽时保持 `failure_notice_skipped=turn_time_exhausted`。现有运行校验区分 failed 与 skipped，不据此声称独立核验所有 Discord 失败回执事件的语义关联。
 
@@ -22,7 +30,7 @@
 
 0.11.0的`call_start`成对记录`requested_input_limit`与`effective_input_limit`；有效门禁是原阶段input cap与调用者剩余额度中的较小值。`input_gate.limit`绑定有效门禁，`stage_limit`绑定原阶段额度；实际计量和完成usage须满足有效门禁。失败仍保存供应商确认的真实用量，不丢弃或双计。旧记录缺新字段时按原阶段核验，部分保留窗口只校验存留门禁。累计知识额度的批准迁移见[KNOWLEDGE_DIRECTORY.md](KNOWLEDGE_DIRECTORY.md)，不重置历史计量。
 
-2026-10-02 文档核对；本合同对应的远端代码与验证范围见 [CHECKPOINT.md](CHECKPOINT.md)，不重写旧运行记录。
+2026-10-03 文档核对；本合同对应的远端代码与验证范围见 [CHECKPOINT.md](CHECKPOINT.md)，不重写旧运行记录。
 
 运行记录回答三个不同的问题：本轮召回了哪些材料、Hebbian 权重和排序如何变化、模型生成/Discord 实际送达的文字出现了哪些引用标记。它们不自动证明引用段落得到材料的语义支持，也不证明材料本身真实或 Hebbian 治理有效。
 
@@ -61,7 +69,7 @@ UTC 时间须非递减；相等时间允许。时钟回拨、未来原记录、�
 | 事件 | 记录与关联 |
 |---|---|
 | `turn_start` | `trace_id`、Discord message ID、聊天 scope、knowledge scope、原始/规范化输入与本轮预算 |
-| `memory_observation` | 图事务提交后立即记录 audit 与 audit hash；即使随后材料冻结或本地时间检查失败，仍可查已提交权重的回执 |
+| `memory_observation` | 图事务提交后立即记录 audit 与 audit hash；v2 明确记录 shadow 关闭及邻域选择，历史 v1 保存当时实际已提交的权重转换 |
 | `retrieval_record` | 在检索后、任何 await 前冻结的查询、event ID、完整材料和来源目录、图审计及记录 hash |
 | `knowledge_retrieved` | 提供给后续上下文的材料与同一个检索记录 hash、检索耗时 |
 | `reply_context` | 实际准备调用的 instructions/messages 与检索记录 hash；短期上下文与长期材料分开 |
@@ -90,11 +98,11 @@ UTC 时间须非递减；相等时间允许。时钟回拨、未来原记录、�
 
 ## 图权重与排序
 
-图审计按 `(scope,event_id)` 绑定查询。首次事件的审计与动态权重更新在同一个 SQLite 事务内提交；首次审计保持不可更新/删除。同一事件重放记录原审计的 hash 链接，不重新执行学习和衰减；无字面命中明确记录未应用观察。
+图审计按 `(scope,event_id)` 绑定查询。首次事件的审计在 SQLite 事务内提交；历史 v1 将当时的动态更新放在同一事务，当前静态 v2 不执行动态或 shadow 更新。首次审计保持不可更新/删除。同一事件重放记录原审计的 hash 链接，不重新执行学习和衰减；v2 有命中/无命中都明确记录 shadow 关闭。
 
-审计包含直接字面命中、seed/decay/reinforce 的每一步、原权重与最终权重、实际改变标记、来源支持 ID、共现计数、静态 NPMI 计数/分数、一跳候选、排名依据和被选材料。保留 `η=1`、`λ=.99`、动态六位/静态四位舍入及既有限额。
+历史 v1 审计包含直接字面命中、seed/decay/reinforce 的每一步、原权重与最终权重、实际改变标记、来源支持 ID、共现计数、静态 NPMI 计数/分数、一跳候选、排名依据和被选材料。v2 保留相关边的支持、计数、静态分数、一跳决策与排名证据，并显式缩减到命中邻域及端点频次；不补造未发生的转换。保留 `η=1`、`λ=.99`、动态六位/静态四位舍入及既有限额；动态参数当前仅属于保留的显式低层动态路径与未激活的结构预留。
 
-校验器依据冻结的字段重算权重步骤、NPMI 和排名算术，并检查被选记录、预览 hash 与材料一致。静态模式按正静态权重核对排名，shadow 动态变化单独核对；旧动态模式按其动态有效权重核对，不能把 shadow 变化当作当前静态排名变化。同事件重放绑定原模式，模式不同在写入前拒绝。当前没有独立重建全部字面命中、上下文门控及候选扩展资格。它检查所记录证据的内部一致性，不能单凭本地记录证明作者没有遗漏图中的记录或边，也不证明排序更相关。
+校验器依据冻结的字段重算 NPMI 和排名算术，并检查被选记录、预览 hash 与材料一致。历史 v1 另外重算当时发生的权重步骤；v2 只在声明的邻域范围校验相关频次/边/候选证据，要求 dynamic/shadow 未应用。静态模式按正静态权重核对排名，历史 shadow 变化不能当作当前静态排名变化。旧动态模式按其动态有效权重核对。同事件重放绑定原模式，模式不同在写入前拒绝。当前没有独立重建全部字面命中、上下文门控及候选扩展资格。它检查所记录证据的内部一致性，不能单凭本地记录证明作者没有遗漏图中的记录或边，也不证明排序更相关。
 
 ## 召回、引用与语义支持
 
