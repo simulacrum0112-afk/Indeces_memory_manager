@@ -5,6 +5,7 @@ from copy import deepcopy
 from contextlib import closing, contextmanager
 from pathlib import Path
 import re
+import json
 import sqlite3
 import random
 from tempfile import TemporaryDirectory
@@ -14,7 +15,6 @@ from unittest.mock import patch
 
 from indeces import memory
 from indeces.memory import MemoryGraph
-from indeces.run_records import validate_graph_audit
 from indeces.scratch import canonical
 from tests import test_memory_selection_performance as oracle
 
@@ -105,16 +105,15 @@ class MemoryIndexTests(unittest.TestCase):
         self.assertEqual(current, original)
         # Dict equality alone misses -0.0 and float serialization differences.
         self.assertEqual(canonical(current), canonical(original))
-        self.assertEqual(canonical(current_audit), canonical(original_audit))
         # These verification reads are not retrieval work and must not enter
         # the cache workload counters attached to the actual connection.
         self.db.set_trace_callback(None)
         try:
-            self.assertEqual(_BASELINE_TABLES(self.db), _BASELINE_TABLES(self.original_db))
+            oracle.assert_retrieval_audits_compatible(self, original_audit, current_audit,
+                                                    self.original_db, self.db, validate=validate)
+            oracle.assert_database_compatible(self, self.original_db, self.db)
         finally:
             self.db.set_trace_callback(self.statements.append)
-        if validate:
-            validate_graph_audit(current_audit)
         return current, current_audit
 
     def fresh_metadata_reads(self):
@@ -438,6 +437,10 @@ class MemoryIndexTests(unittest.TestCase):
         next_records, next_audit = self.compare(query="alpha beta gamma theta", now=3.0)
         self.assertNotIn("caller-injected", repr(next_records))
         self.assertNotIn("caller-injected", repr(next_audit))
+        # A different hit must also read the untouched private edge cache.
+        other_records, other_audit = self.compare(query="extra", now=4.0)
+        self.assertNotIn("caller-injected", repr(other_records))
+        self.assertNotIn("caller-injected", repr(other_audit))
 
     def test_self_mark_configuration_and_connection_identity_do_not_reuse_wrong_index(self):
         self.compare(query="alpha beta", now=2.0)
@@ -537,7 +540,81 @@ class MemoryIndexTests(unittest.TestCase):
         self.assertLessEqual(len(measured["neighbors"]), 4)
         self.assertTrue(set(measured["incident"]) <= set(measured["hits"]))
         self.assertLessEqual(len(measured["incident"]), len(measured["hits"]))
-        self.assertEqual(len(audit["selection"]["edge_statistics"]), audit["selection"]["live_edge_count"])
+        hits = set(audit["match"]["direct_hits"])
+        expected_pairs = {pair for pair in self.original._edges("synthetic", "static")
+                          if hits.intersection(pair)}
+        statistics = audit["selection"]["edge_statistics"]
+        self.assertEqual({(edge["a"], edge["b"]) for edge in statistics}, expected_pairs)
+        self.assertEqual(audit["selection"]["edge_statistics_scope"], oracle._QUERY_EDGE_SCOPE)
+        self.assertLess(len(statistics), audit["selection"]["live_edge_count"])
+
+    def test_warm_query_decodes_only_hit_incident_metadata_when_unrelated_graph_grows(self):
+        work, global_counts = [], []
+        hits = ["alpha", "beta", "gamma", "theta"]
+        for mark_count in (1000, 3000):
+            with self.subTest(mark_count=mark_count):
+                db = sqlite3.connect(":memory:")
+                self.addCleanup(db.close)
+                graph = MemoryGraph(db)
+                groups = [hits] + [["alpha", "neighbor-" + str(index)] for index in range(12)]
+                unrelated = ["unrelated-label-" + str(index) for index in range(mark_count - 16)]
+                groups += [unrelated[index:index + 8] for index in range(0, len(unrelated), 8)]
+                graph.add("synthetic", "whole-synthetic-graph", "author", [
+                    {"text": "synthetic fact " + str(index), "quote": "synthetic fact " + str(index),
+                     "marks": marks} for index, marks in enumerate(groups)], 1.0)
+                full = oracle._legacy_edges(graph, "synthetic", "static")
+                expected = {pair: edge for pair, edge in full.items() if set(hits).intersection(pair)}
+                with graph._retrieval_transaction("synthetic") as index:
+                    # Warm raw source/adjacency indexes without decoding any
+                    # edge provenance. Metadata work below belongs only to
+                    # this dense query, not full shadow observation.
+                    graph._query_edges("synthetic", "static", [])
+                    self.assertEqual(index.decoded_edges, {})
+                    with patch("indeces.memory.json.loads", wraps=json.loads) as decode:
+                        current = graph._query_edges("synthetic", "static", hits)
+                    work.append(decode.call_count)
+                    global_counts.append(current.live_edge_count)
+                    self.assertEqual(canonical(list(current.items())), canonical(list(expected.items())))
+                    self.assertEqual(list(current), list(expected))
+                    self.assertEqual(set(index.decoded_edges), set(expected))
+                    self.assertEqual(decode.call_count, 2 * len(expected))
+                    self.assertEqual(current.live_edge_count, len(full))
+                    pair = next(iter(current))
+                    current[pair]["context"].append("caller-injected-context")
+                    current[pair]["source_record_ids"].append(987654)
+                    with patch("indeces.memory.json.loads", wraps=json.loads) as decode:
+                        again = graph._query_edges("synthetic", "static", hits)
+                    self.assertEqual(decode.call_count, 0)
+                    self.assertEqual(canonical(list(again.items())), canonical(list(expected.items())))
+        self.assertEqual(work[0], work[1])
+        self.assertEqual(work[0], 36)  # 6 direct pairs + 12 one-hop pairs, two JSON fields each.
+        self.assertGreater(global_counts[1], 2 * global_counts[0])
+
+    def test_dense_expansion_keeps_rejected_neighbor_decisions_and_all_caps(self):
+        for index in range(20):
+            self.add("dense-neighbor-" + str(index), ["alpha", "dense-mark-" + str(index)])
+        records, audit = self.compare(query="alpha beta gamma theta", event="dense-many-neighbors", now=2.0)
+        selection = audit["selection"]
+        candidates = [candidate for candidate in selection["expansion_candidates"]
+                      if candidate["from_mark"] == "alpha"]
+        self.assertGreaterEqual(len(candidates), 20)
+        self.assertEqual([candidate["neighbor_rank"] for candidate in candidates],
+                         list(range(1, len(candidates) + 1)))
+        self.assertEqual(sum(candidate["within_neighbor_limit"] for candidate in candidates), 5)
+        self.assertTrue(all(not candidate["considered"] for candidate in candidates
+                            if candidate["neighbor_rank"] > 5))
+        self.assertLessEqual(len(selection["expanded_marks"]), 2)
+        self.assertLessEqual(len(records), 3)
+        self.assertLessEqual(selection["used_text_characters"], 400)
+        # Each audited decision still has its complete, byte-identical
+        # supporting edge, even when top-k excludes it from expansion.
+        statistics = {(edge["a"], edge["b"]): edge for edge in selection["edge_statistics"]}
+        for candidate in selection["expansion_candidates"]:
+            pair = tuple(sorted((candidate["from_mark"], candidate["mark"])))
+            self.assertIn(pair, statistics)
+            for field in ("context", "source_record_ids", "co_count", "dynamic_last_event_id",
+                          "static_score", "dynamic_score", "effective_score"):
+                self.assertEqual(canonical(candidate[field]), canonical(statistics[pair][field]))
 
 
 if __name__ == "__main__":

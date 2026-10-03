@@ -958,6 +958,17 @@ def validate_graph_audit(audit, retrieval=None):
     n, frequencies = selection["active_record_count"], selection["mark_frequencies"]
     _require(type(n) is int and n >= 0 and all(type(v) is int and 0 < v <= n for v in frequencies.values()),
              "invalid static frequency counts")
+    scoped_edges = "edge_statistics_scope" in selection
+    if scoped_edges:
+        _require(selection["edge_statistics_scope"] == "direct_hit_incident_v1",
+                 "unknown edge statistics scope")
+        _require(ranking_mode == "static", "scoped edge statistics require static ranking")
+        count = selection["live_edge_count"]
+        _require(type(count) is int and count >= 0 and len(selection["edge_statistics"]) <= count,
+                 "scoped live edge count mismatch")
+        pairs = [(edge["a"], edge["b"]) for edge in selection["edge_statistics"]]
+        _require(pairs == sorted(pairs), "scoped edge statistics order mismatch")
+        _require(all(a in hits or b in hits for a, b in pairs), "edge outside direct hit scope")
     live_edges = {}
     for edge in selection["edge_statistics"]:
         pair = (edge["a"], edge["b"])
@@ -980,12 +991,27 @@ def validate_graph_audit(audit, retrieval=None):
             pair = (edge["a"], edge["b"])
             eligible = edge["active_source_support"] and (
                 edge["static_score"] > 0 if ranking_mode == "static" else edge["after_weight"] > 0)
-            if eligible:
+            in_scope = not scoped_edges or pair[0] in hits or pair[1] in hits
+            if eligible and in_scope:
                 _require(pair in live_edges and live_edges[pair]["dynamic_score"] == edge["after_weight"]
                          and live_edges[pair]["source_record_ids"] == edge["source_record_ids"]
                          and live_edges[pair]["static_score"] == edge["static_score"], "committed/live weight mismatch")
             else:
                 _require(pair not in live_edges, "unsupported or excluded edge entered ranking")
+    if scoped_edges:
+        # The complete one-hop decisions include neighbors rejected by the
+        # top-five or context gates. Their source evidence remains bound to
+        # the same scoped statistics as the accepted ranking evidence.
+        for candidate in selection["expansion_candidates"]:
+            _require(candidate["from_mark"] in hits and candidate["mark"] not in hits,
+                     "expansion evidence outside direct hit scope")
+            pair = tuple(sorted((candidate["from_mark"], candidate["mark"])))
+            edge = live_edges.get(pair)
+            _require(edge is not None, "expansion evidence has no live edge")
+            _require(all(candidate[key] == edge[key] for key in (
+                "source_record_ids", "co_count", "static_score", "dynamic_score",
+                "effective_score", "context", "dynamic_last_event_id")),
+                "expansion evidence disagrees with live edge")
     ranked = selection["ranked_candidates"]
     expected_order = sorted(ranked, key=lambda c: (-c["direct_match_count"], -c["effective_score"], -c["static_score"], -c["record_id"]))
     _require(ranked == expected_order and [c["rank"] for c in ranked] == list(range(1, len(ranked) + 1)), "ranking order mismatch")

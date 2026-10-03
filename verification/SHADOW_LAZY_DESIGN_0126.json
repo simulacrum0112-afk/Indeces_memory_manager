@@ -1,0 +1,51 @@
+{
+  "classification": "Synthetic arithmetic design evidence only; no graph, configuration, model, or runtime data accessed",
+  "recorded_at_utc": "2026-10-03T03:16:06.947272+00:00",
+  "python": "3.12.14",
+  "application_status": "Proposal only; no lazy shadow change applied",
+  "recurrence": "round(value * 0.99, 6) after EACH real cycle",
+  "power_counterexamples": [
+    {
+      "start": 1.0,
+      "gap": 100,
+      "sequential": 0.366035,
+      "single_power_round": 0.366032
+    },
+    {
+      "start": 1.0,
+      "gap": 1000,
+      "sequential": 5e-05,
+      "single_power_round": 4.3e-05
+    }
+  ],
+  "fixed_point_probes": [
+    {
+      "start": 1.0,
+      "calls_until_equality_detected": 974,
+      "fixed_value": 5e-05
+    },
+    {
+      "start": 100.0,
+      "calls_until_equality_detected": 1433,
+      "fixed_value": 5e-05
+    },
+    {
+      "start": 1e+16,
+      "calls_until_equality_detected": 4640,
+      "fixed_value": 5e-05
+    }
+  ],
+  "integer_rounding_counterexamples": [
+    {
+      "micro_units": 250,
+      "actual_python_float_result": 0.000247,
+      "ideal_rational_half_even_units": 248
+    },
+    {
+      "micro_units": 350,
+      "actual_python_float_result": 0.000347,
+      "ideal_rational_half_even_units": 346
+    }
+  ],
+  "limitations": "Examples do not prove arbitrary legacy input bounds, query deadline compliance, source/audit completeness, or numerical compatibility with alternative runtimes."
+}

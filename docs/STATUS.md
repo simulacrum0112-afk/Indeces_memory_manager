@@ -1,4 +1,16 @@
-# 0.12.5 路径边界修复
+# 0.12.6 密集查询相关边路径
+
+本机最终958项、20跳过、0失败/错误及隔离wheel通过；源码/editable均0.12.6。静态相关边材料化和统计按 direct-hit incident 范围，全部拒绝邻居、排序/去重/出处证据与旧版逐字节对照，旧完整事件重放保持原JSON/hash。确切曲线、源码/CI和保留证据见 [CHECKPOINT.md](CHECKPOINT.md)。
+
+旧统计表达式占该次selection profile的90.4%，一跳/top-k未全展开；全链路另有全边复制、全shadow及审计编码/冻结热点。固定相关边415条，1000/3000 marks 新局部材料化/selection共约5.63/9.28毫秒；完整read/freeze仍2.057/11.217秒，3000规模未通过5秒目标，不夸大为全链路复杂度已修复。
+
+首轮957项2失败原报告保留：新增fixture以为alpha-beta是正边，实际co=1/n=13、频次9/2，NPMI为负，删不存在的边不会触发missing evidence；改用满足context且正NPMI的beta/gated/missing-context样例，没有改变图规则。另槽超时测试初次traceback不可用，定向30次及最终全套通过，原因未确认，未修改adapter或其预算/测试要求。首次editable无build-isolation安装因venv没有setuptools backend而失败；标准临时隔离安装成功，不修改依赖版本。
+
+性能原单次报告的阶段包装误包含后续隔离selection调用，已用修正3次steady报告替代，原证据不覆盖；普通total/bytes与独立cProfile仍有效，细节见 [证据说明](../verification/dense_retrieval_evidence_notes_20261002.json)。
+
+用户选择继续设计shadow延迟更新及审计方案，先报告再应用。[待审方案](MEMORY_QUERY_SCOPE.md) 保留逐步Python舍入，明确compact shadow、相关频次、checkpoint/manifest及验证合同的变化；只有设计和纯数值反例，未应用v2、未迁移真实库、未启停或热补丁服务。
+
+## 0.12.5 路径边界修复
 
 最终运行源码 [`0d78ddb`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/0d78ddbb1b379e43caf252756b19f26476b757bc) 已推main，精确提交 [CI 37080507076](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37080507076) 整体、Windows/Ubuntu、unittest和CLI check均success。最终945项与wheel通过；此轮只读公共CI元数据，未读日志/推断测试数量。公开审计、历史失败证据与活动实例加载限制见 [CHECKPOINT.md](CHECKPOINT.md)，实际旧库最终迁移未在本轮执行。
 

@@ -1,0 +1,36 @@
+{
+  "classification": "Synthetic verification metadata; no service configuration, knowledge, credentials, or running instance was read or changed.",
+  "initial_report": {
+    "path": "dense_retrieval_baseline_20261002.json",
+    "retained_unchanged": true,
+    "phase_status": "Superseded: ordinary sample phase dictionaries also included the later isolated selection calls. Do not use these phase values for the final before/after comparison.",
+    "valid_fields": "Ordinary retrieve/read-freeze totals, result hashes, operation counts, and separate cProfile samples remain valid.",
+    "random_growing_component_limit": "The random single-component case did not grow the direct-hit live neighborhood between the two sizes. It is not the growing-neighborhood positive control."
+  },
+  "primary_reports": {
+    "before": "dense_retrieval_steady_before_20261002.json",
+    "after": "dense_retrieval_steady_after_20261002.json",
+    "repeats": 3,
+    "steady_history": "An actual retrieval at 2.0 with a distinct seed event precedes a fresh measured event at 3.0.",
+    "curve_fields": "Use ordinary phase_median_seconds_inclusive.query_edges and selection, not selection_only_median_seconds. The isolated selection diagnostic can be affected by collection after full artifact construction.",
+    "harness_versions": "The before harness preceded stricter comparison metadata and the separate expression probe. Fixed-neighborhood data, ordinary retrieval timing, and freeze timing are unchanged by those harness additions. Each report retains its actual harness/source hash.",
+    "tracked_baseline_dependencies": "Only tracked memory.py is replayed by --baseline-ref. run_records.py and scratch.py are current imported dependencies; the old full-audit validator path remains supported. Dependency hashes are recorded by the expression-before and after reports."
+  },
+  "growing_star_topology": {
+    "reports": ["dense_retrieval_star_before_20261002.json", "dense_retrieval_star_after_20261002.json"],
+    "background": "Four singleton records per mark, with no background co-occurrence edges.",
+    "extra_star_records": "Each extra record contains the four direct-hit marks plus up to four local neighbors. There are 25 extra records at 1000 marks and 75 at 3000 marks.",
+    "local_neighbors": "size//10: 100 neighbors at 1000 marks; 300 neighbors at 3000 marks.",
+    "related_edges": [406, 1206],
+    "expansion_decisions": [400, 1200],
+    "method_field_scope": "fixed_neighborhood_marks=120 applies only to the fixed-neighborhood scenario. facts_per_mark=4 describes background records; extra star records are additional."
+  },
+  "byte_comparison": {
+    "returned_records": "Complete canonical returned records equal baseline bytes for each identical input/state.",
+    "audit_projection": "Old edge_statistics is filtered to direct-hit incident edges. Remove only the declared edge_statistics_scope field and the necessarily changed durable envelope digest; every other field, including all observation transitions and rejected-neighbor decisions, remains byte-identical.",
+    "independent_validation": "Every actual audit and frozen material receipt is independently checked; durable audit hashing is not bypassed by the comparison projection.",
+    "full_envelope": "The complete new audit envelope intentionally differs because its statistics list has a declared scope. No full-envelope byte-equality claim is made."
+  },
+  "runtime_limit": "Read-freeze time includes retrieve, CanonicalSnapshot, and freeze_retrieval, but excludes scratch disk writes. The 3000-mark post-change steady median remains 11.21736470000178 seconds, exceeding the unchanged 5-second local budget. Global observation transitions, full mark-frequency output, source-index rebuilding, and audit encoding/freezing remain; this evidence does not prove whole-chain graph independence or live service acceptance.",
+  "expression_probe": "An AST wrapper times only the edge_statistics expression in an additional profile sample. Its output is byte-compared independently and its timing is excluded from ordinary medians."
+}

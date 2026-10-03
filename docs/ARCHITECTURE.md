@@ -75,6 +75,8 @@ Console 以规范化配置路径区分 owner，内核租约判定存活；临时
 
 完整 edge_statistics、mark_frequencies、changed_edges 与 ranked_candidates 仍保持原字段/数量/顺序及规范字节；逐轮全动态边 decay、Python round、last_event_id 和源门禁不变。完整审计字节数 B 与动态边 D 仍要求至少 O(B+D) 工作；前缀查询在 trie 上按查询长度和最长匹配前缀访问，候选选择只触达命中邻接与 allowed postings。这是局部查找复杂度的减少，不等于全链路无全局工作。材料发布额外 TEMP revision 写入有已测成本，性能证据必须同时报告冷/暖查询和摄入。
 
+0.12.6 静态暖查询进一步用 `_query_edges` 只物化全部 direct-hit incident edges，`edge_statistics_scope=direct_hit_incident_v1` 声明相关统计范围；全部接受/拒绝的一跳决策和排名证据保持字节一致。完整频次/全图数量与全 shadow transitions 仍保留，显式 dynamic 和历史类型 fallback 保留旧全图路径。审计整包/hash 因范围声明改变；旧事件不重写，独立校验按范围声明或旧完整合同分支。范围、证据和全链路尚存成本见 [MEMORY_QUERY_SCOPE.md](MEMORY_QUERY_SCOPE.md)。
+
 ## 静态检索与动态观察
 
 自 0.10.0 起，`Runtime.process` 明确指定 `ranking_mode="static"`；低层 `retrieve` 默认也为静态。0.11.0 保留这项行为：只用已保存的正 NPMI 边做有来源支持的一跳扩展及排序，直接命中仍优先。`dynamic_score` 只表示字面共触发的 shadow 观察值，不能影响当前扩展或排名；仅有共现支持但无可用正静态权重的词对也不能从动态层绕过门控。原始正值舍入为零时也属于无可用正权重，未改既有四位舍入规则。

@@ -1,5 +1,15 @@
 # 当前与历史代码检查点
 
+当前源码版本 **0.12.6**；2026-10-02（用户时区）完成密集静态查询的相关边物化与显式审计范围。NPMI、来源/context gate、top-k、去重/[M]、static/dynamic 分层、全 shadow 轨迹和 5 秒预算保持。相关结果/排序/证据规范 bytes 与独立旧版对照一致；旧完整事件及 hash 保留，详情及用户要求的延迟更新待审方案见 [MEMORY_QUERY_SCOPE.md](MEMORY_QUERY_SCOPE.md)。
+
+固定 415 条相关边、410 条决策，3 次 steady 中位数：1000/3000 marks 的 retrieve 从 1.458/5.807→0.802/4.448 秒；retrieve＋snapshot＋freeze 从 3.973/14.303→2.057/11.217 秒。新相关材料化＋选择约 5.63/9.28 毫秒。全图 49,139→151,195 条边；局部路径已收窄，但**整链路仍随全 shadow/频次/审计字节增长，3000 marks 尚未满足 5 秒**。冷索引重建也保留全图成本，不宣称全链路目标已达成。
+
+最终 [OFFLINE_0126_20261003T031610529771Z.json](../verification/OFFLINE_0126_20261003T031610529771Z.json)：958项、0失败/错误、20跳过，CLI/Console/依赖/npmi通过；[WHEEL_0126.json](../verification/WHEEL_0126.json) 隔离构建/安装通过，源码/editable均0.12.6。初次957项2失败保留于 [OFFLINE_0126.json](../verification/OFFLINE_0126.json)：新增负NPMI测试数据已修正；槽超时测试单独30次及最终全套通过，但初次具体失败原因未确认，不臆断为生产 bug。性能初始计时边界修正和全部证据条件见 [证据说明](../verification/dense_retrieval_evidence_notes_20261002.json)。
+
+当前源码提交与精确 CI 将在推送后核验；此处尚不声明远端验收。本轮未读取真实知识库/私有配置/运行数据，未启动、停止、热更新真实实例，未应用 shadow lazy/v2 或真实库迁移。用户只授权其设计、先报告再应用。
+
+## 0.12.5 历史检查点
+
 当前源码版本 **0.12.5**；2026-10-02（用户时区）知识库路径与旧来源根身份隔离修复。OneDrive、外目录知识配置和链接拒绝；安全错误阻断入库；旧缓存迁移先备份并核验当前文件digest，保留原文/PDF/标词/计量，未知usage不能获得新预算。事故与调查限制见 [PATH_BOUNDARY.md](PATH_BOUNDARY.md)。
 
 最终 [OFFLINE_0125_20261003T000327789883Z.json](../verification/OFFLINE_0125_20261003T000327789883Z.json) 为945项、0失败/错误、20跳过、161.270秒，CLI/Console/依赖/只读npmi通过；[WHEEL_0125_20261003T000101467827Z.json](../verification/WHEEL_0125_20261003T000101467827Z.json) 隔离构建和安装通过，源码/editable元数据均0.12.5。真实Windows junction、8.3短名与reparse模拟拒绝通过，symlink权限和平台差异跳过逐项保存。首次失败记录/等待夹具及平台修正见 [STATUS.md](STATUS.md)。

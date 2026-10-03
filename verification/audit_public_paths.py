@@ -236,7 +236,7 @@ def audit():
                                  "classification": classification or "unknown_requires_review"})
     unknown = [item for item in findings if item["classification"] == "unknown_requires_review"]
     return {
-        "version": "0.12.5",
+        "version": "0.12.6",
         "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
         "baseline_main": main,
         "main_reachable_commits": len(commits),
@@ -262,7 +262,7 @@ def audit():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", default="verification/REPOSITORY_AUDIT_0125.json")
+    parser.add_argument("--output", default="verification/REPOSITORY_AUDIT_0126.json")
     parser.add_argument("--no-write", action="store_true", help="report counts and findings without saving a new report")
     arguments = parser.parse_args()
     if not REPORT_PATTERN.fullmatch(arguments.output):

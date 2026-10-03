@@ -6,7 +6,6 @@ import unittest
 from unittest.mock import patch
 
 from indeces.memory import MemoryGraph, _hit
-from indeces.run_records import validate_graph_audit
 from tests import test_memory_selection_performance as oracle
 
 
@@ -121,10 +120,9 @@ class MemoryQueryMatchTests(unittest.TestCase):
                     current_records = current.retrieve("synthetic", [], query, now, event_id=event,
                                                        audit=current_audit, ranking_mode=mode)
                     self.assertEqual(current_records, original_records)
-                    self.assertEqual(current_audit, original_audit)
-                    validate_graph_audit(current_audit)
-                    self.assertEqual(oracle.MemorySelectionPerformanceTests.database_state(current_db),
-                                     oracle.MemorySelectionPerformanceTests.database_state(original_db))
+                    oracle.assert_retrieval_audits_compatible(self, original_audit, current_audit,
+                                                            original_db, current_db)
+                    oracle.assert_database_compatible(self, original_db, current_db)
                     return current_audit
 
                 compare("first", "alpha beta gate", 2.0)

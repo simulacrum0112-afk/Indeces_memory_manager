@@ -14,6 +14,82 @@ from unittest.mock import patch
 from indeces.memory import (DECAY, ETA, MAX_DIRECT, MAX_ENTRY_CHARS, MAX_EXTRA, MAX_REFERENCES,
                            MAX_TEXT_CHARS, MemoryGraph, _hit, _json)
 from indeces.run_records import validate_graph_audit
+from indeces.scratch import canonical
+
+
+_QUERY_EDGE_SCOPE = "direct_hit_incident_v1"
+
+
+def _scoped_legacy_payload(payload):
+    """Independently project the frozen oracle's full edge statistics."""
+    scoped = deepcopy(payload)
+    hits = set(scoped["match"]["direct_hits"])
+    scoped["selection"]["edge_statistics"] = [
+        edge for edge in scoped["selection"]["edge_statistics"]
+        if edge["a"] in hits or edge["b"] in hits]
+    scoped["selection"]["edge_statistics_scope"] = _QUERY_EDGE_SCOPE
+    return scoped
+
+
+def assert_retrieval_audits_compatible(test, original, current, original_db, current_db,
+                                     *, validate=True):
+    """Allow only the declared statistics projection and its durable links.
+
+    Selection, observation, and all relevant edge bytes come from the frozen
+    independent oracle. Both real durable documents are validated separately;
+    the expected digest is rebuilt from the projected original, never copied
+    from the implementation being tested.
+    """
+    scope, event_id = original["scope"], original["event_id"]
+    original_serialized = original_db.execute(
+        "SELECT payload_json FROM memory_event_audits WHERE scope=? AND event_id=?",
+        (scope, event_id)).fetchone()[0]
+    current_serialized = current_db.execute(
+        "SELECT payload_json FROM memory_event_audits WHERE scope=? AND event_id=?",
+        (scope, event_id)).fetchone()[0]
+    original_stored, current_stored = json.loads(original_serialized), json.loads(current_serialized)
+    expected_stored = original_stored
+    if current_stored["selection"].get("edge_statistics_scope") == _QUERY_EDGE_SCOPE:
+        expected_stored = _scoped_legacy_payload(original_stored)
+    test.assertEqual(current_serialized.encode(), canonical(expected_stored))
+    original_digest = hashlib.sha256(original_serialized.encode()).hexdigest()
+    current_digest = hashlib.sha256(current_serialized.encode()).hexdigest()
+    expected_digest = hashlib.sha256(canonical(expected_stored)).hexdigest()
+    test.assertEqual(original["durable_payload_sha256"], original_digest)
+    test.assertEqual(current["durable_payload_sha256"], current_digest)
+
+    expected = original
+    if current["selection"].get("edge_statistics_scope") == _QUERY_EDGE_SCOPE:
+        expected = _scoped_legacy_payload(original)
+    else:
+        expected = deepcopy(original)
+    expected["durable_payload_sha256"] = expected_digest
+    if "original_event" in expected:
+        expected["original_event"]["payload_sha256"] = expected_digest
+    test.assertEqual(canonical(current), canonical(expected))
+    if validate:
+        for payload in (original, current,
+                        dict(original_stored, durable_payload_sha256=original_digest),
+                        dict(current_stored, durable_payload_sha256=current_digest)):
+            validate_graph_audit(payload)
+
+
+def assert_database_compatible(test, original_db, current_db):
+    """All persisted rows stay exact except declared event-audit scoping."""
+    original = MemorySelectionPerformanceTests.database_state(original_db)
+    current = MemorySelectionPerformanceTests.database_state(current_db)
+    test.assertEqual(set(original), set(current))
+    for table, original_rows in original.items():
+        if table != "memory_event_audits":
+            test.assertEqual(current[table], original_rows, table)
+            continue
+        test.assertEqual(len(current[table]), len(original_rows))
+        for old, new in zip(original_rows, current[table]):
+            test.assertEqual(old[:2], new[:2])
+            expected = json.loads(old[2])
+            if json.loads(new[2])["selection"].get("edge_statistics_scope") == _QUERY_EDGE_SCOPE:
+                expected = _scoped_legacy_payload(expected)
+            test.assertEqual(new[2].encode(), canonical(expected))
 
 
 # Frozen selection policy from 0.12.0 source commit 7405790d71b114b887c91ac96c29a40686e3a708.
@@ -282,6 +358,11 @@ class _LegacyMemoryGraph(MemoryGraph):
     _selection = _legacy_selection
     _edges = _legacy_edges
 
+    def _query_edges(self, scope, ranking_mode, hits):
+        # Freeze the full-edge routing too: the oracle must not use the new
+        # query-scoped materialization under comparison.
+        return self._edges(scope, ranking_mode)
+
 
 class _CountedEdges(dict):
     def __init__(self, *args, **kwargs):
@@ -458,7 +539,7 @@ class MemorySelectionPerformanceTests(unittest.TestCase):
         return {table: list(db.execute(f"SELECT * FROM {table} ORDER BY rowid")) for table in tables}
 
     def assert_database_equal(self, original_db, current_db):
-        self.assertEqual(self.database_state(current_db), self.database_state(original_db))
+        assert_database_compatible(self, original_db, current_db)
 
     def test_partial_decay_and_audit_insert_failure_roll_back_exactly(self):
         for failure in ("decay", "audit"):
@@ -526,8 +607,8 @@ class MemorySelectionPerformanceTests(unittest.TestCase):
                     new_records = current.retrieve("synthetic", [], query, now, event_id=event,
                                                    audit=new_audit, ranking_mode=mode)
                     self.assertEqual(new_records, old_records)
-                    self.assertEqual(new_audit, old_audit)
-                    validate_graph_audit(new_audit)
+                    assert_retrieval_audits_compatible(self, old_audit, new_audit,
+                                                      original_db, current_db)
                     self.assert_database_equal(original_db, current_db)
                     return new_audit
 

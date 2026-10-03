@@ -140,6 +140,16 @@ class _IndexedEdges(dict):
         self.static_neighbors = index.static_neighbors if ranking_mode == "static" else None
 
 
+class _QueryEdges(_IndexedEdges):
+    """Complete hit-incident evidence, with the full graph count retained."""
+
+    def __init__(self, edges, index):
+        super().__init__(edges, index, "static")
+        self.ordered_pairs = tuple(sorted(edges))
+        self.live_edge_count = index.static_live_edge_count
+        self.statistics_scope = "direct_hit_incident_v1"
+
+
 class _RetrievalIndex:
     def __init__(self, records, self_marks):
         self.records = _IndexedRecords(records, self_marks)
@@ -163,6 +173,7 @@ class _RetrievalIndex:
         self.static_neighbors = None
 
     def index_static_neighbors(self):
+        self.static_live_edge_count = sum(edge["static_score"] > 0 for edge in self.edges.values())
         self.static_neighbors = {}
         for mark, pairs in self.incident.items():
             self.static_neighbors[mark] = tuple(sorted(
@@ -621,7 +632,7 @@ class MemoryGraph:
                 audit.update(details)
         return True
 
-    def _edges(self, scope: str, ranking_mode: str) -> dict[tuple[str, str], dict[str, Any]]:
+    def _edge_index(self, scope):
         index = self._retrieval_index
         if index is not None:
             if self._cache_shadows or self._cache_token(scope) != self._retrieval_token:
@@ -632,6 +643,40 @@ class MemoryGraph:
                 index.decoded_edges.clear()
             if index.edges is None:
                 index.index_edges(self._source_edges(scope))
+        return index
+
+    def _query_edges(self, scope, ranking_mode, hits):
+        # Dynamic mode and unindexed legacy rows retain their full historical
+        # path. The product's static path owns only edges that can enter its
+        # direct evidence or one-hop decisions (including rejected neighbors).
+        if ranking_mode != "static" or self._retrieval_index is None:
+            return self._edges(scope, ranking_mode)
+        index = self._edge_index(scope)
+        if not index.indexable_edges:
+            return self._uncached_edges(scope, ranking_mode)
+        if index.static_neighbors is None:
+            index.index_static_neighbors()
+        pairs = {pair for hit in hits for pair in index.static_neighbors.get(hit, ())}
+        live_edges = {}
+        # Preserve source insertion order for direct evidence and float sums.
+        for pair in sorted(pairs, key=index.edge_ordinals.__getitem__):
+            edge = dict(index.edges[pair], dynamic_score=0.0,
+                        effective_score=index.edges[pair]["static_score"], dynamic_last_event_id=None)
+            row = self.connection.execute(
+                "SELECT weight,last_event_id FROM memory_dynamic WHERE scope=? AND a=? AND b=?",
+                (scope, *pair)).fetchone()
+            if row is not None:
+                edge.update(dynamic_score=row[0], dynamic_last_event_id=row[1])
+            if pair not in index.decoded_edges:
+                index.decoded_edges[pair] = (json.loads(edge["context"]),
+                                             json.loads(edge["source_record_ids"]))
+            edge["context"], edge["source_record_ids"] = deepcopy(index.decoded_edges[pair])
+            live_edges[pair] = edge
+        return _QueryEdges(live_edges, index)
+
+    def _edges(self, scope: str, ranking_mode: str) -> dict[tuple[str, str], dict[str, Any]]:
+        index = self._edge_index(scope)
+        if index is not None:
             if not index.indexable_edges:
                 return self._uncached_edges(scope, ranking_mode)
             edges = {pair: dict(edge, dynamic_score=0.0,
@@ -754,7 +799,7 @@ class MemoryGraph:
                 if original and not original["match"]["direct_hits"]:
                     raise ValueError("retrieval event ID reused with different input")
                 self._observe(scope, hits, query, now, event_id, audit=observation, commit=False)
-                result, selection = self._selection(records, hits, self._edges(scope, ranking_mode), query, event_id)
+                result, selection = self._selection(records, hits, self._query_edges(scope, ranking_mode, hits), query, event_id)
             else:
                 state = self.connection.execute(
                     "SELECT dynamic_seeded FROM memory_scopes WHERE scope=?", (scope,)).fetchone()
@@ -815,7 +860,8 @@ class MemoryGraph:
             known = set(frequencies)
             mark_frequencies = dict(sorted(frequencies.items()))
         statistic_pairs = (edges.ordered_pairs if indexed_edges else sorted(edges))
-        selection = {"active_record_count": len(records), "live_edge_count": len(edges),
+        selection = {"active_record_count": len(records),
+            "live_edge_count": edges.live_edge_count if isinstance(edges, _QueryEdges) else len(edges),
             "mark_frequencies": mark_frequencies, "static_formula_reproducible": True,
             "static_policy": {"formula": "log(p_ab/(p_a*p_b))/-log(p_ab)",
                               "p_ab_one_value": 1.0, "retain_only_positive": True, "round_digits": 4},
@@ -832,6 +878,8 @@ class MemoryGraph:
             "ranking_order": ["direct_match_count descending", "effective_score descending",
                               "static_score descending", "record_id descending"],
             "expansion_candidates": [], "ranked_candidates": [], "selected": []}
+        if isinstance(edges, _QueryEdges):
+            selection["edge_statistics_scope"] = edges.statistics_scope
 
         # Rank first, THEN deduplicate, so the strongest provenance wins.
         expansion: dict[str, dict[str, Any]] = {}
