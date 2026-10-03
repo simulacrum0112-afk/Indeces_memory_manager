@@ -6,7 +6,9 @@
 
 最终 [OFFLINE_0126_20261003T031610529771Z.json](../verification/OFFLINE_0126_20261003T031610529771Z.json)：958项、0失败/错误、20跳过，CLI/Console/依赖/npmi通过；[WHEEL_0126.json](../verification/WHEEL_0126.json) 隔离构建/安装通过，源码/editable均0.12.6。初次957项2失败保留于 [OFFLINE_0126.json](../verification/OFFLINE_0126.json)：新增负NPMI测试数据已修正；槽超时测试单独30次及最终全套通过，但初次具体失败原因未确认，不臆断为生产 bug。性能初始计时边界修正和全部证据条件见 [证据说明](../verification/dense_retrieval_evidence_notes_20261002.json)。
 
-当前源码提交与精确 CI 将在推送后核验；此处尚不声明远端验收。本轮未读取真实知识库/私有配置/运行数据，未启动、停止、热更新真实实例，未应用 shadow lazy/v2 或真实库迁移。用户只授权其设计、先报告再应用。
+运行源码 [`db04135`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/db04135fa5e0535a633de649cbd40c77df38b3cc) 已推送main并核对远端HEAD；精确提交 [CI 37092790001](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37092790001) 整体、Windows/Ubuntu、unittest与CLI check步骤均success，见 [CI_0126.json](../verification/CI_0126.json)。只读公共元数据，未读日志/推断远端测试数量。后续交付文档提交不改变该运行源码。
+
+公开范围 [REPOSITORY_AUDIT_0126_RELEASE.json](../verification/REPOSITORY_AUDIT_0126_RELEASE.json) 核验main可达历史和精确暂存公开文件，有限规则未知发现/禁止路径均零；交付补扫见 [REPOSITORY_AUDIT_0126_DELIVERY.json](../verification/REPOSITORY_AUDIT_0126_DELIVERY.json)。本轮未读取真实知识库/私有配置/运行数据，未启动、停止、热更新真实实例，未应用 shadow lazy/v2 或真实库迁移。用户只授权其设计、先报告再应用。
 
 ## 0.12.5 历史检查点
 

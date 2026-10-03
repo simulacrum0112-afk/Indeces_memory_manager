@@ -77,6 +77,6 @@ scratch 局部记录须冻结相关边 checkpoint、gap、强化与来源频次�
 
 所有 dynamic 读取都须适配，包括 observer 的原始 weight/last_event_id 和 SQL 排序；物理 checkpoint 不能显示成当前权重。全图观察仍可有独立全局成本，但不能放回复链。任意自定义逐行 UPDATE trigger 的副作用无法自动保持；未封存来源修订或未验证 trigger 必须明确兼容边界，不静默替换证据。冷启动/材料变更的索引重建也仍有全图成本，若要求包括这些情形都只随邻域增长，还需另行设计发布时的持久查询索引，不能仅靠 lazy shadow 宣称完成。
 
-迁移仅在批准后、无活动实例、持有 state 租约时进行，先一致 SQLite backup。以当前完整物理状态建立新 epoch 的 seq=0 checkpoint，保留原 weight/seed/context/last_event_id/seeded 标志及旧 audit，不推测旧缺失事件顺序。旧事件 replay 继续链接原 JSON/hash，不生成新 cycle；未知 legacy 不补造。新库必须阻止旧程序按 eager 方式写 checkpoint，回退须停服后完整物化、验证及备份，经批准操作，不能热补丁运行实例。
+迁移仅在批准后、无活动实例、持有 state 租约时进行，先一致 SQLite backup。以当前完整物理状态建立新 epoch 的 seq=0 checkpoint，保留原 weight/seed/context/last_event_id/seeded 标志及旧 audit，不推测旧缺失事件顺序。旧事件 replay 继续链接原 JSON/hash，不生成新 cycle；未知 legacy 不补造。新库必须用实际数据库写入防护阻止旧程序按 eager 方式写 checkpoint；仅增加旧程序不读取的版本标记不足以构成防护，须用旧源码实测拒绝且不产生副作用。回退须停服后完整物化、验证及备份，经批准操作，不能热补丁运行实例。
 
 审批后的 pilot 先用合成库：逐轮 eager/lazy 对照所有逻辑边及相关材料/排名/证据规范字节，覆盖 seed 与已有行、后来新增、不支持词对、撤下/合法新来源、no-hit/replay/跨模式、各边不同 checkpoint、百万 gap、浮点边界、固定点和异常旧值；验证事务失败/并发/读快照及旧事件不可变。再测固定邻域 1000/3000 marks、增长枢纽、冷/暖/首次 seed 的 p50/p95/max 和完整本地冻结。完整旧格式重建也须与 eager 全量字节一致。Pilot 通过前不迁移真实库、不扩大任务，不宣称最坏情况或任意规模满足 5 秒。

@@ -1,6 +1,6 @@
 # 0.12.6 密集查询相关边路径
 
-本机最终958项、20跳过、0失败/错误及隔离wheel通过；源码/editable均0.12.6。静态相关边材料化和统计按 direct-hit incident 范围，全部拒绝邻居、排序/去重/出处证据与旧版逐字节对照，旧完整事件重放保持原JSON/hash。确切曲线、源码/CI和保留证据见 [CHECKPOINT.md](CHECKPOINT.md)。
+本机最终958项、20跳过、0失败/错误及隔离wheel通过；源码/editable均0.12.6。运行源码db04135已推main，精确CI37092790001的Windows/Ubuntu、unittest/CLI check均success，仅公共元数据，不读日志/推断远端测试数。静态相关边材料化和统计按 direct-hit incident 范围，全部拒绝邻居、排序/去重/出处证据与旧版逐字节对照，旧完整事件重放保持原JSON/hash。确切曲线、源码/CI和保留证据见 [CHECKPOINT.md](CHECKPOINT.md)。
 
 旧统计表达式占该次selection profile的90.4%，一跳/top-k未全展开；全链路另有全边复制、全shadow及审计编码/冻结热点。固定相关边415条，1000/3000 marks 新局部材料化/selection共约5.63/9.28毫秒；完整read/freeze仍2.057/11.217秒，3000规模未通过5秒目标，不夸大为全链路复杂度已修复。
 
