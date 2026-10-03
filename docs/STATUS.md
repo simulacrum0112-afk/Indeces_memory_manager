@@ -4,9 +4,13 @@
 
 第二轮远端 [CI 37077154547](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37077154547) Ubuntu成功，Windows失败；[CI_0125_SECOND.json](../verification/CI_0125_SECOND.json)保存失败测试的公开诊断摘要。10项错误由新增中文归档通知在cp1252输出中编码失败；PDF的3项错误和1项恢复断言失败由TEMP的8.3短名与resolve后的长名不等造成。修复编码通知和先安全校验、再规范化的路径比较，并补短名不能隐藏OneDrive名称或同步根的回归。未保存原始job日志，失败证据不删除。
 
-平台修正后最终全套939项、0失败/错误、20跳过，隔离安装包通过，源码/editable元数据0.12.5；真实Windows短名回归执行通过，另有ANSI重定向回归。最终证据链接与真实实例加载限制见 [CHECKPOINT.md](CHECKPOINT.md)。
+平台修正及禁发升级保护后最终全套945项、0失败/错误、20跳过，隔离安装包通过，源码/editable元数据0.12.5；真实Windows短名回归执行通过，另有ANSI重定向回归。最终证据链接与真实实例加载限制见 [CHECKPOINT.md](CHECKPOINT.md)。
 
 第三轮 [CI 37078394744](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37078394744) Ubuntu成功，Windows没有error但有6项路径预期断言失败，见 [CI_0125_THIRD.json](../verification/CI_0125_THIRD.json)：fixture保留TEMP短名，生产路径已正确返回同一目录的canonical长名。在合成真实8.3 TEMP准确复现同六项失败后，测试预期随该合同规范化；整组25项在短名与正常TEMP分别通过（6项权限跳过）。生产保护规则未改，前述ANSI/PDF/recovery失败在此轮已消失。
+
+路径合同验收 [`2789ec5`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/2789ec51800f26f13a98a68ff37ac7ccfbfeb77c) 的 [CI 37078974247](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37078974247) 两平台与unittest/CLI check成功，见 [CI_0125_PATH_SUCCESS.json](../verification/CI_0125_PATH_SUCCESS.json)（此轮只读公共元数据，未读日志/推断测试数量）。后续升级兼容复核发现：早期施工实例已有binding但缺quarantine时，同root会跳过禁发表补迁移；普通撤下/替换也必须在覆盖旧错误前持久保存未知用量digest。该补修复及最终验证另行记录，不以本次路径CI代替。
+
+兼容修复已补齐按范围的v2迁移标记和迁移前备份、同根补禁发、撤下/替换同事务保留旧digest，以及retry对禁发记录和明确unknown错误的门禁。历史错误已被覆盖且用量无法确认的旧归档以 `legacy_archived_usage_unverified` 保守持有，不冒称确认发生未知请求；当前完整版本、原文/PDF/chunks与累计计量保持。ANSI诊断仅对编码失败转义，其余I/O错误传播。127项知识/recovery/PDF/root绑定/audit定向全通过，0跳过、0失败/错误；独立只读审查通过，最终945项/wheel与后续精确提交CI见CHECKPOINT。
 
 修复配置任意知识目录、安全错误后继续入库、根路径链接先解析和旧来源缺少根身份四个已证实缺口。OneDrive与链接在副作用前拒绝，旧来源迁移先备份与完整byte digest核验，来源撤下不删除历史或重置未知usage。普通PDF文件缺失的具体原因尚未证实；已审计主要施工命令成功断言项目路径，没有被报告外目录的移动/删除证据。详见 [PATH_BOUNDARY.md](PATH_BOUNDARY.md)。本轮不启停服务、不对活动真实数据库应用迁移。准确测试/推送状态见 [CHECKPOINT.md](CHECKPOINT.md)。
 

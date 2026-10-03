@@ -132,6 +132,188 @@ class KnowledgeRootBindingTests(unittest.IsolatedAsyncioTestCase):
                                         (self.service.scope, source_id)).fetchone()[0]
                    for table in ("knowledge_desired", "knowledge_published", "knowledge_migration_hold"))
 
+    def forget_quarantine_migration(self, *, drop_table=False):
+        with self.store.db:
+            if drop_table:
+                self.store.db.execute("DROP TABLE knowledge_root_quarantine")
+            self.store.db.execute("DELETE FROM knowledge_schema_meta WHERE key LIKE 'root_quarantine_backfill_%'")
+
+    def emulate_old_archive(self, source_id, reason):
+        """Synthetic old snapshots lost error/usage flags while keeping bytes."""
+        with self.store.db:
+            self.store.db.execute("BEGIN IMMEDIATE")
+            self.graph.deactivate_source(self.service.scope, source_id, commit=False)
+            self.store.db.execute("UPDATE knowledge_versions SET status='superseded',error=? WHERE source_id=?", (reason, source_id))
+            for table in ("knowledge_desired", "knowledge_published", "knowledge_migration_hold"):
+                self.store.db.execute(f"DELETE FROM {table} WHERE scope=? AND source_id=?", (self.service.scope, source_id))
+            self.store.db.execute("UPDATE knowledge_file_audit SET source_id=NULL,remote_usage_unknown=NULL WHERE source_id=?", (source_id,))
+
+    async def test_matching_root_missing_quarantine_backs_up_and_blocks_unknown_returning_bytes(self):
+        path, source = await self.ready()
+        raw = path.read_bytes()
+        with self.store.db:
+            self.store.db.execute("UPDATE knowledge_versions SET status='failed',error='model_deadline' WHERE source_id=?", (source,))
+            self.store.db.execute("UPDATE knowledge_file_audit SET remote_usage_unknown=1 WHERE source_id=?", (source,))
+        before = self.version(source)
+        calls = len(self.adapter.calls)
+        path.unlink()
+        self.forget_quarantine_migration(drop_table=True)
+        restarted = self.make_service()
+        backups = list((self.config.state_dir / "migration_backups").glob("memory.before-root-binding-*.sqlite3"))
+        self.assertEqual(len(backups), 1)
+        with closing(sqlite3.connect(backups[0])) as backup:
+            self.assertIsNone(backup.execute("SELECT 1 FROM sqlite_master WHERE name='knowledge_root_quarantine'").fetchone())
+            self.assertIsNotNone(backup.execute("SELECT root FROM knowledge_root_bindings WHERE scope=?", (restarted.scope,)).fetchone())
+            self.assertEqual(backup.execute("SELECT error FROM knowledge_versions WHERE source_id=?", (source,)).fetchone()[0], "model_deadline")
+        self.assertEqual(self.version(source), before)
+        output = io.BytesIO()
+        stream = io.TextIOWrapper(output, encoding="cp1252", errors="strict")
+        with redirect_stdout(stream):
+            restarted.scan_once()
+            path.write_bytes(raw)
+            restarted.scan_once()
+        stream.flush()
+        self.assertFalse(await restarted.label_next())
+        self.assertEqual(len(self.adapter.calls), calls)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM knowledge_versions").fetchone()[0], 1)
+        self.assertEqual(self.store.db.execute("SELECT reason FROM knowledge_root_quarantine WHERE source_id=?", (source,)).fetchone()[0], "model_deadline")
+        for field in ("raw_text", "digest", "input_tokens", "output_tokens", "elapsed_seconds"):
+            self.assertEqual(self.version(source)[field], before[field])
+        self.make_service()
+        self.assertEqual(len(list((self.config.state_dir / "migration_backups").glob("memory.before-root-binding-*.sqlite3"))), 1)
+
+    async def test_missing_marker_backfills_uncertain_archives_even_when_table_exists(self):
+        archived = []
+        for index, reason in enumerate(("knowledge_root_unverified", "source_file_removed", "newer_file_snapshot")):
+            path, source = await self.ready(name=f"archive{index}.md")
+            raw = path.read_bytes()
+            self.emulate_old_archive(source, reason)
+            archived.append((path, source, raw, self.version(source)))
+            path.unlink()
+        _, current = await self.ready(name="current.md")
+        current_before = self.version(current)
+        self.forget_quarantine_migration()
+        calls = len(self.adapter.calls)
+        restarted = self.make_service()
+        self.assertEqual(self.version(current), current_before)
+        self.assertEqual((self.active(current), self.pointers(current)), (1, 2))
+        for path, source, raw, before in archived:
+            self.assertEqual(self.version(source), before)
+            self.assertEqual(self.store.db.execute("SELECT reason FROM knowledge_root_quarantine WHERE source_id=?", (source,)).fetchone()[0], "legacy_archived_usage_unverified")
+            path.write_bytes(raw)
+        restarted.scan_once()
+        self.assertFalse(await restarted.label_next())
+        self.assertEqual(len(self.adapter.calls), calls)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM knowledge_versions").fetchone()[0], 4)
+        for path, source, _, _ in archived:
+            self.assertEqual(self.store.db.execute("SELECT error FROM knowledge_file_audit WHERE scope=? AND path=?", (restarted.scope, path.name)).fetchone()[0], "knowledge_root_quarantined_usage_unverified")
+        self.assertIsNone(self.store.db.execute("SELECT 1 FROM knowledge_root_quarantine WHERE source_id=?", (current,)).fetchone())
+        result = restarted.retry_failed("current.md")
+        self.assertEqual((result["queued"], result["blocked"]), ([], []))
+        self.assertEqual(result["unchanged"][0]["status"], "ready")
+        archived[0][0].write_bytes(b"alpha explicitly changed new bytes")
+        restarted.scan_once()
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM knowledge_versions").fetchone()[0], 5)
+
+    async def test_unknown_scope_backfill_requires_current_guild_ownership_evidence(self):
+        path, source = await self.ready()
+        raw = path.read_bytes()
+        with self.store.db:
+            self.store.db.execute("BEGIN IMMEDIATE")
+            self.graph.deactivate_source(self.service.scope, source, commit=False)
+            self.store.db.execute("UPDATE knowledge_versions SET scope='',status='failed',error='legacy_scope_unknown' WHERE source_id=?", (source,))
+            for table in ("knowledge_desired", "knowledge_published"):
+                self.store.db.execute(f"DELETE FROM {table} WHERE source_id=?", (source,))
+            self.store.db.execute("INSERT INTO knowledge_versions(source_id,path,digest,raw_text,status,created_at,error,scope) VALUES(?,?,?,?,?,?,?,?)",
+                                  ("kb:foreign-unknown", "foreign.md", hashlib.sha256(b"foreign").hexdigest(), "foreign", "failed", 1, "legacy_scope_unknown", ""))
+            self.graph.add("20:knowledge", "kb:foreign-unknown", "knowledge:foreign.md",
+                           [{"text": "foreign", "quote": "foreign", "marks": ["foreign"]}], 1, commit=False)
+        before = self.version(source)
+        path.unlink()
+        self.forget_quarantine_migration(drop_table=True)
+        restarted = self.make_service()
+        self.assertEqual(self.version(source), before)
+        self.assertEqual(self.store.db.execute("SELECT reason FROM knowledge_root_quarantine WHERE scope=? AND source_id=?", (restarted.scope, source)).fetchone()[0], "legacy_scope_unknown")
+        self.assertIsNone(self.store.db.execute("SELECT 1 FROM knowledge_root_quarantine WHERE scope=? AND source_id='kb:foreign-unknown'", (restarted.scope,)).fetchone())
+        path.write_bytes(raw)
+        restarted.scan_once()
+        self.assertFalse(await restarted.label_next())
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM knowledge_versions").fetchone()[0], 2)
+
+    async def test_ordinary_delete_persists_unknown_digest_with_strict_ansi_output(self):
+        path, source = await self.ready(name="材料.md")
+        raw, before = path.read_bytes(), self.version(source)
+        with self.store.db:
+            self.store.db.execute("UPDATE knowledge_versions SET status='failed',error='model_deadline' WHERE source_id=?", (source,))
+            self.store.db.execute("UPDATE knowledge_file_audit SET remote_usage_unknown=1 WHERE source_id=?", (source,))
+        path.unlink()
+        output = io.BytesIO()
+        stream = io.TextIOWrapper(output, encoding="cp1252", errors="strict")
+        with redirect_stdout(stream):
+            self.service.scan_once()
+            path.write_bytes(raw)
+            self.service.scan_once()
+        stream.flush()
+        self.assertIn(b"\\u77e5", output.getvalue())
+        self.assertIn(b"\\u6750", output.getvalue())
+        self.assertEqual(self.store.db.execute("SELECT reason FROM knowledge_root_quarantine WHERE source_id=?", (source,)).fetchone()[0], "model_deadline")
+        self.assertFalse(await self.service.label_next())
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM knowledge_versions").fetchone()[0], 1)
+        self.assertEqual(path.read_bytes(), raw)
+        for field in ("input_tokens", "output_tokens", "elapsed_seconds"):
+            self.assertEqual(self.version(source)[field], before[field])
+
+    async def test_ordinary_supersede_keeps_unknown_digest_without_tainting_new_ready_source(self):
+        path = self.config.knowledge_dir / "材料.md"
+        raw = b"alpha unknown request evidence"
+        path.write_bytes(raw)
+        self.service.scan_once()
+        source = self.store.db.execute("SELECT source_id FROM knowledge_desired WHERE path=?", (path.name,)).fetchone()[0]
+        with self.store.db:
+            self.store.db.execute("UPDATE knowledge_versions SET status='failed',error='model_deadline',input_tokens=17,output_tokens=3,elapsed_seconds=2 WHERE source_id=?", (source,))
+            self.store.db.execute("UPDATE knowledge_file_audit SET remote_usage_unknown=1 WHERE source_id=?", (source,))
+        changed = b"alpha legitimate changed evidence"
+        output = io.BytesIO()
+        stream = io.TextIOWrapper(output, encoding="cp1252", errors="strict")
+        with redirect_stdout(stream):
+            path.write_bytes(changed)
+            self.service.scan_once()
+            self.assertTrue(await self.service.label_next())
+            current = self.store.db.execute("SELECT source_id FROM knowledge_published WHERE path=?", (path.name,)).fetchone()[0]
+            path.write_bytes(raw)
+            self.service.scan_once()
+        self.assertNotEqual(current, source)
+        self.assertEqual((self.active(current), self.pointers(current)), (1, 2))
+        self.assertEqual(self.store.db.execute("SELECT reason FROM knowledge_root_quarantine WHERE source_id=?", (source,)).fetchone()[0], "model_deadline")
+        self.assertEqual((self.version(source)["input_tokens"], self.version(source)["output_tokens"], self.version(source)["elapsed_seconds"]), (17, 3, 2))
+        self.assertFalse(await self.service.label_next())
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM knowledge_versions").fetchone()[0], 2)
+        path.write_bytes(changed)
+        self.service.scan_once()
+        result = self.service.retry_failed(path.name)
+        self.assertEqual(result["blocked"], [])
+        self.assertEqual(result["unchanged"][0]["status"], "ready")
+
+    async def test_retry_cannot_override_version_error_or_persistent_quarantine_with_audit_zero(self):
+        path = self.config.knowledge_dir / "failed.md"
+        path.write_bytes(b"alpha unknown request evidence")
+        self.service.scan_once()
+        source = self.store.db.execute("SELECT source_id FROM knowledge_desired WHERE path=?", (path.name,)).fetchone()[0]
+        with self.store.db:
+            self.store.db.execute("UPDATE knowledge_versions SET status='failed',error='interrupted_unknown_usage' WHERE source_id=?", (source,))
+            self.store.db.execute("UPDATE knowledge_file_audit SET remote_usage_unknown=0 WHERE source_id=?", (source,))
+        result = self.service.retry_failed(path.name)
+        self.assertEqual(result["blocked"][0]["code"], "knowledge_retry_unknown_usage")
+        self.forget_quarantine_migration()
+        restarted = self.make_service()
+        with self.store.db:
+            self.store.db.execute("UPDATE knowledge_versions SET error='invalid_labels' WHERE source_id=?", (source,))
+            self.store.db.execute("UPDATE knowledge_file_audit SET remote_usage_unknown=0 WHERE source_id=?", (source,))
+        result = restarted.retry_failed(path.name)
+        self.assertEqual(result["queued"], [])
+        self.assertEqual(result["blocked"][0]["code"], "knowledge_retry_unknown_usage")
+        self.assertEqual(self.adapter.calls, [])
+
     async def test_unbound_matching_source_keeps_publication_labels_and_accounting(self):
         path, source_id = await self.ready()
         before = self.version(source_id)

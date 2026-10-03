@@ -22,6 +22,14 @@ from .runtime import label_data
 from .path_policy import validate_knowledge_root, validate_managed_path, PathPolicyError
 
 
+def _console_notice(message):
+    """Keep strict ANSI redirection usable; propagate ordinary I/O failures."""
+    try:
+        print(message, flush=True)
+    except UnicodeEncodeError:
+        print(message.encode("ascii", "backslashreplace").decode("ascii"), flush=True)
+
+
 class KnowledgeService:
     def __init__(self, config, store, graph, adapter, scratch):
         self.config, self.store, self.graph, self.adapter, self.scratch = config, store, graph, adapter, scratch
@@ -37,6 +45,8 @@ class KnowledgeService:
         self._closing = False
         self.background_error = None
         # Back up before even additive schema/legacy migrations alter provenance.
+        previous_tables = {row[0] for row in store.db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        missing_quarantine = "knowledge_root_quarantine" not in previous_tables
         needs_root_backup = self._root_binding_needs_backup()
         audit_backup = self._backup_audit_migration()
         if needs_root_backup and audit_backup is None:
@@ -84,6 +94,7 @@ class KnowledgeService:
         if "scope" not in {r[1] for r in store.db.execute("PRAGMA table_info(knowledge_versions)")}:
             store.db.execute("ALTER TABLE knowledge_versions ADD COLUMN scope TEXT NOT NULL DEFAULT ''")
         self._migrate_legacy()
+        self._backfill_root_quarantine(conservative_archives=missing_quarantine)
         self._bind_source_root()
         # An interrupted HTTP request has unknown usage; do not retry it silently.
         with store.db:
@@ -199,22 +210,88 @@ class KnowledgeService:
                                archived_source_ids=sorted(retired), archived_records=archived_records,
                                reason=reason, historical_origin_verified=False, automatically_replayed=False)
             if retired:
-                notice = f"[{self.config.name}] 知识根目录隔离：{len(retired)} 个无法沿用的来源已归档；原文、PDF、标词与累计用量保留。"
-                try:
-                    print(notice, flush=True)
-                except UnicodeEncodeError:
-                    # Redirected Windows output can use an ANSI encoding. Keep
-                    # the completed migration usable without hiding I/O errors.
-                    print(notice.encode("ascii", "backslashreplace").decode("ascii"), flush=True)
+                _console_notice(f"[{self.config.name}] 知识根目录隔离：{len(retired)} 个无法沿用的来源已归档；原文、PDF、标词与累计用量保留。")
 
     def _root_binding_needs_backup(self):
         tables = {row[0] for row in self.store.db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if "knowledge_versions" not in tables:
             return False
-        if "knowledge_root_bindings" not in tables:
+        if not {"knowledge_root_bindings", "knowledge_root_quarantine", "knowledge_schema_meta"} <= tables:
+            return True
+        if not self.store.db.execute("SELECT 1 FROM knowledge_schema_meta WHERE key=?",
+                                     (self._quarantine_migration_key(),)).fetchone():
             return True
         row = self.store.db.execute("SELECT root FROM knowledge_root_bindings WHERE scope=?", (self.scope,)).fetchone()
         return row is None or row[0] != self._root_identity(self.root)
+
+    def _quarantine_migration_key(self):
+        return "root_quarantine_backfill_v2:" + self.scope
+
+    def _quarantine_version(self, source_id, *, conservative_archives=False, hold=None):
+        """Preserve no-replay evidence before a head/error can be overwritten.
+
+        Audit flags belong to one exact version, never merely the same path.
+        Early archives without a ledger lost their original error; their
+        digest stays blocked conservatively instead of gaining fresh usage.
+        Callers own the surrounding transaction.
+        """
+        version = self.store.db.execute("""SELECT v.source_id,v.path,v.digest,v.scope,v.status,v.error,
+            a.source_id AS audit_source_id,a.remote_usage_unknown FROM knowledge_versions v LEFT JOIN knowledge_file_audit a
+            ON a.scope=? AND a.path=v.path AND a.source_id=v.source_id WHERE v.source_id=?""",
+            (self.scope, source_id)).fetchone()
+        reason = None
+        if version is not None:
+            if version["scope"] != self.scope and hold is None:
+                if version["scope"] or (version["audit_source_id"] is None and not self.store.db.execute("""
+                    SELECT source_id FROM knowledge_desired WHERE scope=? AND source_id=?
+                    UNION SELECT source_id FROM knowledge_published WHERE scope=? AND source_id=?
+                    UNION SELECT source_id FROM memory_records WHERE scope=? AND source_id=?
+                    UNION SELECT source_id FROM knowledge_migration_hold WHERE scope=? AND source_id=?""",
+                    (self.scope, source_id) * 4).fetchone()):
+                    return None  # Unknown ownership is not assigned to a Guild.
+            if (version["remote_usage_unknown"] == 1 or version["status"] == "labelling"
+                    or version["error"] in {"interrupted_unknown_usage", "legacy_scope_unknown", "legacy_incomplete_request"}):
+                reason = version["error"] or "interrupted_unknown_usage"
+            elif (conservative_archives and version["status"] == "superseded"
+                    and version["error"] != "completed_replacement"):
+                # Completed replacements came from a fully published source.
+                # Other old archives may have erased an unknown request error.
+                reason = "legacy_archived_usage_unverified"
+            if reason is not None:
+                self.store.db.execute("INSERT OR IGNORE INTO knowledge_root_quarantine VALUES(?,?,?,?,?)",
+                                      (self.scope, version["path"], version["digest"], source_id, reason))
+        if hold is not None:
+            hold_reason = reason or (version["error"] if version is not None else None) or "legacy_scope_unknown"
+            self.store.db.execute("INSERT OR IGNORE INTO knowledge_root_quarantine VALUES(?,?,?,?,?)",
+                                  (self.scope, hold["path"], hold["digest"], source_id, hold_reason))
+        return reason
+
+    def _backfill_root_quarantine(self, *, conservative_archives):
+        """Migrate once per Guild even when its recorded root already matches."""
+        marker = self._quarantine_migration_key()
+        migrated = self.store.db.execute("SELECT 1 FROM knowledge_schema_meta WHERE key=?", (marker,)).fetchone()
+        if not conservative_archives and migrated:
+            return
+        conservative_archives = conservative_archives or not migrated
+        holds = {row["source_id"]: row for row in self.store.db.execute(
+            "SELECT source_id,path,digest FROM knowledge_migration_hold WHERE scope=?", (self.scope,))}
+        sources = {row[0] for row in self.store.db.execute(
+            "SELECT source_id FROM knowledge_versions WHERE scope=? OR scope=''", (self.scope,))} | set(holds)
+        conservative = []
+        with self.store.db:
+            self.store.db.execute("BEGIN IMMEDIATE")
+            before = self.store.db.execute("SELECT COUNT(*) FROM knowledge_root_quarantine WHERE scope=?", (self.scope,)).fetchone()[0]
+            for source_id in sorted(sources):
+                reason = self._quarantine_version(source_id, conservative_archives=conservative_archives,
+                                                   hold=holds.get(source_id))
+                if reason == "legacy_archived_usage_unverified":
+                    conservative.append(source_id)
+            self.store.db.execute("INSERT INTO knowledge_schema_meta VALUES(?, '1') ON CONFLICT(key) DO UPDATE SET value='1'", (marker,))
+            after = self.store.db.execute("SELECT COUNT(*) FROM knowledge_root_quarantine WHERE scope=?", (self.scope,)).fetchone()[0]
+        if after != before:
+            self.scratch.write("knowledge_root_quarantine_migrated", scope=self.scope,
+                               added_digests=after - before, conservative_source_ids=conservative,
+                               historical_usage_verified=False, automatically_replayed=False)
 
     def _backup_audit_migration(self):
         """Back up an existing knowledge database before the additive migration."""
@@ -311,7 +388,7 @@ class KnowledgeService:
         for path, source_id, reason in notices:
             self.scratch.write("knowledge_migration_hold", path=path, source_id=source_id, reason=reason,
                                automatically_replayed=False)
-            print(f"[{self.config.name}] 知识迁移需更新文件内容：{path} | version={source_id} | {reason}；旧请求不会自动重发。", flush=True)
+            _console_notice(f"[{self.config.name}] 知识迁移需更新文件内容：{path} | version={source_id} | {reason}；旧请求不会自动重发。")
 
     def _snapshot_file(self, path):
         self._check_root()
@@ -411,6 +488,7 @@ class KnowledgeService:
     def _supersede_desired(self, path):
         row = self.store.db.execute("SELECT source_id FROM knowledge_desired WHERE scope=? AND path=?", (self.scope, path)).fetchone()
         if row and row[0] != self._published(path):
+            self._quarantine_version(row[0])
             self.store.db.execute("UPDATE knowledge_versions SET status='superseded',error='newer_file_snapshot' WHERE source_id=? AND scope=?", (row[0], self.scope))
 
     def _retire(self, path, reason):
@@ -424,13 +502,16 @@ class KnowledgeService:
         with self.store.db:
             self.store.db.execute("BEGIN IMMEDIATE")
             for row in rows:
+                self._quarantine_version(row[0])
                 archived += self.graph.deactivate_source(self.scope, row[0], commit=False)
                 self.store.db.execute("UPDATE knowledge_versions SET status='superseded',error=? WHERE source_id=? AND scope=?", (reason, row[0], self.scope))
+            for hold in self.store.db.execute("SELECT source_id,path,digest FROM knowledge_migration_hold WHERE scope=? AND path=?", (self.scope, path)).fetchall():
+                self._quarantine_version(hold["source_id"], hold=hold)
             for table in ("knowledge_desired", "knowledge_published", "knowledge_migration_hold"):
                 self.store.db.execute(f"DELETE FROM {table} WHERE scope=? AND path=?", (self.scope, path))
         self.scratch.write("knowledge_retired", scope=self.scope, path=path, source_ids=[r[0] for r in rows], archived_records=archived, reason=reason)
         self._audit_file(path, state="archived", stage="discovery", error=reason)
-        print(f"[{self.config.name}] 知识来源已撤下：{path} | reason={reason} | archived={archived}；不再用于回复。", flush=True)
+        _console_notice(f"[{self.config.name}] 知识来源已撤下：{path} | reason={reason} | archived={archived}；不再用于回复。")
 
     def _scan_files(self):
         self._check_root()
@@ -505,7 +586,7 @@ class KnowledgeService:
                 self.scratch.write("knowledge_update_rejected", path=relative, code=code, **details)
                 limits = (f"; actual_bytes={details['actual_bytes']}; limit_bytes={details['limit_bytes']}; {details['config_key']}"
                           if details else "")
-                print(f"[{self.config.name}] knowledge rejected: {relative}; {code}{limits}", flush=True)
+                _console_notice(f"[{self.config.name}] knowledge rejected: {relative}; {code}{limits}")
                 self._errors[relative] = code
             return
         if snapshot is None:
@@ -527,11 +608,15 @@ class KnowledgeService:
                                            (self.scope, relative, digest)).fetchone()
         if quarantined is not None:
             # Neither disappearance nor reappearance can reset unknown usage.
+            quarantine_error = ("knowledge_root_quarantined_usage_unverified"
+                                if quarantined[1] == "legacy_archived_usage_unverified"
+                                else "knowledge_root_quarantined_unknown_usage")
             if not self.store.db.execute("""SELECT 1 FROM knowledge_file_audit WHERE scope=? AND path=?
-                    AND source_id=? AND state='archived' AND error='knowledge_root_quarantined_unknown_usage'""",
-                    (self.scope, relative, quarantined[0])).fetchone():
+                    AND source_id=? AND state='archived' AND error=?""",
+                    (self.scope, relative, quarantined[0], quarantine_error)).fetchone():
                 self._audit_file(path, source_id=quarantined[0], state="archived", stage="root_binding",
-                                 error="knowledge_root_quarantined_unknown_usage", remote_usage_unknown=True)
+                                 error=quarantine_error, remote_usage_unknown=True,
+                                 details={"quarantine_reason": quarantined[1]})
             return
         is_pdf = path.suffix.lower() == ".pdf"
         text = "" if is_pdf else content
@@ -660,9 +745,16 @@ class KnowledgeService:
             is_pdf = self.store.db.execute("SELECT metadata_json FROM knowledge_pdf_versions WHERE source_id=?", (version["source_id"],)).fetchone()
             conversion = is_pdf is not None and is_pdf[0] is None
             unknown = version["remote_usage_unknown"]
+            quarantined = self.store.db.execute("SELECT reason FROM knowledge_root_quarantine WHERE scope=? AND path=? AND digest=?",
+                                                 (self.scope, version["path"], version["digest"])).fetchone()
             code = None
             if not self._is_current(version["source_id"]):
                 code = "knowledge_retry_snapshot_changed"
+            elif quarantined is not None:
+                code = ("knowledge_retry_usage_unverified" if quarantined[0] == "legacy_archived_usage_unverified"
+                        else "knowledge_retry_unknown_usage")
+            elif version["error"] in {"interrupted_unknown_usage", "legacy_scope_unknown", "legacy_incomplete_request"}:
+                code = "knowledge_retry_unknown_usage"
             elif not conversion and (unknown == 1 or (not incomplete and unknown is None and version["error"] not in safe_legacy)):
                 code = "knowledge_retry_unknown_usage"
             elif not conversion:
@@ -944,7 +1036,7 @@ class KnowledgeService:
                 code = error.code if isinstance(error, GovernedError) else type(error).__name__
                 if self._errors.get("<scan>") != code:
                     self.scratch.write("knowledge_scan_failed", code=code)
-                    print(f"[{self.config.name}] knowledge scan failed: {code}", flush=True)
+                    _console_notice(f"[{self.config.name}] knowledge scan failed: {code}")
                     self._errors["<scan>"] = code
             await asyncio.sleep(self.config.knowledge.poll_seconds)
 
@@ -970,12 +1062,12 @@ class KnowledgeService:
         self.background_error = code
         # Keep replies on the last complete snapshot, but stop accepting a
         # growing update queue with a dead label worker. Never replay its call.
-        print(f"[{self.config.name}] 知识库后台已暂停：{code}；更新与标词无法继续，已发布知识版本保留。请检查本地文件/日志后停机重启。", flush=True)
+        _console_notice(f"[{self.config.name}] 知识库后台已暂停：{code}；更新与标词无法继续，已发布知识版本保留。请检查本地文件/日志后停机重启。")
         try:
             self.scratch.write("knowledge_background_stopped", scope=self.scope, task=task.get_name(),
                                code=code, automatically_replayed=False)
         except Exception:
-            print(f"[{self.config.name}] 后台故障回执无法写入 scratch，请检查日志目录权限。", flush=True)
+            _console_notice(f"[{self.config.name}] 后台故障回执无法写入 scratch，请检查日志目录权限。")
         for pending in self._tasks:
             if pending is not task and not pending.done():
                 pending.cancel()
