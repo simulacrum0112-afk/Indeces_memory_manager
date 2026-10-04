@@ -8,7 +8,11 @@
 
 原8道金标准逐题实际模型试算均有相关正文/否定证据进入上下文；实际引用材料与模型输入一致，无悬空[M]。不是所有旧公式/图注都进前三，较完整正文替代了它们；逐题私有排名/文字仅在本机scratch并向用户报告，不进入公开Git。“前”用原冻结记录，“后”也包含授权恢复的文献，频率可能略变。此为有限金标准与独立模型验收，不代表所有未来召回、PDF语义/版面、真实Discord或既有Console加载验收。当前不再把降低reasoning作为修复方案。
 
-最终本机 [OFFLINE_0150_20261004T213036033330Z.json](../verification/OFFLINE_0150_20261004T213036033330Z.json)：1061项、20跳过、0失败/错误，CLI/Console/依赖检查通过；[WHEEL_0150.json](../verification/WHEEL_0150.json) 隔离非editable安装、维护入口及配置/静态检查通过。公开报告只含合成测试，真实证据仍只留本机scratch。此前全套1058项揭示旧重放路径读取全payload的两项回归，已用小型策略/上下文事件头修复；随后1058、1059及最终1061均通过，初始失败报告保留，不代替最终结果。
+最终本机 [OFFLINE_0150_20261004T213036033330Z.json](../verification/OFFLINE_0150_20261004T213036033330Z.json)：1061项、20跳过、0失败/错误，CLI/Console/依赖检查通过；[WHEEL_0150.json](../verification/WHEEL_0150.json) 隔离非editable安装、维护入口及配置/静态检查通过。公开报告只含合成测试，真实证据仍只留本机scratch。
+
+运行实现提交 **6538d980d2a201ace0a8bfcf06274affc00abbe6** 已推main。精确提交 [CI 37236537569](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37236537569) 整体、Windows/Ubuntu job及unittest/CLI check步骤均success；[CI_0150.json](../verification/CI_0150.json) 仅公共run/job/step元数据，未读远端日志、不推断远端测试数。发布前 [REPOSITORY_AUDIT_0150_RELEASE.json](../verification/REPOSITORY_AUDIT_0150_RELEASE.json) 核验main可达历史及精确暂存文件，有限规则未知发现和禁止路径均零。交付文档补扫见 [REPOSITORY_AUDIT_0150_DELIVERY.json](../verification/REPOSITORY_AUDIT_0150_DELIVERY.json)。这些检查不证明既有Console已加载；需用户重开Console后显式start。
+
+此前全套1058项揭示旧重放路径读取全payload的两项回归，已用小型策略/上下文事件头修复；随后1058、1059及最终1061均通过，初始失败报告保留，不代替最终结果。
 
 
 当前源码 **0.14.1**：按用户给定记录只读审计，故障发生在摘要生成等待，输入计量已完成、无模型槽等待，生成响应头/body及usage尚未返回即达到原阶段时限。因此没有可还原的生成raw output，旧用量仍为未知。两次摘要请求使用同一checkpoint及相同输入；失败保留原历史且不推进coverage，下一次聊天仍需同一摘要。客户端记录不能区分供应商生成、远端排队与网络耗时。诊断、参数差异及适用边界见 [SUMMARY_TIMEOUT.md](SUMMARY_TIMEOUT.md)。
