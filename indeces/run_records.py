@@ -255,7 +255,7 @@ def _validate_model_projection(payload, material, candidate, selection):
         "weight_basis": selection.get("weight_basis", "dynamic_or_static"),
         "static_score": round(candidate["static_score"], 6),
         "dynamic_score": candidate["dynamic_score"],
-        "ranking_score": round(candidate["effective_score"], 6),
+        "ranking_score": round(candidate.get('relevance_score', candidate["effective_score"]), 6),
     }
     if "pdf_page_numbers" in material:
         expected["pdf_page_numbers"] = material["pdf_page_numbers"]
@@ -751,10 +751,51 @@ def verify_runs(paths: list[Path]):
             status = "invalid"
             issues.append({"trace_id": trace, "reason": str(error) if type(error) is ValueError else "call schema invalid"})
         call_reports.append({"call_id": call_id, "trace_id": trace, "status": status})
-    reports = []
+    reports, diagnostics = [], []
     for trace, events in turns.items():
         starts = [f for e, f in events if e == "turn_start"]
         if not starts:
+            diagnostic_starts = [f for e, f in events if e in ('diagnostic_summary_trial_start', 'diagnostic_trial_start')]
+            if diagnostic_starts:
+                report = {'trace_id': trace, 'status': 'invalid'}
+                diagnostics.append(report)
+                try:
+                    endings = [f for e, f in events if e in ('diagnostic_summary_trial_end', 'diagnostic_trial_end')]
+                    _require(len(diagnostic_starts) == len(endings) == 1, 'diagnostic boundaries missing or duplicated')
+                    start, end = diagnostic_starts[0], endings[0]
+                    _require(start['operator_approved'] is True and start['automatic_retries'] == 0
+                             and start['checkpoint_update'] is False and end['checkpoint_updated'] is False,
+                             'diagnostic authorization or checkpoint contract mismatch')
+                    _require(not any(e in ('checkpoint_saved', 'answer_delivered', 'delivery_start', 'turn_end') for e, _ in events), 'diagnostic cannot claim chat delivery or checkpoint')
+                    associated = [c for c in call_reports if c['trace_id'] == trace]
+                    _require(len(associated) == 1 and associated[0]['status'] == 'complete'
+                             and end['status'] == 'completed', 'diagnostic call incomplete or invalid')
+                    if start.get('kind', 'summary') == 'summary':
+                        _require(all(f.get('stage') in (None, 'summary') for e, f in events), 'diagnostic stage mismatch')
+                        call = next(f for e, f in events if e == 'call_end')
+                        _require(end['input_tokens'] == call['result']['input_tokens']
+                                 and end['output_tokens'] == call['result']['output_tokens'], 'diagnostic usage mismatch')
+                    elif start['kind'] == 'retrieval_reply':
+                        _validate_partial_turn(events, {'warnings': []})
+                        retrieved = next(f['record'] for e, f in events if e == 'retrieval_record')
+                        context = next(f['messages'] for e, f in events if e == 'reply_context')
+                        request = next(f['payload'] for e, f in events if e == 'http_request' and f['path'] == '/responses')
+                        _require(request['input'] == context, 'diagnostic actual model context mismatch')
+                        generated = next(f for e, f in events if e == 'answer_generated')
+                        call = next(f for e, f in events if e == 'call_end')
+                        _require(generated['model_result'] == call['result']
+                                 and generated['record']['text'] == call['result']['text'], 'diagnostic generated text mismatch')
+                        context_fields = next(f for e, f in events if e == 'reply_context')
+                        _require(request['instructions'] == context_fields['instructions'], 'diagnostic instructions mismatch')
+                        _require(end['input_tokens'] == call['result']['input_tokens']
+                                 and end['output_tokens'] == call['result']['output_tokens'], 'diagnostic reply usage mismatch')
+                        validate_answer(generated['record'], retrieved)
+                    else:
+                        raise ValueError('unknown diagnostic kind')
+                    report['status'] = 'complete'
+                except (ValueError, KeyError, TypeError, IndexError, AttributeError, StopIteration) as error:
+                    issues.append({'trace_id': trace, 'reason': str(error) if type(error) is ValueError else 'diagnostic schema invalid'})
+                continue
             # Passive label traces do not have conversation stages.
             is_turn = any(e in {"memory_observation", "retrieval_record", "knowledge_retrieved", "reply_context",
                                  "bot_reply_decision", "answer_generated", "delivery_start", "answer_delivered", "turn_end"}
@@ -883,7 +924,8 @@ def verify_runs(paths: list[Path]):
             report["status"] = "invalid"
             # Fixed diagnostic messages; never echo private source/reply text.
             issues.append({"trace_id": trace, "reason": str(error) if type(error) is ValueError else "record schema invalid"})
-    return {"turns": reports, "counts": {s: sum(r["status"] == s for r in reports)
+    return {"turns": reports, 'diagnostics': diagnostics,
+            'diagnostic_counts': {s: sum(r['status'] == s for r in diagnostics) for s in ('complete', 'invalid')}, "counts": {s: sum(r["status"] == s for r in reports)
             for s in ("complete", "skipped", "failed", "incomplete", "invalid", "legacy", "retention_partial")}, "issues": issues,
             "calls": call_reports, "call_counts": {s: sum(c["status"] == s for c in call_reports)
             for s in ("complete", "failed", "incomplete", "invalid", "retention_partial")}, "retention_checkpoints": checkpoints}
@@ -939,8 +981,29 @@ def validate_graph_audit(audit, retrieval=None):
     if audit.get("original_event", {}).get("ranking_mode") is not None:
         _require(audit["original_event"]["ranking_mode"] == ranking_mode, "replayed graph ranking mode mismatch")
     hits = audit["match"]["direct_hits"]
-    _require(hits == audit["match"]["literal_matches"][:4], "direct hit limit mismatch")
-    _require(selection["limits"] == {"direct_marks": 4, "neighbors_per_hit": 5, "expanded_marks": 2,
+    concept = selection.get('concept_policy')
+    direct_limit = 64 if concept else 4
+    if concept:
+        from .relevance import plan, idf
+        _require(concept['policy'] == 'concept_v1' and ranking_mode == 'static', 'unknown concept policy')
+        from .relevance import normalize
+        expected_plan = plan(audit['request']['query'], audit['request'].get('context_query', ''))
+        expected_plan['terms'] = [t for t in expected_plan['terms'] if t not in {normalize(m) for m in audit['match']['excluded_self_marks']}]
+        _require(concept['query_plan'] == expected_plan, 'concept query plan mismatch')
+        _require(audit['match']['direct_limit'] == direct_limit, 'concept direct limit mismatch')
+        _require(set(concept['mark_weights']) == set(hits), 'concept weights mismatch')
+        _require(all(type(v) is int and 0 < v <= selection['active_record_count'] for counts in (concept['mark_counts'], concept['term_counts']) for v in counts.values()), 'concept frequency invalid')
+        _require(concept['term_weights'] == {t: round(idf(selection['active_record_count'], count), 6)
+                 for t, count in concept['term_counts'].items()}, 'body idf mismatch')
+        _require(len(concept['lexical_ids']) <= 128 and len(set(concept['lexical_ids'])) == len(concept['lexical_ids']), 'body candidate limit invalid')
+        from .relevance import contains
+        weights = {m: round(idf(selection['active_record_count'], count) *
+                   (1.0 if contains(m, concept['query_plan']['focus']) else 0.15), 6)
+                   for m, count in concept['mark_counts'].items()}
+        _require(concept['mark_weights'] == {m: weights[m] for m in hits}, 'concept idf mismatch')
+        _require(audit['match']['literal_matches'] == sorted(weights, key=lambda m: (-weights[m], m)), 'concept match order mismatch')
+    _require(hits == audit["match"]["literal_matches"][:direct_limit], "direct hit limit mismatch")
+    _require(selection["limits"] == {"direct_marks": direct_limit, "neighbors_per_hit": 5, "expanded_marks": 2,
              "references": 3, "total_text_characters": 400, "entry_text_characters": 110}, "graph limits changed")
     transitions = observation["changed_edges"]
     if observation["applied"]:
@@ -1052,9 +1115,18 @@ def validate_graph_audit(audit, retrieval=None):
                 "effective_score", "context", "dynamic_last_event_id")),
                 "expansion evidence disagrees with live edge")
     ranked = selection["ranked_candidates"]
-    expected_order = sorted(ranked, key=lambda c: (-c["direct_match_count"], -c["effective_score"], -c["static_score"], -c["record_id"]))
+    expected_order = sorted(ranked, key=lambda c: (-c['relevance_score'] if concept else -c["direct_match_count"], -c["effective_score"], -c["static_score"], -c["record_id"]))
     _require(ranked == expected_order and [c["rank"] for c in ranked] == list(range(1, len(ranked) + 1)), "ranking order mismatch")
     for candidate in ranked:
+        if concept:
+            from .relevance import score
+            inputs = candidate['relevance_inputs']
+            _require(candidate['relevance_score'] == score(inputs), 'concept score mismatch')
+            _require(inputs['metadata_factor'] in (0.25, 0.55, 0.7, 1.0)
+                     and inputs['source_prior'] in (0.0, 4.0, 12.0)
+                     and inputs['answer_form_bonus'] in (0.0, 6.0, 10.0), 'concept coefficients mismatch')
+            _require(inputs['mark_relevance'] == round(0.25 * sum(concept['mark_weights'][m] * (1.0 if m in inputs['literal_mark_terms'] else 0.15) for m in inputs['mark_terms']), 6)
+                     and inputs['body_relevance'] == round(sum(concept['term_weights'][t] for t in inputs['body_terms']), 6), 'concept arithmetic mismatch')
         evidence = candidate["evidence"]
         for item in evidence:
             pair = tuple(sorted((item["from_mark"], item["mark"])))
@@ -1073,6 +1145,19 @@ def validate_graph_audit(audit, retrieval=None):
              == [c["record_id"] for c in ranked[:3]], "selected ranking mismatch")
     _require(len(selection["selected"]) == len(materials), "selected receipt mismatch")
     for material, selected, candidate in zip(materials, selection["selected"], ranked):
+        if concept:
+            from .relevance import metadata_factor, contains
+            inputs = candidate['relevance_inputs']
+            _require(metadata_factor(material['stored_text']) == (inputs['metadata_kind'], inputs['metadata_factor']), 'metadata classification mismatch')
+            _require(inputs['body_terms'] == sorted(t for t in concept['term_weights'] if contains(t, material['stored_text'])), 'body match mismatch')
+            _require(inputs['literal_mark_terms'] == [m for m in inputs['mark_terms'] if contains(m, material['stored_text'])], 'literal annotation mismatch')
+            source = retrieval['sources'][material['source_id']]
+            if source['metadata_available']:
+                from .relevance import relevance, source_hint
+                hint = source_hint([c['text'] for c in source['chunks']], source['path'])
+                expected, _ = relevance(material['stored_text'], candidate['direct_marks'],
+                    concept['mark_weights'], concept['term_weights'], hint, concept['query_plan'])
+                _require(inputs == expected, 'frozen concept relevance mismatch')
         payload = material["model_payload"]
         if projected:
             _validate_projection_keys(payload, material)

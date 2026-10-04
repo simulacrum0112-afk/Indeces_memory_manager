@@ -17,6 +17,7 @@ queue_wait_seconds = 120.0
 local_seconds = 5.0
 summary_max_bytes = 4096
 low_watermark = 0.70
+retrieval_policy = "concept_v1" # Explicit legacy_v1 restores the previous static selection policy.
 
 [knowledge]
 poll_seconds = 0.5

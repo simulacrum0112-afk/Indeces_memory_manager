@@ -1,5 +1,7 @@
 # Indeces_memory_manager
 
+
+0.15.0 修复通用检索覆盖：Runtime 使用问题焦点/区分度标词、有界正文词索引和元数据降权；旧静态选择可显式回滚，图公式、Sol/medium及调用额度保持。摘要溢出或撞字符边界不提交checkpoint，原历史保留并明确声明上下文缺口；独立试算单独审计。详细规则与边界见 [RETRIEVAL_COVERAGE.md](docs/RETRIEVAL_COVERAGE.md)。
 一个名为 **Indeces** 的小型 Python 无头智能体：一个 Discord Bot 连接、一个串行消息 worker、GPT-6.1-Sol adaptor、本地知识库、静态 NPMI 检索与动态观察历史，以及可检查的输入输出 scratch log。项目仓库名保留 `Indeces_memory_manager`。
 
 0.13.2 增加须经 operator 明确授权的四篇有界维护入口：独立新账、发送前请求 ID、实际 usage 落盘、未知计量停整批、12 块试跑及完整事务发布。旧失败记录不重置；全局配置、模型、切块、标词和图规则保持。任务专属额度与恢复边界见 [维护合同](docs/BOUNDED_REINGEST.md)。

@@ -159,12 +159,25 @@ class BoundedReingestTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_operator_grant_required_and_duplicate_sources_rejected_without_mutation(self):
         runner = self.fixture()
-        for ids, confirmed in ((self.source_ids, False), (self.source_ids[:3], True),
+        for ids, confirmed in ((self.source_ids, False), ([], True),
                                ([self.source_ids[0]] * 4, True)):
             with self.subTest(ids=ids, confirmed=confirmed):
                 with self.assertRaises((ValueError, GovernedError)):
                     runner.grant(ids, operator_confirmed=confirmed)
         self.assertEqual(self.transport.requests, [])
+        self.assert_old_preserved()
+
+    async def test_one_document_grant_pilot_and_publish_preserve_old_ledger(self):
+        runner = self.fixture()
+        batch = runner.grant(self.source_ids[:1], operator_confirmed=True)
+        pilot = await runner.run(batch, phase='pilot')
+        self.assertTrue(pilot['pilot_passed'])
+        self.assertEqual(pilot['documents'][0]['labelled_chunks'], 3)
+        self.assertEqual(pilot['documents'][0]['published'], 0)
+        done = await runner.run(batch, phase='complete')
+        self.assertEqual(done['status'], 'completed')
+        self.assertEqual(len(done['documents']), 1)
+        self.assertEqual(done['documents'][0]['published'], 1)
         self.assert_old_preserved()
 
     async def test_additive_schema_is_preceded_by_recoverable_sqlite_backup(self):

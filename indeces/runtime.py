@@ -64,7 +64,8 @@ def bot_reply_data(text):
 class Runtime:
     def __init__(self, config, store, adapter, scratch):
         self.config, self.store, self.adapter, self.scratch = config, store, adapter, scratch
-        self.graph = MemoryGraph(store.db, self_marks=(config.name,))
+        self.graph = MemoryGraph(store.db, self_marks=(config.name,),
+                                 retrieval_policy=config.runtime.retrieval_policy)
         self.knowledge_scope = f"{config.discord.guild_id}:knowledge"
         self._serial = asyncio.Lock()
 
@@ -82,26 +83,47 @@ class Runtime:
         if prefix:
             admitted = []
             budget = self.config.adapter.budgets["summary"]
+            summary_schema = prompts.summary_schema(self.config.runtime.summary_max_bytes)
             def summary_input(selected):
                 return [{"role": "user", "content": encode({"previous_summary": checkpoint["summary"],
-                    "source_prefix": history_data(selected), "summary_max_utf8_bytes": self.config.runtime.summary_max_bytes})}]
+                    "source_prefix": history_data(selected), "summary_max_utf8_bytes": self.config.runtime.summary_max_bytes,
+                    "summary_target_characters": self.config.runtime.summary_max_bytes // 4 * 3 // 4})}]
             for interaction in groups(prefix):
                 proposed = admitted + interaction
-                if reservation(prompts.SUMMARY, summary_input(proposed), prompts.SUMMARY_SCHEMA) > budget.input_tokens:
+                if reservation(prompts.SUMMARY, summary_input(proposed), summary_schema) > budget.input_tokens:
                     break
                 admitted = proposed
             if not admitted:
                 raise GovernedError("summary_prefix_too_large")
-            result = await self.adapter.call("summary", prompts.SUMMARY, summary_input(admitted), trace_id, prompts.SUMMARY_SCHEMA)
+            result = await self.adapter.call("summary", prompts.SUMMARY, summary_input(admitted), trace_id, summary_schema)
             try:
                 data = strict_json(result.text)
                 if not isinstance(data, dict) or set(data) != {"summary"} or not isinstance(data["summary"], str):
                     raise ValueError()
                 summary = data["summary"].strip()
-                if not summary or len(summary.encode("utf-8")) > self.config.runtime.summary_max_bytes:
+                if not summary:
                     raise ValueError()
             except (ValueError, TypeError):
                 raise GovernedError("invalid_summary") from None
+            if (len(summary.encode('utf-8')) > self.config.runtime.summary_max_bytes
+                    or len(summary) >= summary_schema['properties']['summary']['maxLength']):
+                # Do not acknowledge source coverage with a truncated summary.
+                # Keep the checkpoint and all original rows. Fit a contiguous
+                # tail of whole interactions, explicitly declaring the gap.
+                tail = []
+                for interaction in reversed(groups(rows)):
+                    proposed = interaction + tail
+                    if history_cost(proposed) > capacity - 512:
+                        break
+                    tail = proposed
+                warning = 'Continuity is incomplete: summary overflow; older unsummarized observations omitted. Do not infer their contents.'
+                self.scratch.write('summary_overflow_fallback', trace_id=trace_id,
+                    actual_utf8_bytes=len(summary.encode('utf-8')), limit=self.config.runtime.summary_max_bytes,
+                    actual_characters=len(summary), schema_characters=summary_schema['properties']['summary']['maxLength'],
+                    checkpoint_updated=False, automatic_retries=0,
+                    retained_source_seqs=[r['seq'] for r in tail],
+                    omitted_source_seqs=[r['seq'] for r in rows if r not in tail])
+                return reply_messages(checkpoint['summary'], tail, knowledge, message, limitation=warning)
             checkpoint = self.store.save_checkpoint(message.scope, admitted, summary, trace_id)
             self.scratch.write("checkpoint_saved", trace_id=trace_id, checkpoint=checkpoint)
             rows = self.store.history(message.scope, checkpoint["through_seq"], exclude_turn=message.message_id)
@@ -144,9 +166,10 @@ class Runtime:
                     try:
                         local_phase = "retrieval"
                         graph_audit = {}
+                        previous = self.store.db.execute("SELECT content FROM messages WHERE scope=? AND role='user' AND turn_id!=? ORDER BY seq DESC LIMIT 1", (message.scope, message.message_id)).fetchone()
                         records = self.graph.retrieve(self.knowledge_scope, [], message.text, time.time(),
                                                       event_id=message.message_id, audit=graph_audit,
-                                                      ranking_mode="static")
+                                                      ranking_mode="static", context_query=previous[0] if previous else '')
                         local_phase = "memory_observation"
                         # One immutable JSON snapshot binds the committed graph
                         # receipt to both scratch and the recalled materials.

@@ -1,16 +1,16 @@
-# Explicit bounded four-document reingestion
+# Explicit bounded one-to-four-document reingestion
 
 This maintenance path is implemented in `indeces.reingest`; it does not start
 Discord, discover additional files, modify configuration, or reset failed
 knowledge versions. A production run requires an operator's explicit decision
-to close the four old unknown-usage calls as an unquantified loss. That decision
+to close the selected old unknown-usage calls as an unquantified loss. That decision
 is an additional ledger event, not a claim that those calls used zero tokens or
 that their exact usage was reconciled. Normal retry and digest quarantine retain
 their existing restrictions.
 
 ## Grant and accounting
 
-The grant binds exactly four current failed versions to their existing scope,
+The grant binds one to four current failed versions to their existing scope,
 relative paths, complete file digests, converted snapshots and 400-character
 chunks. The saved PDF bytes and conversion metadata are verified locally.
 All chunks are labelled afresh with new source and attempt IDs. Old versions,

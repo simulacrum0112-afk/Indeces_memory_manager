@@ -39,11 +39,13 @@ def compaction_prefix(rows, capacity, low_watermark):
     return prefix
 
 
-def reply_messages(summary, rows, knowledge, current):
+def reply_messages(summary, rows, knowledge, current, *, limitation=None):
     # Separate metadata/data from current instruction, without promoting history
     # belonging to another author to the current user role.
     data = {"continuity_summary": summary, "recent_observations": history_data(rows),
             "memory_citations": knowledge}
+    if limitation:
+        data['context_limitation'] = limitation
     current_data = {"current_message_id": current.message_id,
                 "current_author_id": current.author_id, "current_author_name": current.author_name,
                 "created_at": current.created_at, "text": current.text}

@@ -1,4 +1,4 @@
-"""Explicit four-document maintenance with a separate, bounded accounting ledger.
+"""Explicit one-to-four-document maintenance with a bounded accounting ledger.
 
 This path never resets a failed knowledge version or its original audit row.
 It requires an operator grant, an existing converted snapshot and exclusive
@@ -38,6 +38,7 @@ CONTRACT = {"documents": 4, "pilot_blocks_per_document": 3,
             "batch_output_tokens": 65536, "batch_seconds": 7200,
             "automatic_retries": 0, "chunk_characters": 400}
 APPROVAL = "operator_confirmed_old_four_unknown_usage_loss_closed_without_exact_reconciliation"
+SCOPED_APPROVAL = "operator_confirmed_selected_old_unknown_usage_loss_closed_without_exact_reconciliation"
 
 
 def _json(value):
@@ -134,7 +135,7 @@ class BoundedReingest:
 
     def _batch(self, batch_id):
         row = self.db.execute("SELECT * FROM reingest_batches WHERE batch_id=? AND scope=?", (batch_id, self.scope)).fetchone()
-        if row is None or row["contract_json"] != _json(CONTRACT) or row["approval"] != APPROVAL:
+        if row is None or row["contract_json"] != _json(CONTRACT) or row["approval"] not in (APPROVAL, SCOPED_APPROVAL):
             raise ValueError("unknown or incompatible maintenance grant")
         return row
 
@@ -191,9 +192,9 @@ class BoundedReingest:
 
     def grant(self, source_ids, *, operator_confirmed):
         if operator_confirmed is not True:
-            raise ValueError("operator must explicitly close the old four unknown calls as loss")
-        if not isinstance(source_ids, (list, tuple)) or len(source_ids) != 4 or len(set(source_ids)) != 4:
-            raise ValueError("grant requires exactly four distinct existing sources")
+            raise ValueError("operator must explicitly close the selected old unknown calls as loss")
+        if not isinstance(source_ids, (list, tuple)) or not 1 <= len(source_ids) <= 4 or len(set(source_ids)) != len(source_ids):
+            raise ValueError("grant requires one to four distinct existing sources")
         versions = []
         for source_id in source_ids:
             row = self.db.execute("SELECT * FROM knowledge_versions WHERE source_id=? AND scope=?", (source_id, self.scope)).fetchone()
@@ -213,7 +214,7 @@ class BoundedReingest:
             audit = self.db.execute("SELECT remote_usage_unknown FROM knowledge_file_audit WHERE scope=? AND path=? AND source_id=?",
                                     (self.scope, version["path"], version["source_id"])).fetchone()
             if version["status"] != "failed" or not desired or desired[0] != version["source_id"] or not audit or audit[0] != 1:
-                raise ValueError("grant requires four current failed unknown-usage versions")
+                raise ValueError("grant requires current failed unknown-usage versions")
             self._validate_version(version)
         # Also back up when the schema already exists but a new grant is added.
         backup_database(self.db, self.config.state_dir)
@@ -221,12 +222,12 @@ class BoundedReingest:
         checkpoint_through_id = self.db.execute("SELECT COALESCE(MAX(id),0) FROM checkpoints").fetchone()[0]
         with self.db:
             self.db.execute("INSERT INTO reingest_batches(batch_id,grant_key,scope,status,created_at,approval,contract_json,old_snapshot_sha256,checkpoint_through_id) VALUES(?,?,?,?,?,?,?,?,?)",
-                            (batch_id, key, self.scope, "approved", time.time(), APPROVAL, _json(CONTRACT), self._old_hash(source_ids, checkpoint_through_id), checkpoint_through_id))
+                            (batch_id, key, self.scope, "approved", time.time(), SCOPED_APPROVAL, _json(CONTRACT), self._old_hash(source_ids, checkpoint_through_id), checkpoint_through_id))
             for version in versions:
                 count = self.db.execute("SELECT COUNT(*) FROM knowledge_chunks WHERE source_id=?", (version["source_id"],)).fetchone()[0]
                 self.db.execute("INSERT INTO reingest_documents(attempt_id,batch_id,scope,path,digest,old_source_id,new_source_id,total_chunks) VALUES(?,?,?,?,?,?,?,?)",
                                 (uuid.uuid4().hex, batch_id, self.scope, version["path"], version["digest"], version["source_id"], "kb:" + uuid.uuid4().hex, count))
-            self._event(batch_id, "operator_grant", approval=APPROVAL, contract=CONTRACT, old_source_ids=sorted(source_ids),
+            self._event(batch_id, "operator_grant", approval=SCOPED_APPROVAL, contract=CONTRACT, document_count=len(versions), old_source_ids=sorted(source_ids),
                         old_usage_remains_unknown=True, old_records_reset=False)
         return batch_id
 
@@ -490,7 +491,7 @@ class BoundedReingest:
         if batch["status"] == "failed" and not resume_known:
             return self.summary(batch_id)
         if phase == "complete" and not batch["pilot_passed"]:
-            raise ValueError("complete requires a passed twelve-block pilot")
+            raise ValueError("complete requires a passed three-block-per-document pilot")
         invocation_started = time.perf_counter()
         previously_accounted_seconds = self._usage(batch_id=batch_id)["elapsed_seconds"]
         self._execution = (batch_id, invocation_started, previously_accounted_seconds)
@@ -516,7 +517,7 @@ class BoundedReingest:
             with self.db:
                 if phase == "pilot":
                     self.db.execute("UPDATE reingest_batches SET status='pilot_passed',pilot_passed=1 WHERE batch_id=?", (batch_id,))
-                    self._event(batch_id, "pilot_passed", labelled_blocks=12)
+                    self._event(batch_id, "pilot_passed", labelled_blocks=3 * len(documents))
                 else:
                     for document in self._documents(batch_id):
                         if not document["published"]:
@@ -571,7 +572,7 @@ async def maintenance(config_path, *, source_ids=None, batch_id=None, phase="pil
         if source_ids:
             batch_id = service.grant(source_ids, operator_confirmed=operator_confirmed)
         if not batch_id:
-            raise ValueError("supply the four source IDs or an existing batch ID")
+            raise ValueError("supply one to four source IDs or an existing batch ID")
         result = service.summary(batch_id) if phase == "status" else await service.run(batch_id, phase=phase, resume_known=resume_known)
         _console_notice(_json(result))
         return result

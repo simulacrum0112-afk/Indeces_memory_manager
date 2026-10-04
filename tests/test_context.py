@@ -168,7 +168,7 @@ class SummaryCoverageTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_summary_never_advances_coverage_or_retries(self):
         original = self.old_rows()
         for value in ('{"summary":"a","summary":"b"}', '{"summary":""}', '{"summary":7}',
-                      encode({"summary": "中" * 86}), '{"summary":"valid","extra":true}'):
+                      '{"summary":"valid","extra":true}'):
             with self.subTest(value=value):
                 self.runtime.adapter = SummaryAdapter([value])
                 with self.assertRaises(GovernedError) as caught:
@@ -182,8 +182,9 @@ class SummaryCoverageTests(unittest.IsolatedAsyncioTestCase):
         original = self.old_rows()
         first_turn = groups(original)[0]
         input_message = [{"role": "user", "content": encode({"previous_summary": "",
-            "source_prefix": history_data(first_turn), "summary_max_utf8_bytes": 256})}]
-        limit = reservation(prompts.SUMMARY, input_message, prompts.SUMMARY_SCHEMA)
+            "source_prefix": history_data(first_turn), "summary_max_utf8_bytes": 256,
+            "summary_target_characters": 48})}]
+        limit = reservation(prompts.SUMMARY, input_message, prompts.summary_schema(256))
         self.runtime.config.adapter.budgets["summary"] = Budget(limit, 100, 1)
         self.runtime.adapter = SummaryAdapter([encode({"summary": "One whole turn was summarized."})])
         capacity = history_cost(groups(original)[-1]) + 1
@@ -195,6 +196,29 @@ class SummaryCoverageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(checkpoint["through_seq"], first_turn[-1]["seq"])
         self.assertEqual(self.old_rows(), original)
         self.assertEqual(len(self.runtime.adapter.calls), 1)
+
+    async def test_summary_overflow_retains_checkpoint_and_declares_contiguous_raw_tail(self):
+        original = self.old_rows()
+        self.runtime.adapter = SummaryAdapter([encode({'summary': '中' * 86})])
+        messages = await self.summarize(history_cost(original) - 1)
+        data = json.loads(messages[0]['content'].split('\n', 1)[1])
+        self.assertIn('incomplete', data['context_limitation'])
+        self.assertEqual(self.store.checkpoint(self.current.scope)['through_seq'], 0)
+        self.assertEqual(self.old_rows(), original)
+        self.assertEqual(len(self.runtime.adapter.calls), 1)
+        seqs = [r['source_seq'] for r in data['recent_observations']]
+        self.assertEqual(seqs, [r['seq'] for r in original][-len(seqs):] if seqs else [])
+        self.assertFalse(any(e == 'checkpoint_saved' for e, _ in self.runtime.scratch.events))
+        self.assertEqual(self.runtime.adapter.calls[0]['schema']['properties']['summary']['maxLength'], 64)
+
+    async def test_schema_boundary_is_not_committed_even_when_utf8_size_fits(self):
+        original = self.old_rows()
+        self.runtime.adapter = SummaryAdapter([encode({'summary': 'x' * 64})])
+        messages = await self.summarize(history_cost(original) - 1)
+        data = json.loads(messages[0]['content'].split('\n', 1)[1])
+        self.assertIn('context_limitation', data)
+        self.assertEqual(self.store.checkpoint(self.current.scope)['through_seq'], 0)
+        self.assertEqual(self.old_rows(), original)
 
     async def test_oversize_first_turn_leaves_no_checkpoint(self):
         original = self.old_rows()

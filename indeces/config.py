@@ -45,6 +45,7 @@ class RuntimeConfig:
     local_seconds: float = 5.0
     summary_max_bytes: int = 4096
     low_watermark: float = 0.70
+    retrieval_policy: str = 'concept_v1'
 
 
 @dataclass(frozen=True)
@@ -163,6 +164,8 @@ def load_config(path: Path) -> Config:
         raise ValueError("channel_ids must be numeric strings")
     dc = DiscordConfig(**{**d, "guild_id": guild_id, "channel_ids": tuple(snowflake(x) for x in channels)})
     rc = RuntimeConfig(**r)
+    if rc.retrieval_policy not in ('legacy_v1', 'concept_v1'):
+        raise ValueError('invalid retrieval policy')
     kc = KnowledgeConfig(**k)
     pc = PdfConfig(**p)
     if type(dc.queue_capacity) is not int or not 1 <= dc.queue_capacity <= 256:
