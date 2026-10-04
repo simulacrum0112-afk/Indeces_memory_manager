@@ -1,6 +1,6 @@
 # Indeces 项目协作约定
 
-0.14.0 按用户明确要求将单模型基座从 `gpt-6-luna` 改为 `gpt-6.1-sol`，回复/摘要/标词默认 low→medium；配置加载与四篇维护基线同步，拒绝不支持的none，不静默覆盖旧显式配置。其余预算、话量high、并发、切块、图规则和历史记录不变。本机配置已在独占state租约下先备份、仅迁移四项并核验其余字段一致；未读取/迁移知识库、重标、启停Discord或做真实模型验收。离线1041项、20跳过、0失败/错误，隔离wheel通过；源码0.14.0、现有安装元数据0.13.0不作为加载证明，用户需重开Console后显式start。推送及精确CI另见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)，迁移合同见 [docs/MODEL_MIGRATION.md](docs/MODEL_MIGRATION.md)。
+0.14.0 按用户明确要求将单模型基座从 `gpt-6-luna` 改为 `gpt-6.1-sol`，回复/摘要/标词默认 low→medium；配置加载与四篇维护基线同步，拒绝不支持的none，不静默覆盖旧显式配置。其余预算、话量high、并发、切块、图规则和历史记录不变。本机配置已在独占state租约下先备份、仅迁移四项并核验其余字段一致；未读取/迁移知识库、重标、启停Discord或做真实模型验收。离线1041项、20跳过、0失败/错误，隔离wheel通过；源码0.14.0、现有安装元数据0.13.0不作为加载证明，用户需重开Console后显式start。运行源码7bf3094已推main，精确CI37223398117整体、Windows/Ubuntu及unittest/CLI check步骤success，仅公共元数据、未读日志/推断测试数。证据见 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)，迁移合同见 [docs/MODEL_MIGRATION.md](docs/MODEL_MIGRATION.md)。
 
 历史0.13.2 已实现显式四篇维护入口：operator 确认旧四次调用按未知损失关闭后，建立按 scope/path/digest 唯一绑定的新账；旧失败、已标块、usage、checkpoint 和审计保留。请求前持久 ID/准入占额、响应头与实际 usage 先落盘，任何新未知 usage 停整批，零自动重试；重开不能绕过未知门禁或重领额度。任务专属4096/512/45秒、每篇65536/16384/1800秒、批次262144/65536/7200秒；全局预算/模型/切块/并发/图规则不变。12块pilot不发布，完整文献事务发布；后续扫描保留旧审计。最终全套1040项、20跳过、0失败/错误及相关故障补测通过；隔离wheel包含维护入口。已先一致备份，真实pilot通过后完成四篇事务发布，旧记录指纹、原PDF digest及数据库完整性核验通过；具体检索标词验收不代表全部概念成为标词或PDF语义/版面已验证。运行源码50fc8ff已推main，精确CI37162611377整体及Windows/Ubuntu与unittest/CLI check步骤success，仅公共元数据、未读日志/推断测试数。未启动Discord；现有环境安装元数据不作为加载证明。详见 [docs/BOUNDED_REINGEST.md](docs/BOUNDED_REINGEST.md) 与 [docs/CHECKPOINT.md](docs/CHECKPOINT.md)。
 

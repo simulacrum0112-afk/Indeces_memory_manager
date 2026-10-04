@@ -1,0 +1,142 @@
+{
+  "version": "0.14.0",
+  "recorded_at_utc": "2026-10-04T18:19:20.117228+00:00",
+  "implementation_commit": "7bf3094661aeeba85651874837f0705c973be155",
+  "validated_commit": "7bf3094661aeeba85651874837f0705c973be155",
+  "head_sha": "7bf3094661aeeba85651874837f0705c973be155",
+  "run_id": 37223398117,
+  "url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37223398117",
+  "status": "completed",
+  "conclusion": "success",
+  "source": "Public GitHub Actions API run/job/step metadata only; unauthenticated HTTPS GET",
+  "logs_read": false,
+  "remote_test_count_inferred": false,
+  "jobs": [
+    {
+      "id": 111498046630,
+      "name": "check (windows-latest, ./.venv/Scripts/python.exe)",
+      "status": "completed",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run python -m venv .venv",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run ./.venv/Scripts/python.exe -m pip install -r requirements.lock",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run ./.venv/Scripts/python.exe -m pip install --no-deps -e .",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run ./.venv/Scripts/python.exe -m unittest discover -s tests -v",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run ./.venv/Scripts/python.exe -m indeces check",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 111498046738,
+      "name": "check (ubuntu-latest, ./.venv/bin/python)",
+      "status": "completed",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run python -m venv .venv",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run ./.venv/bin/python -m pip install -r requirements.lock",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run ./.venv/bin/python -m pip install --no-deps -e .",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run ./.venv/bin/python -m unittest discover -s tests -v",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run ./.venv/bin/python -m indeces check",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ]
+}
