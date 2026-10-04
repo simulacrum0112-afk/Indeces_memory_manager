@@ -1,6 +1,6 @@
 # Indeces_memory_manager
 
-一个名为 **Indeces** 的小型 Python 无头智能体：一个 Discord Bot 连接、一个串行消息 worker、GPT-6-Luna adaptor、本地知识库、静态 NPMI 检索与动态观察历史，以及可检查的输入输出 scratch log。项目仓库名保留 `Indeces_memory_manager`。
+一个名为 **Indeces** 的小型 Python 无头智能体：一个 Discord Bot 连接、一个串行消息 worker、GPT-6.1-Sol adaptor、本地知识库、静态 NPMI 检索与动态观察历史，以及可检查的输入输出 scratch log。项目仓库名保留 `Indeces_memory_manager`。
 
 0.13.2 增加须经 operator 明确授权的四篇有界维护入口：独立新账、发送前请求 ID、实际 usage 落盘、未知计量停整批、12 块试跑及完整事务发布。旧失败记录不重置；全局配置、模型、切块、标词和图规则保持。任务专属额度与恢复边界见 [维护合同](docs/BOUNDED_REINGEST.md)。
 
@@ -144,15 +144,15 @@ Console `npmi` 或 `python -m indeces npmi` 只读当前知识范围的完整静
 
 ## 调用预算
 
-配置属于 `adapter.budgets`，固定模型 `gpt-6-luna`。目前使用官方 OpenAI Responses API；没有工具、服务端会话、后台生成或自动重试。模型 ID 与接口依据 [OpenAI Luna 文档](https://developers.openai.com/api/docs/models/gpt-6-luna)。
+配置属于 `adapter.budgets`，固定模型 `gpt-6.1-sol`。目前使用官方 OpenAI Responses API；没有工具、服务端会话、后台生成或自动重试。模型 ID、支持的推理强度与接口依据 [OpenAI GPT-6.1 Sol 文档](https://developers.openai.com/api/docs/models/gpt-6.1-sol)。
 
 | 独立阶段 | 最大输入 token | 最大输出 token | 时间上限 | reasoning |
 |---|---:|---:|---:|---|
-| 后台 label | 4096 | 512 | 15 秒 | low |
-| 条件式 summary | 16384 | 2048 | 20 秒 | low |
-| reply | 16384 | 2048 | 45 秒 | low |
+| 后台 label | 4096 | 512 | 15 秒 | medium |
+| 条件式 summary | 16384 | 2048 | 20 秒 | medium |
+| reply | 16384 | 2048 | 45 秒 | medium |
 
-三个阶段均使用 `reasoning = "low"`，`adapter.verbosity = "high"` 控制输出话量；详细度仍受各阶段输出 token 和时间上限约束，不增加额度。Scratch 的 `call_start` 和实际请求记录该参数，并检查两者一致。旧 TOML 中显式配置的值仍按文件读取，旧日志没有该字段时按旧合同核验。
+三个阶段默认均使用 `reasoning = "medium"`，`adapter.verbosity = "high"` 控制输出话量；详细度仍受各阶段输出 token 和时间上限约束，不增加额度。Scratch 的 `call_start` 和实际请求记录该参数，并检查两者一致。配置文件中的显式推理强度仍按文件读取；新模型不支持 `none`，加载时明确拒绝。旧模型配置需要显式迁移，加载器不会静默换模型；旧日志仍按旧合同核验。0.14.0 的限定迁移、历史知识保留和加载边界见 [MODEL_MIGRATION.md](docs/MODEL_MIGRATION.md)。
 
 各阶段先串行调用 `/responses/input_tokens`，超限不发生成请求；然后最多一次 `/responses`。请求槽等待、计量与生成共同消耗原阶段总时限，不为等待另开预算。输出上限包含模型不可见的生成 token，返回 usage 再次校验。具体接口见 [输入计量](https://developers.openai.com/api/reference/resources/responses/subresources/input_tokens/methods/count) 和 [Responses](https://developers.openai.com/api/reference/python/resources/responses/methods/create)。
 

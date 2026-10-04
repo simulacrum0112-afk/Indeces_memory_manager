@@ -34,9 +34,14 @@ exclusive state lease as the runtime through HTTP/resource cleanup.
 | One new document attempt | 65536 | 16384 | 1800 cumulative |
 | One four-document batch | 262144 | 65536 | 7200 cumulative |
 
-These are explicitly authorized runtime/recovery settings. They do not change
-the scientific model, original global/version budgets, GPT-6-Luna, low reasoning,
-high verbosity, schema, graph rules, or single serialized request slot. The
+These are explicitly authorized runtime/recovery settings. At the original
+0.13.2 delivery they preserved GPT-6-Luna and low reasoning. The separately
+authorized 0.14.0 model migration uses GPT-6.1 Sol and medium reasoning for new
+maintenance calls as well as ordinary calls; see [MODEL_MIGRATION.md](MODEL_MIGRATION.md).
+Existing completed grants, labels, receipts and accounting remain historical;
+the migration neither issues calls nor relabels documents. The original
+global/version budgets, high verbosity, schema, graph rules, and single
+serialized request slot are unchanged. The
 effective call deadline/input admission can shrink to the remaining allowance.
 Full output capacity must fit before a generation is issued. No automatic retry
 or resource increase occurs.

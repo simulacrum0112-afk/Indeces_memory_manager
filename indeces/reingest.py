@@ -71,9 +71,9 @@ class BoundedReingest:
         if config.knowledge.chunk_characters != 400:
             raise ValueError("maintenance requires the unchanged 400-character baseline")
         budget = config.adapter.budgets["label"]
-        if (budget.input_tokens, budget.output_tokens, budget.reasoning) != (4096, 512, "low"):
+        if (budget.input_tokens, budget.output_tokens, budget.reasoning) != (4096, 512, "medium"):
             raise ValueError("maintenance requires the unchanged label baseline")
-        if config.adapter.model != "gpt-6-luna" or config.adapter.verbosity != "high":
+        if config.adapter.model != "gpt-6.1-sol" or config.adapter.verbosity != "high":
             raise ValueError("maintenance requires the unchanged model/verbosity baseline")
         self.config, self.db, self.graph = config, db, graph
         self.adapter, self.scratch = adapter, scratch

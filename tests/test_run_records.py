@@ -46,7 +46,7 @@ class RecordFixture:
             knowledge=KnowledgeConfig(), discord=DiscordConfig("10"),
             runtime=RuntimeConfig(summary_max_bytes=256, turn_seconds=5),
             adapter=AdapterConfig("gpt-6-luna", "https://api.openai.com/v1", {
-                stage: Budget(16384, 2048, 1) for stage in ("reply", "summary", "label")}))
+                stage: Budget(16384, 2048, 1, reasoning="low") for stage in ("reply", "summary", "label")}))
         # Only initialize the schema. Source fixtures never dispatch a model.
         KnowledgeService(self.config, self.store, self.graph, None, self.scratch)
 

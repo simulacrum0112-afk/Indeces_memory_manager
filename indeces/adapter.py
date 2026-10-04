@@ -83,7 +83,7 @@ class OpenAIAdapter:
         self._circuits = {stage: {"failures": 0, "until": 0.0} for stage in config.budgets}
 
     def __repr__(self):
-        return "OpenAIAdapter(gpt-6-luna, credentials=<redacted>)"
+        return f"OpenAIAdapter({self.config.model}, credentials=<redacted>)"
 
     async def close(self):
         if self._session is not None:

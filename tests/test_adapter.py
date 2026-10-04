@@ -49,7 +49,7 @@ class SequenceTransport:
 class AdapterTests(unittest.IsolatedAsyncioTestCase):
     def adapter(self, transport, *, seconds=1.0, threshold=3, input_limit=100, output_limit=20, verbosity="high"):
         budget = Budget(input_limit, output_limit, seconds)
-        config = AdapterConfig("gpt-6-luna", "https://api.openai.com/v1",
+        config = AdapterConfig("gpt-6.1-sol", "https://api.openai.com/v1",
                                {stage: budget for stage in ("reply", "summary", "label")},
                                failure_threshold=threshold, cooldown_seconds=60.0, verbosity=verbosity)
         scratch = Scratch()
@@ -288,7 +288,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_budget_override_never_issues_a_request(self):
         overrides = [("label", "not-a-budget"), ("label", Budget(101, 20, 15.0)),
                      ("label", Budget(100, 21, 15.0)), ("label", Budget(100, 20, 46.0)),
-                     ("label", Budget(100, 20, 15.0, reasoning="medium")),
+                     ("label", Budget(100, 20, 15.0, reasoning="low")),
                      ("reply", Budget(100, 20, 45.0))]
         for stage, override in overrides:
             with self.subTest(stage=stage, override=override):
@@ -360,7 +360,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(scratch.select("call_end")[0]["status"], "completed")
         self.assertNotIn("never-log-this-key", repr(scratch.events) + repr(adapter))
 
-    async def test_all_stages_send_low_effort_high_verbosity_with_original_caps(self):
+    async def test_all_stages_send_sol_medium_effort_high_verbosity_with_original_caps(self):
         config = load_config(Path(__file__).resolve().parents[1] / "config.example.toml").adapter
         transport = SequenceTransport([{"input_tokens": 10}, completed()] * 3)
         scratch = Scratch()
@@ -375,11 +375,13 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             count_request, request = [payload for _, payload in transport.requests[index * 2:index * 2 + 2]]
             self.assertEqual(count_request["text"], request["text"])
             self.assertEqual(request["text"]["verbosity"], "high")
-            self.assertEqual(request["reasoning"], {"effort": "low"})
-            self.assertEqual(request["model"], "gpt-6-luna")
+            self.assertEqual(request["reasoning"], {"effort": "medium"})
+            self.assertEqual(request["model"], "gpt-6.1-sol")
+            self.assertEqual(count_request["model"], request["model"])
+            self.assertEqual(count_request["reasoning"], request["reasoning"])
             self.assertEqual(request["max_output_tokens"], caps[1])
             start = scratch.select("call_start")[index]
-            self.assertEqual((start["stage"], start["verbosity"], start["budget"]["reasoning"]), (stage, "high", "low"))
+            self.assertEqual((start["stage"], start["verbosity"], start["budget"]["reasoning"]), (stage, "high", "medium"))
             self.assertEqual(tuple(start["budget"][key] for key in ("input_tokens", "output_tokens", "seconds")), caps)
             self.assertEqual("format" in request["text"], stage != "reply")
 
@@ -423,9 +425,9 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((gate["limit"], gate["stage_limit"], gate["admitted"]), (12, 100, True))
         request = transport.requests[-1][1]
         self.assertEqual(request["max_output_tokens"], 20)
-        self.assertEqual(request["reasoning"], {"effort": "low"})
+        self.assertEqual(request["reasoning"], {"effort": "medium"})
         self.assertEqual(request["text"]["verbosity"], "high")
-        self.assertEqual(request["model"], "gpt-6-luna")
+        self.assertEqual(request["model"], "gpt-6.1-sol")
 
     async def test_count_above_remaining_allowance_never_generates_or_trips_circuit(self):
         transport = SequenceTransport([{"input_tokens": 13}])
@@ -914,11 +916,11 @@ class AdapterConfigTests(unittest.TestCase):
             path.write_text(transform(template), encoding="utf-8")
             return load_config(path).adapter
 
-    def test_omitted_fields_default_to_low_effort_and_high_verbosity(self):
+    def test_omitted_fields_default_to_medium_effort_and_high_verbosity(self):
         config = self.load_template(lambda template: "\n".join(
             line for line in template.splitlines() if not line.startswith(("reasoning =", "verbosity ="))))
         self.assertEqual(config.verbosity, "high")
-        self.assertEqual({budget.reasoning for budget in config.budgets.values()}, {"low"})
+        self.assertEqual({budget.reasoning for budget in config.budgets.values()}, {"medium"})
 
     def test_verbosity_rejects_invalid_values_when_constructed_or_loaded(self):
         config = self.load_template()
@@ -933,8 +935,16 @@ class AdapterConfigTests(unittest.TestCase):
         for value in ("minimal", "LOW", "", True, 1, None, [], {}):
             with self.subTest(value=value), self.assertRaisesRegex(ValueError, "reasoning"):
                 Budget(100, 20, 1, reasoning=value)
-        config = self.load_template(lambda value: value.replace('reasoning = "low"', 'reasoning = "none"'))
-        self.assertEqual({budget.reasoning for budget in config.budgets.values()}, {"none"})
+        config = self.load_template(lambda value: value.replace('reasoning = "medium"', 'reasoning = "low"'))
+        self.assertEqual({budget.reasoning for budget in config.budgets.values()}, {"low"})
+
+    def test_sol_rejects_unsupported_effort_and_old_model_without_silent_migration(self):
+        with self.assertRaisesRegex(ValueError, "does not support.*none"):
+            self.load_template(lambda value: value.replace('reasoning = "medium"', 'reasoning = "none"'))
+        with self.assertRaisesRegex(ValueError, "does not support.*none"):
+            replace(self.load_template(), budgets={"reply": Budget(100, 20, 1, reasoning="none")})
+        with self.assertRaisesRegex(ValueError, "migrate the model explicitly"):
+            self.load_template(lambda value: value.replace('model = "gpt-6.1-sol"', 'model = "gpt-6-luna"'))
 
     def test_valid_explicit_verbosity_loads_without_changing_budgets(self):
         baseline = self.load_template()

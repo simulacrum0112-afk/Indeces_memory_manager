@@ -1,6 +1,12 @@
 # 当前与历史代码检查点
 
-当前源码 **0.13.2**：显式四篇维护使用独立 grant/attempt/call/request/label/event 账本；operator 对旧未知损失的确认追加保存，旧版本、标词、计量和失败审计不重置。发送前持久唯一请求 ID 和占额，返回头/实测 usage 在 scratch/标词校验前持久保存。未知生成停整批，跨崩溃、混合孤儿请求和重复启动仍禁止自动重放；新 grant 不能重领已绑定 digest 的额度。全局配置不修改，45秒与新增累计资源仅用于本任务。完整合同见 [BOUNDED_REINGEST.md](BOUNDED_REINGEST.md)。
+当前源码 **0.14.0**：用户明确要求基座 `gpt-6-luna`→`gpt-6.1-sol`、回复/摘要/标词 `low`→`medium`，其他设置不变。已更新固定模型准入、推理默认值、示例配置、适配器描述与四篇维护校验；新模型不支持的none本地拒绝，支持的显式推理值仍保留，加载器不静默替换旧模型。话量high、阶段/累计/维护token与时间额度、串行槽、切块、prompt/schema、图及记录合同不变。完整差异与兼容边界见 [MODEL_MIGRATION.md](MODEL_MIGRATION.md)。
+
+[OFFLINE_0140.json](../verification/OFFLINE_0140.json)：1041项、20跳过、0失败/错误，CLI/Console/依赖/npmi通过；[WHEEL_0140.json](../verification/WHEEL_0140.json) 构建与隔离非editable安装通过。输入计量/生成和scratch的实际模型、medium、高话量及原token/时间上限在三个阶段均有合成验证，维护路径也通过。旧Luna/low日志fixture显式保留原强度继续验证历史兼容。定向测试最初有一项旧负例仍以medium充当不同强度，已改为low；另一次HTTP合成测试得到stage_timeout而不是预期HTTP错误，该任务显示耗时1.5秒、测试期限1秒，独立重测和最终全套均通过。冷启动开销是未独立定位的推测，未调整运行时限或据此断言真实API耗时。
+
+本机配置在取得独占state租约后先保存原字节备份，仅迁移模型和三个reasoning字段；其余解析字段、未修改文本及state目录绑定核验通过。未读取或迁移知识库/私有材料/历史账本、重标、执行维护或真实模型调用；未启停/热更新Discord。当前源码由新Python进程可加载为0.14.0，现有环境安装元数据仍0.13.0；均不能证明既有Console已加载新版。用户需重开Console，再显式start。私有配置和备份不入Git。[REPOSITORY_AUDIT_0140_RELEASE.json](../verification/REPOSITORY_AUDIT_0140_RELEASE.json) 核验main可达历史与公开暂存文件，有限规则未知发现/禁止路径为零。提交推送/精确CI证据将在完成后另列，旧CI不代表本轮通过。
+
+历史源码 **0.13.2**：显式四篇维护使用独立 grant/attempt/call/request/label/event 账本；operator 对旧未知损失的确认追加保存，旧版本、标词、计量和失败审计不重置。发送前持久唯一请求 ID 和占额，返回头/实测 usage 在 scratch/标词校验前持久保存。未知生成停整批，跨崩溃、混合孤儿请求和重复启动仍禁止自动重放；新 grant 不能重领已绑定 digest 的额度。全局配置不修改，45秒与新增累计资源仅用于本任务。完整合同见 [BOUNDED_REINGEST.md](BOUNDED_REINGEST.md)。
 
 最终 [OFFLINE_0132_20261003T233908239711Z.json](../verification/OFFLINE_0132_20261003T233908239711Z.json)：1040项、20跳过、0失败/错误，CLI/Console/依赖检查通过。此前 [OFFLINE_0132.json](../verification/OFFLINE_0132.json) 1039项通过，后补计数响应边界测试；最终之后仅补充失败阶段元数据及对应2项定向故障检查，均通过。最终 [WHEEL_0132_20261003T234101621355Z.json](../verification/WHEEL_0132_20261003T234101621355Z.json) 已验证最新阶段元数据代码的隔离安装与维护入口导入。这些合成测试不代表真实模型、PDF语义/版面或Discord验收。
 

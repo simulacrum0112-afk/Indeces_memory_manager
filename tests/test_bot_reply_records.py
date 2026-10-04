@@ -34,7 +34,7 @@ class BotReplyRecordTests(unittest.IsolatedAsyncioTestCase):
             knowledge=KnowledgeConfig(), discord=DiscordConfig("10"),
             runtime=RuntimeConfig(summary_max_bytes=256, turn_seconds=5),
             adapter=AdapterConfig("gpt-6-luna", "https://api.openai.com/v1", {
-                stage: Budget(16384, 2048, 2) for stage in ("reply", "summary", "label")}))
+                stage: Budget(16384, 2048, 2, reasoning="low") for stage in ("reply", "summary", "label")}))
         MemoryGraph(self.store.db).add("10:knowledge", "synthetic-source", "prior synthetic source", [
             {"text": "alpha topic documented source", "quote": "alpha topic documented source", "marks": ["alpha", "topic"]}], 1.0)
         self.counter = 0

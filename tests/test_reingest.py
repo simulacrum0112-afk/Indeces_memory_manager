@@ -57,7 +57,7 @@ class BoundedReingestTests(unittest.IsolatedAsyncioTestCase):
         self.config = SimpleNamespace(name="Indeces", state_dir=self.root / "state",
             scratch_dir=self.root / "scratch", knowledge_dir=self.root / "knowledge",
             discord=DiscordConfig("10"), knowledge=KnowledgeConfig(), pdf=PdfConfig(),
-            adapter=AdapterConfig("gpt-6-luna", "https://api.openai.com/v1",
+            adapter=AdapterConfig("gpt-6.1-sol", "https://api.openai.com/v1",
                                   {"label": Budget(4096, 512, 15)}))
         self.store = Store(self.config.state_dir)
         self.graph = MemoryGraph(self.store.db)
@@ -217,8 +217,8 @@ class BoundedReingestTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sum(item["input_tokens"] for item in final["documents"]), 388 * 25)
         self.assertEqual(sum(item["output_tokens"] for item in final["documents"]), 388 * 8)
         for payload in self.transport.generation_requests:
-            self.assertEqual(payload["model"], "gpt-6-luna")
-            self.assertEqual(payload["reasoning"], {"effort": "low"})
+            self.assertEqual(payload["model"], "gpt-6.1-sol")
+            self.assertEqual(payload["reasoning"], {"effort": "medium"})
             self.assertEqual(payload["max_output_tokens"], 512)
             self.assertFalse(payload["store"])
         self.assert_old_preserved()

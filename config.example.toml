@@ -36,7 +36,7 @@ max_markdown_bytes = 524288
 seconds = 30.0
 
 [adapter]
-model = "gpt-6-luna"
+model = "gpt-6.1-sol"
 base_url = "https://api.openai.com/v1"
 failure_threshold = 3
 cooldown_seconds = 30.0
@@ -48,16 +48,16 @@ verbosity = "high" # Responses text.verbosity; visible detail stays within each 
 input_tokens = 4096
 output_tokens = 512
 seconds = 15.0
-reasoning = "low"
+reasoning = "medium"
 
 [adapter.budgets.summary]
 input_tokens = 16384
 output_tokens = 2048
 seconds = 20.0
-reasoning = "low"
+reasoning = "medium"
 
 [adapter.budgets.reply]
 input_tokens = 16384
 output_tokens = 2048
 seconds = 45.0
-reasoning = "low"
+reasoning = "medium"

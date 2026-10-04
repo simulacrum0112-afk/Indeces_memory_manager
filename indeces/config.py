@@ -15,7 +15,7 @@ class Budget:
     input_tokens: int
     output_tokens: int
     seconds: float
-    reasoning: str = "low"
+    reasoning: str = "medium"
 
     def __post_init__(self):
         if type(self.input_tokens) is not int or not 1 <= self.input_tokens <= 1_050_000:
@@ -59,6 +59,8 @@ class AdapterConfig:
     def __post_init__(self):
         if not isinstance(self.verbosity, str) or self.verbosity not in {"low", "medium", "high"}:
             raise ValueError("invalid output verbosity")
+        if self.model == "gpt-6.1-sol" and any(b.reasoning == "none" for b in self.budgets.values()):
+            raise ValueError("gpt-6.1-sol does not support reasoning effort none")
 
 
 @dataclass(frozen=True)
@@ -172,8 +174,8 @@ def load_config(path: Path) -> Config:
         raise ValueError("invalid summary bound")
     if type(rc.low_watermark) not in (float, int) or not 0 < rc.low_watermark < 1:
         raise ValueError("invalid low watermark")
-    if a["model"] != "gpt-6-luna" or a["base_url"].rstrip("/") != "https://api.openai.com/v1":
-        raise ValueError("this adaptor supports official OpenAI gpt-6-luna only")
+    if a["model"] != "gpt-6.1-sol" or a["base_url"].rstrip("/") != "https://api.openai.com/v1":
+        raise ValueError("this adaptor supports official OpenAI gpt-6.1-sol only; migrate the model explicitly")
     if type(a.get("failure_threshold", 3)) is not int or not 1 <= a.get("failure_threshold", 3) <= 20:
         raise ValueError("invalid circuit failure threshold")
     budgets = a["budgets"]
