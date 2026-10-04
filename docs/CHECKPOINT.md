@@ -6,7 +6,9 @@
 
 用户另授权延时若仍不能解决则降low并恢复原时限；本次试算成功，保留medium，未触发该条件，也未加入自动切换。单次试算只验证所定位的摘要输入，不代表全部未来延迟、推理质量或Discord链路验收。未启停/重启Discord；源码0.14.1和现有安装元数据0.13.0不证明既有Console已加载，用户需重开Console后显式start。
 
-[OFFLINE_0141.json](../verification/OFFLINE_0141.json)：1042项、20跳过、0失败/错误，CLI/Console/依赖/npmi通过；[WHEEL_0141.json](../verification/WHEEL_0141.json) 构建及隔离非editable安装通过。新增合成回归模拟25秒摘要：旧20秒拒绝，新60秒通过，同时核验medium、原输出cap、一次计量及一次生成；原摘要失败/coverage保护测试通过。这些离线测试与获批真实试算分开记载。运行实现提交、公开审计及精确CI尚待完成。
+[OFFLINE_0141.json](../verification/OFFLINE_0141.json)：1042项、20跳过、0失败/错误，CLI/Console/依赖/npmi通过；[WHEEL_0141.json](../verification/WHEEL_0141.json) 构建及隔离非editable安装通过。新增合成回归模拟25秒摘要：旧20秒拒绝，新60秒通过，同时核验medium、原输出cap、一次计量及一次生成；原摘要失败/coverage保护测试通过。这些离线测试与获批真实试算分开记载。
+
+运行实现提交 **23107a337185b1a8720f0112b15914e638ed7fdf** 已推main。精确提交 [CI 37228155427](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37228155427) 整体、Windows/Ubuntu job及unittest/CLI check步骤均success；[CI_0141.json](../verification/CI_0141.json) 仅保存公共run/job/step元数据，未读远端日志、不推断测试数量。[REPOSITORY_AUDIT_0141_RELEASE.json](../verification/REPOSITORY_AUDIT_0141_RELEASE.json) 核验main可达历史和精确暂存公开文件，有限规则未知发现/禁止路径均零；交付文档和CI元数据补扫见 [REPOSITORY_AUDIT_0141_DELIVERY.json](../verification/REPOSITORY_AUDIT_0141_DELIVERY.json)。私有配置、凭据、材料和运行数据未包含。后续交付文档提交不修改运行源码，不以其HEAD替代精确CI目标。
 
 历史源码 **0.14.0**：用户明确要求基座 `gpt-6-luna`→`gpt-6.1-sol`、回复/摘要/标词 `low`→`medium`，其他设置不变。已更新固定模型准入、推理默认值、示例配置、适配器描述与四篇维护校验；新模型不支持的none本地拒绝，支持的显式推理值仍保留，加载器不静默替换旧模型。话量high、阶段/累计/维护token与时间额度、串行槽、切块、prompt/schema、图及记录合同不变。完整差异与兼容边界见 [MODEL_MIGRATION.md](MODEL_MIGRATION.md)。
 
