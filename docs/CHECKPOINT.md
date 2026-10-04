@@ -4,7 +4,9 @@
 
 最终 [OFFLINE_0132_20261003T233908239711Z.json](../verification/OFFLINE_0132_20261003T233908239711Z.json)：1040项、20跳过、0失败/错误，CLI/Console/依赖检查通过。此前 [OFFLINE_0132.json](../verification/OFFLINE_0132.json) 1039项通过，后补计数响应边界测试；最终之后仅补充失败阶段元数据及对应2项定向故障检查，均通过。最终 [WHEEL_0132_20261003T234101621355Z.json](../verification/WHEEL_0132_20261003T234101621355Z.json) 已验证最新阶段元数据代码的隔离安装与维护入口导入。这些合成测试不代表真实模型、PDF语义/版面或Discord验收。
 
-真实库只读前检确认本机租约可取得，已获本次维护执行授权；尚未发出新模型请求、未新建真实grant或修改旧账。后续先SQLite一致备份，再12块真实pilot，通过后才继续完整任务。文件名/原文/digest/真实计量不写入公开仓库；不启动、重启或热补丁Discord服务。源码提交/推送和精确CI仍待本轮交付核验。以下状态属于历史轮次。
+运行实现提交 **50fc8ffb9732f057f521a90deb7369dfdde6bcd9** 已推main。精确提交 [CI 37162611377](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37162611377) 整体、Windows/Ubuntu job及unittest/CLI check步骤均success；[CI_0132.json](../verification/CI_0132.json) 只保存公共run/job/step元数据，未读远端日志、不推断测试数。公开范围 [REPOSITORY_AUDIT_0132_RELEASE.json](../verification/REPOSITORY_AUDIT_0132_RELEASE.json) 核验main可达历史和精确暂存文件，有限规则未知发现/禁止路径均零；交付文档补扫见 [REPOSITORY_AUDIT_0132_DELIVERY.json](../verification/REPOSITORY_AUDIT_0132_DELIVERY.json)。
+
+operator 已明确确认旧四次失败按未知用量损失关闭、不再核验精确usage；确认不是将未知用量记零，旧失败状态和累计计量保留。取得独占state租约并在数据库变更前完成SQLite一致备份后，真实pilot通过，再在同一grant内完成四篇标注并逐篇事务发布。新账实测usage与请求ID回执齐全，无新增未知用量或失败，旧记录指纹、原PDF digest及数据库完整性核验通过；只读进度展示新发布版本ready并保留旧失败证据。检索抽查区分实际标词与查询命中，不把其他标签命中归为所查概念已成标词；并非所有目标概念都形成新标签，不证明PDF纸面内容、语义提取或科学相关性全部通过。私有文件名、原文、digest、请求ID及实际运行计量只留本机既有账本/scratch，不写入公开仓库。维护进程加载上述源码；未启动、重启或热补丁Discord服务。以下状态属于历史轮次。
 
 历史源码 **0.13.1**：知识摄入失败／取消显示逐篇 Console 通知（路径、阶段、code、完成块数、恢复限制）；持久审计与 scratch 保存零基失败块位置。重开后遗留 labelling 会补建失败审计和可见通知，仍标记未知 usage 并阻止自动重放。此前失败已持久保存，但普通逐篇失败通知被省略，旧测试也要求失败时 Console 静默；本次更新该合同。取消回执补齐与版本状态一致的错误码。成功和普通进度不新增通知。
 

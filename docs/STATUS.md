@@ -1,6 +1,6 @@
 # 0.13.2 显式有界重摄入
 
-独立计账、实际 usage 持久记录、未知停整批、幂等 grant、12块pilot与完整事务发布已实现。旧账不重置，任务专属资源不改变全局配置；后续普通扫描不会覆盖受保护的旧失败审计。全套1040项（20跳过、0失败/错误）与相关故障补测通过。源码与真实维护/CI的阶段状态以 [CHECKPOINT.md](CHECKPOINT.md) 为准，具体合同见 [BOUNDED_REINGEST.md](BOUNDED_REINGEST.md)。当前尚未试跑真实模型，不以离线或安装包验收代替真实运行。
+独立计账、实际 usage 持久记录、未知停整批、幂等 grant、12块pilot与完整事务发布已实现。旧账不重置，任务专属资源不改变全局配置；后续普通扫描不会覆盖受保护的旧失败审计。全套1040项（20跳过、0失败/错误）与相关故障补测、隔离wheel均通过。operator确认后先一致备份，真实pilot通过，再完成四篇标注及事务发布；请求/实测usage回执齐全，旧记录指纹、原PDF digest与数据库完整性通过。检索已抽查实际新标签，部分目标概念未成为新标签，未补造；这不代表PDF语义/版面或全部召回质量已验证。运行实现50fc8ff已推main，精确提交CI37162611377的Windows/Ubuntu job及unittest/CLI check均success，仅公共元数据、未读远端日志/推断测试数。未启动Discord。源码与真实维护/CI证据以 [CHECKPOINT.md](CHECKPOINT.md) 为准，具体合同见 [BOUNDED_REINGEST.md](BOUNDED_REINGEST.md)。
 
 # 历史0.13.0 存储索引与命中邻域查询
 
