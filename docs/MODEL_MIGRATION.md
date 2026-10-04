@@ -4,6 +4,10 @@ The user explicitly requested `gpt-6.1-sol`, medium reasoning, with every other
 setting unchanged. This replaces the previous single-model baseline; it does
 not introduce routing, fallback models or extra requests.
 
+The table below records the original 0.14.0 migration. The separately approved
+0.14.1 summary/turn deadline adjustment is documented in
+[SUMMARY_TIMEOUT.md](SUMMARY_TIMEOUT.md); it does not change model or token caps.
+
 | Parameter | Original → proposed | Classification |
 |---|---|---|
 | `adapter.model` | `gpt-6-luna` → `gpt-6.1-sol` | Task-essential, explicitly requested |

@@ -1,6 +1,14 @@
 # 当前与历史代码检查点
 
-当前源码 **0.14.0**：用户明确要求基座 `gpt-6-luna`→`gpt-6.1-sol`、回复/摘要/标词 `low`→`medium`，其他设置不变。已更新固定模型准入、推理默认值、示例配置、适配器描述与四篇维护校验；新模型不支持的none本地拒绝，支持的显式推理值仍保留，加载器不静默替换旧模型。话量high、阶段/累计/维护token与时间额度、串行槽、切块、prompt/schema、图及记录合同不变。完整差异与兼容边界见 [MODEL_MIGRATION.md](MODEL_MIGRATION.md)。
+当前源码 **0.14.1**：按用户给定记录只读审计，故障发生在摘要生成等待，输入计量已完成、无模型槽等待，生成响应头/body及usage尚未返回即达到原阶段时限。因此没有可还原的生成raw output，旧用量仍为未知。两次摘要请求使用同一checkpoint及相同输入；失败保留原历史且不推进coverage，下一次聊天仍需同一摘要。客户端记录不能区分供应商生成、远端排队与网络耗时。诊断、参数差异及适用边界见 [SUMMARY_TIMEOUT.md](SUMMARY_TIMEOUT.md)。
+
+用户明确批准摘要阶段20→60秒、总轮100→130秒和一次真实摘要试算；模型Sol/medium、各阶段token、其他阶段时限、high话量、串行槽、切块/图/水位/保留规则不变。本机配置在独占state租约下先保存原字节备份，仅修改两项解析字段及其数字文本，核验其余字段和state绑定一致；不热补丁既有进程。相同失败输入的单次真实试算返回completed、合法usage、非空合规摘要及有效UTF-8长度，耗时超过旧上限且在新上限内，输出token未耗尽。试算没有更新checkpoint、重置旧记录或发送Discord消息，没有自动重试。私有输入、输出、调用ID及计量仅保存在本机既有scratch，不入公开仓库。
+
+用户另授权延时若仍不能解决则降low并恢复原时限；本次试算成功，保留medium，未触发该条件，也未加入自动切换。单次试算只验证所定位的摘要输入，不代表全部未来延迟、推理质量或Discord链路验收。未启停/重启Discord；源码0.14.1和现有安装元数据0.13.0不证明既有Console已加载，用户需重开Console后显式start。
+
+[OFFLINE_0141.json](../verification/OFFLINE_0141.json)：1042项、20跳过、0失败/错误，CLI/Console/依赖/npmi通过；[WHEEL_0141.json](../verification/WHEEL_0141.json) 构建及隔离非editable安装通过。新增合成回归模拟25秒摘要：旧20秒拒绝，新60秒通过，同时核验medium、原输出cap、一次计量及一次生成；原摘要失败/coverage保护测试通过。这些离线测试与获批真实试算分开记载。运行实现提交、公开审计及精确CI尚待完成。
+
+历史源码 **0.14.0**：用户明确要求基座 `gpt-6-luna`→`gpt-6.1-sol`、回复/摘要/标词 `low`→`medium`，其他设置不变。已更新固定模型准入、推理默认值、示例配置、适配器描述与四篇维护校验；新模型不支持的none本地拒绝，支持的显式推理值仍保留，加载器不静默替换旧模型。话量high、阶段/累计/维护token与时间额度、串行槽、切块、prompt/schema、图及记录合同不变。完整差异与兼容边界见 [MODEL_MIGRATION.md](MODEL_MIGRATION.md)。
 
 [OFFLINE_0140.json](../verification/OFFLINE_0140.json)：1041项、20跳过、0失败/错误，CLI/Console/依赖/npmi通过；[WHEEL_0140.json](../verification/WHEEL_0140.json) 构建与隔离非editable安装通过。输入计量/生成和scratch的实际模型、medium、高话量及原token/时间上限在三个阶段均有合成验证，维护路径也通过。旧Luna/low日志fixture显式保留原强度继续验证历史兼容。定向测试最初有一项旧负例仍以medium充当不同强度，已改为low；另一次HTTP合成测试得到stage_timeout而不是预期HTTP错误，该任务显示耗时1.5秒、测试期限1秒，独立重测和最终全套均通过。冷启动开销是未独立定位的推测，未调整运行时限或据此断言真实API耗时。
 

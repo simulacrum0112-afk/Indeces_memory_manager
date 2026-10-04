@@ -367,7 +367,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         adapter = OpenAIAdapter(config, scratch, request=transport)
         schema = {"type": "object", "properties": {"value": {"type": "string"}},
                   "required": ["value"], "additionalProperties": False}
-        expected = {"label": (4096, 512, 15.0), "summary": (16384, 2048, 20.0),
+        expected = {"label": (4096, 512, 15.0), "summary": (16384, 2048, 60.0),
                     "reply": (16384, 2048, 45.0)}
         for stage in expected:
             await self.invoke(adapter, stage, schema if stage != "reply" else None)
@@ -400,6 +400,43 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
                     if response_schema is not None:
                         self.assertEqual(text_options["format"]["schema"], schema)
                     self.assertEqual(scratch.select("call_start")[0]["verbosity"], verbosity)
+
+    async def test_summary_completion_after_old_deadline_uses_approved_cap_without_retry(self):
+        config = load_config(Path(__file__).resolve().parents[1] / "config.example.toml")
+        self.assertEqual(config.runtime.turn_seconds, 130.0)
+        baseline = config.adapter
+        for seconds, expected_code in ((20.0, "stage_timeout"), (60.0, None)):
+            with self.subTest(seconds=seconds):
+                offset = 0.0
+                requests = []
+
+                async def transport(path, payload):
+                    nonlocal offset
+                    requests.append((path, deepcopy(payload)))
+                    if path.endswith("input_tokens"):
+                        return {"input_tokens": 10}
+                    # Simulate a 25-second completion without delaying the
+                    # suite or changing asyncio's real cancellation clock.
+                    offset = 25.0
+                    return completed('{"summary":"An attributed continuity summary."}')
+
+                budget = replace(baseline.budgets["summary"], seconds=seconds)
+                adapter_config = replace(baseline, budgets={**baseline.budgets, "summary": budget})
+                scratch = Scratch()
+                adapter = OpenAIAdapter(adapter_config, scratch, request=transport)
+                with patch("indeces.adapter.time", SimpleNamespace(monotonic=lambda: time.monotonic() + offset)):
+                    if expected_code:
+                        with self.assertRaises(GovernedError) as caught:
+                            await self.invoke(adapter, "summary")
+                        self.assertEqual(caught.exception.code, expected_code)
+                        self.assertFalse(caught.exception.remote_usage_unknown)
+                    else:
+                        result = await self.invoke(adapter, "summary")
+                        self.assertGreaterEqual(result.elapsed_seconds, 25.0)
+                self.assertEqual([path for path, _ in requests], ["/responses/input_tokens", "/responses"])
+                self.assertEqual(requests[-1][1]["reasoning"], {"effort": "medium"})
+                self.assertEqual(requests[-1][1]["max_output_tokens"], 2048)
+                self.assertEqual(scratch.select("call_start")[0]["budget"]["seconds"], seconds)
 
     async def test_count_over_limit_prevents_generation_without_tripping_circuit(self):
         transport = SequenceTransport([{"input_tokens": 101}] * 3)

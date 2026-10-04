@@ -12,7 +12,7 @@ queue_capacity = 16
 delivery_seconds = 10.0
 
 [runtime]
-turn_seconds = 100.0 # Execution only; queue wait is independently bounded below.
+turn_seconds = 130.0 # Approved summary deadline change; queue wait is independently bounded below.
 queue_wait_seconds = 120.0
 local_seconds = 5.0
 summary_max_bytes = 4096
@@ -53,7 +53,7 @@ reasoning = "medium"
 [adapter.budgets.summary]
 input_tokens = 16384
 output_tokens = 2048
-seconds = 20.0
+seconds = 60.0
 reasoning = "medium"
 
 [adapter.budgets.reply]

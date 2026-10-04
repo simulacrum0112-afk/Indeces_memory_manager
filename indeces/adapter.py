@@ -1,4 +1,4 @@
-"""Stateless Luna transport: exact count, one generation, no retries or tools."""
+"""Stateless Responses transport: exact count, one generation, no retries or tools."""
 from __future__ import annotations
 
 import asyncio

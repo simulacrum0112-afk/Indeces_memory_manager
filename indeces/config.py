@@ -40,7 +40,7 @@ class DiscordConfig:
 
 @dataclass(frozen=True)
 class RuntimeConfig:
-    turn_seconds: float = 100.0
+    turn_seconds: float = 130.0
     queue_wait_seconds: float = 120.0
     local_seconds: float = 5.0
     summary_max_bytes: int = 4096
