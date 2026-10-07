@@ -157,5 +157,80 @@
     "after_sha256": "2a78f328a95a5a7b7b18de4793a528abc3374d04ebaf1626a3d51cc2bc17bcaf",
     "new_test_execution": false,
     "reason": "Formatting-only change after canonical checks; application source and wheel unchanged"
-  }
+  },
+  "first_published_checkpoint_ci": {
+    "commit": "d25ca32beeaa5c8a8dcc47e158cf5822786074d0",
+    "run": 37698689430,
+    "run_url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37698689430",
+    "status": "completed",
+    "conclusion": "failure",
+    "jobs": [
+      {
+        "name": "check (windows-latest, ./.venv/Scripts/python.exe)",
+        "status": "completed",
+        "conclusion": "cancelled"
+      },
+      {
+        "name": "check (ubuntu-latest, ./.venv/bin/python)",
+        "status": "completed",
+        "conclusion": "failure"
+      }
+    ],
+    "metadata_limit": "Only public run/job/step metadata and check annotations read; exact failed unittest names/output not available from these records"
+  },
+  "test_fixture_portability_correction": {
+    "paths": [
+      "tests/test_manual_trial.py",
+      "tests/test_manual_trial_gate.py"
+    ],
+    "diagnosis": "Live synthetic approval fixtures used the actual package/test path: inside fixed D:\\Indeces on Windows, outside the same unchanged gate boundary on POSIX. POSIX fixtures now use a synthetic boundary in their TemporaryDirectory and restore cwd before cleanup. No actual production paths, credentials or network are used.",
+    "production_path_boundary_changed": false,
+    "application_source_changed": false,
+    "test_names_or_assertions_weakened": false,
+    "original_prototype_tests_restored": true,
+    "current_test_worktree_sha256": {
+      "tests/test_manual_trial.py": "d6c177fc13267a9cebc1a4376f7c1bdfe2724aead498930adfa4f235a8b9e290",
+      "tests/test_manual_trial_gate.py": "72fa3f24502be56a1ada287bd612b0cfd0135b0c1011325ccbca77f7c20c751c"
+    },
+    "patch_sha256": "d4d3f5638c00fa41b6f6f1664649e599c2ddb1d7e0d36ba4d10932d37007fb1a",
+    "linux_execution_status": "Pending exact follow-up GitHub CI; no local Linux executor exists",
+    "other_ci_failure_causes_excluded": false
+  },
+  "portable_manual_package_checks": {
+    "tests_run": 70,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": true,
+    "elapsed_seconds": 6.23399999999674
+  },
+  "full_regression_timeline": [
+    {
+      "receipt": "CHECKPOINT_FULL_CHECKS.json",
+      "tests_run": 1154,
+      "failures": 4,
+      "errors": 0,
+      "skipped": 20,
+      "elapsed_seconds": 268.312,
+      "receipt_written_at_utc": "2026-10-07T22:33:30.289245+00:00",
+      "time_basis": "Filesystem UTC mtime of preserved receipt, not a recorded process start time",
+      "source_scope_files": 121,
+      "source_scope_sha256": "c7bdf1e9384a7c949465ae36f7a414bc1f566c034724df99da6abfabd30c7685",
+      "python_app_source_identity_sha256": "f6eb9505afd35ffde66f6a1f1c99e18ae2feeee78f8263bfab613406577922b0"
+    },
+    {
+      "receipt": "CHECKPOINT_FULL_CHECKS_FINAL.json",
+      "tests_run": 1154,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 20,
+      "elapsed_seconds": 272.688,
+      "receipt_written_at_utc": "2026-10-07T22:41:02.055944+00:00",
+      "time_basis": "Filesystem UTC mtime of preserved receipt, not a recorded process start time",
+      "source_scope_files": 121,
+      "source_scope_sha256": "c7bdf1e9384a7c949465ae36f7a414bc1f566c034724df99da6abfabd30c7685",
+      "python_app_source_identity_sha256": "f6eb9505afd35ffde66f6a1f1c99e18ae2feeee78f8263bfab613406577922b0"
+    }
+  ],
+  "followup_validation_scope": "Two test fixtures changed after the preserved Windows full suite. Existing 70 actual-package tests rerun once; unchanged application/wheel were not rebuilt; full Windows suite not repeated. The next exact CI supplies Linux/Windows commit verification without inferring remote test counts."
 }

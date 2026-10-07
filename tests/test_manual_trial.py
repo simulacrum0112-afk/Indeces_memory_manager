@@ -8,6 +8,7 @@ from decimal import Decimal
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import socket
 import sys
@@ -75,7 +76,7 @@ def tariff(**overrides):
 def approval(rates, limits, **overrides):
     value = dict(approval_id="synthetic-approval", status="approved", project="Indeces",
                  account_id="synthetic-account", project_id="synthetic-project",
-                 guild_id="10", channel_id="20", config_path=str(ROOT / "synthetic-config.toml"),
+                 guild_id="10", channel_id="20", config_path=str(Path(r"D:\Indeces").resolve() / "synthetic-config.toml"),
                  config_source_sha256=SHA, model=MODEL, owner_evidence="synthetic approval fixture only",
                  allowed_stages=["reply"], allowed_response_models=[MODEL],
                  account_binding_confirmed=True, background_knowledge_disabled=True, delivery_mode="api",
@@ -168,7 +169,18 @@ class FakeSession:
 class Fixture:
     def setUp(self):
         self.temp = TemporaryDirectory(prefix="indeces-manual-tests-")
+        self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name).resolve()
+        self.original_cwd = Path.cwd()
+        self.addCleanup(os.chdir, self.original_cwd)
+        self.config_file = Path(__file__).resolve()
+        if os.name != "nt":
+            # On POSIX the Windows boundary is a relative basename. Resolve
+            # it within this fixture's temp cwd, without changing the gate.
+            os.chdir(self.root)
+            self.config_file = Path(r"D:\Indeces").resolve() / "synthetic-config.toml"
+            self.config_file.parent.mkdir(parents=True)
+            self.config_file.write_text("# Synthetic fixture; config readers are injected.\n", encoding="utf-8")
         self.gates, self.stores, self.scratches, self.contexts = [], [], [], []
         self.serial = 0
         self.guards = [patch("socket.create_connection", deny_network),
@@ -193,6 +205,7 @@ class Fixture:
             gate.close()
         for guard in reversed(self.guards):
             guard.stop()
+        os.chdir(self.original_cwd)
         self.temp.cleanup()
 
     def gate(self, *, rates=None, limits=None, manifest=None, **kwargs):
@@ -237,7 +250,7 @@ class Fixture:
     def context(self, bundle=None, **kwargs):
         cfg = config(self.root / "production-shaped-unused")
         lease = unittest.mock.Mock()
-        context = manual_runtime.prepare_context(ROOT / "synthetic-config.toml", "20", "synthetic-account",
+        context = manual_runtime.prepare_context(self.config_file, "20", "synthetic-account",
                     bundle or BUNDLE, config_loader=lambda unused: cfg, path_validator=lambda value: value,
                     lease_factory=lambda unused: lease, id_validator=lambda value: value,
                     source_digest_reader=lambda unused: SHA,
@@ -709,14 +722,14 @@ class ManualRuntimeTests(Fixture, unittest.IsolatedAsyncioTestCase):
     async def test_preflight_invalid_items_and_owned_lease_never_read_credentials(self):
         reader, lease = unittest.mock.Mock(), unittest.mock.Mock()
         with self.assertRaises(manual_runtime.ManualRuntimeError):
-            manual_runtime.prepare_context(ROOT / "synthetic-config.toml", "20", "synthetic-account",
+            manual_runtime.prepare_context(self.config_file, "20", "synthetic-account",
                 {"items": BUNDLE["items"] + [{"id": "case-third", "text": "third"}]}, config_loader=reader,
                 path_validator=lambda value: value, lease_factory=lease, id_validator=lambda value: value)
         reader.assert_not_called()
         lease.assert_not_called()
         cfg = config(self.root / "unused-target")
         with self.assertRaises(manual_runtime.ManualRuntimeError) as caught:
-            manual_runtime.prepare_context(ROOT / "synthetic-config.toml", "20", "synthetic-account", BUNDLE,
+            manual_runtime.prepare_context(self.config_file, "20", "synthetic-account", BUNDLE,
                 config_loader=lambda unused: cfg, path_validator=lambda value: value,
                 lease_factory=unittest.mock.Mock(side_effect=RuntimeError("owned")), id_validator=lambda value: value,
                 source_digest_reader=lambda unused: SHA)
@@ -758,7 +771,7 @@ class ManualRuntimeTests(Fixture, unittest.IsolatedAsyncioTestCase):
         lease = unittest.mock.Mock()
         digest = unittest.mock.Mock(side_effect=[SHA, SHA, hashlib.sha256(b"changed").hexdigest()])
         with self.assertRaises(manual_runtime.ManualRuntimeError):
-            manual_runtime.prepare_context(ROOT / "synthetic-config.toml", "20", "synthetic-account", BUNDLE,
+            manual_runtime.prepare_context(self.config_file, "20", "synthetic-account", BUNDLE,
                 config_loader=lambda unused: cfg, path_validator=lambda value: value,
                 lease_factory=lambda unused: lease, id_validator=lambda value: value,
                 source_digest_reader=digest, network_preflight=lambda: {"ready": True})
@@ -785,8 +798,8 @@ class ManualRuntimeTests(Fixture, unittest.IsolatedAsyncioTestCase):
         bundle["questions"] = [{"item_id": row["id"], "question": row["text"]} for row in BUNDLE["items"]]
         cfg = config(self.root / "root-unused-production")
         rates, limits = tariff(), PilotLimits()
-        manifest = approval(rates, limits, config_path=str(Path(__file__).resolve()),
-            config_source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        manifest = approval(rates, limits, config_path=str(self.config_file),
+            config_source_sha256=hashlib.sha256(self.config_file.read_bytes()).hexdigest(),
             candidate_identity=candidate_identity(CANDIDATE), input_bundle_sha256=canonical_hash(bundle),
             account_binding_confirmed=True, background_knowledge_disabled=True, delivery_mode="api")
         files = {}
@@ -794,7 +807,7 @@ class ManualRuntimeTests(Fixture, unittest.IsolatedAsyncioTestCase):
             path = self.root / (name + ".json")
             path.write_text(json.dumps(data), encoding="utf-8")
             files[name] = path
-        args = manual_live.parser().parse_args(["--live", "--delivery", "api", "--config", str(Path(__file__).resolve()),
+        args = manual_live.parser().parse_args(["--live", "--delivery", "api", "--config", str(self.config_file),
             "--account", "synthetic-account", "--channel", "20", "--inputs", str(files["inputs"]),
             "--approval", str(files["approval"]), "--tariff", str(files["tariff"]),
             "--candidate-root", str(CANDIDATE), "--output", str(self.root / "run-root" / "one")])
@@ -848,8 +861,8 @@ class ManualRuntimeTests(Fixture, unittest.IsolatedAsyncioTestCase):
         bundle.update(kind="approved_frozen", owner_evidence="synthetic frozen approval")
         bundle["questions"][1]["question"] = "distinct synthetic question"
         rates, limits = tariff(), PilotLimits()
-        manifest = approval(rates, limits, config_path=str(Path(__file__).resolve()),
-            config_source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        manifest = approval(rates, limits, config_path=str(self.config_file),
+            config_source_sha256=hashlib.sha256(self.config_file.read_bytes()).hexdigest(),
             input_bundle_sha256=canonical_hash(bundle))
         args = SimpleNamespace(live=True, delivery="api", candidate_root=CANDIDATE,
                                output=self.root / "run-root" / "owned", channel="20", account="synthetic-account")
@@ -862,7 +875,7 @@ class ManualRuntimeTests(Fixture, unittest.IsolatedAsyncioTestCase):
             return original_prepare(path, channel, account, items, **kwargs)
         key_reader = unittest.mock.Mock(side_effect=AssertionError("No key read"))
         with patch.object(manual_live, "RUN_ROOT", self.root / "run-root"), \
-             patch.object(manual_live, "metadata", return_value=(bundle, manifest, rates, limits, SHA, Path(__file__).resolve())), \
+             patch.object(manual_live, "metadata", return_value=(bundle, manifest, rates, limits, SHA, self.config_file)), \
              patch.object(manual_runtime, "prepare_context", side_effect=prepared), \
              patch.object(manual_runtime, "load_openai_credential", key_reader), \
              patch.object(live_transport, "attach_live_transport", side_effect=AssertionError("No HTTP attach")):

@@ -9,6 +9,7 @@ from decimal import Decimal
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import socket
 import sys
@@ -63,7 +64,14 @@ def fixture_tariff(**overrides):
 class PilotFixture:
     def setup_pilot_fixture(self):
         self.directory = TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name).resolve()
+        self.original_cwd = Path.cwd()
+        self.addCleanup(os.chdir, self.original_cwd)
+        if os.name != "nt":
+            # Keep POSIX resolution of the fixed Windows approval boundary
+            # inside the synthetic temp fixture; product policy is unchanged.
+            os.chdir(self.root)
         self.counter = 0
         self.gates = []
         self.guards = [patch("socket.create_connection", deny_network),
@@ -79,6 +87,7 @@ class PilotFixture:
             gate.close()
         for guard in reversed(self.guards):
             guard.stop()
+        os.chdir(self.original_cwd)
         self.directory.cleanup()
 
     def gate(self, *, tariff=None, limits=None, path=None, **kwargs):
@@ -166,7 +175,8 @@ class PilotGateTests(PilotFixture, unittest.TestCase):
         limits = PilotLimits()
         approval = {"status": "approved", "project": "Indeces", "model": MODEL,
                     "approval_id": "synthetic-disabled-approval", "project_id": "synthetic-project",
-                    "guild_id": "10", "channel_id": "20", "config_path": str(Path(__file__).resolve()),
+                    "guild_id": "10", "channel_id": "20",
+                    "config_path": str(Path(r"D:\Indeces").resolve() / "synthetic-config.toml"),
                     "config_source_sha256": CANDIDATE_HASH, "allowed_response_models": [MODEL],
                     "account_binding_confirmed": True, "background_knowledge_disabled": True, "delivery_mode": "api",
                     "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
