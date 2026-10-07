@@ -1,0 +1,33 @@
+{
+  "approval_id": null,
+  "status": "pending_owner_approval",
+  "project": "Indeces",
+  "account_id": null,
+  "project_id": null,
+  "guild_id": null,
+  "channel_id": null,
+  "config_path": null,
+  "config_source_sha256": null,
+  "model": "gpt-6.1-sol",
+  "allowed_stages": ["reply"],
+  "allowed_response_models": ["gpt-6.1-sol"],
+  "owner_evidence": null,
+  "account_binding_confirmed": false,
+  "background_knowledge_disabled": true,
+  "delivery_mode": "discord",
+  "input_bundle_sha256": null,
+  "candidate_identity": null,
+  "tariff_sha256": null,
+  "expires_at": null,
+  "limits": {
+    "input_tokens": 16384,
+    "output_tokens": 2048,
+    "max_count_requests": 2,
+    "max_generations": 2,
+    "hard_cap_usd": "1.00",
+    "cumulative_input_tokens": 32768,
+    "cumulative_output_tokens": 4096,
+    "cumulative_seconds": 90,
+    "call_seconds": 45
+  }
+}

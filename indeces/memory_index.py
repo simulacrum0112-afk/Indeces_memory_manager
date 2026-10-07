@@ -27,6 +27,50 @@ REQUIRED_QUERY_TABLES = frozenset({
     "memory_query_adjacency", "memory_query_event_headers",
 })
 _LATIN = re.compile(r"^[A-Za-z0-9_.\-]+$")
+_SELECTOR_HEADER_PREFIX = "selector_header_v1:"
+_SELECTOR_HEADER_MAX_CHARS = 1024
+_SELECTOR_POLICY_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+
+
+def _selector_header_status(value):
+    """Decode only the explicit, bounded extension of a replay header.
+
+    Default statuses and the table/schema remain unchanged.  An injected
+    event needs a durable selector marker so default replay can reject it
+    without reading any original graph-audit payload.
+    """
+    if not isinstance(value, str):
+        return value, None
+    if not value.startswith(_SELECTOR_HEADER_PREFIX):
+        if value.startswith("selector_header_"):
+            raise ValueError("invalid selector event header")
+        return value, None
+    try:
+        if len(value) > _SELECTOR_HEADER_MAX_CHARS:
+            raise ValueError
+        envelope = json.loads(value[len(_SELECTOR_HEADER_PREFIX):])
+        if (not isinstance(envelope, dict)
+                or set(envelope) != {"kind", "version", "status", "selector_binding"}
+                or envelope["kind"] != "selector_event_header"
+                or type(envelope["version"]) is not int or envelope["version"] != 1
+                or not isinstance(envelope["status"], str)
+                or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", envelope["status"])):
+            raise ValueError
+        binding = envelope["selector_binding"]
+        if (not isinstance(binding, dict)
+                or set(binding) != {"contract", "policy", "receipt_sha256"}
+                or binding["contract"] != "selector_receipt_v1"
+                or not isinstance(binding["receipt_sha256"], str)
+                or not re.fullmatch(r"[0-9a-f]{64}", binding["receipt_sha256"])):
+            raise ValueError
+        policy = binding["policy"]
+        if (not isinstance(policy, dict) or set(policy) != {"id", "version"}
+                or any(not isinstance(policy[key], str)
+                       or not _SELECTOR_POLICY_ID.fullmatch(policy[key]) for key in policy)):
+            raise ValueError
+        return envelope["status"], binding
+    except (ValueError, TypeError, KeyError):
+        raise ValueError("invalid selector event header") from None
 
 
 def _json(value):
@@ -396,10 +440,14 @@ class KeyedMemoryIndex:
             (scope, event_id)).fetchone()
         if row is None:
             return None
-        return {"query": row[0], "observed_at": row[1], "ranking_mode": row[2],
+        status, selector_binding = _selector_header_status(row[5])
+        header = {"query": row[0], "observed_at": row[1], "ranking_mode": row[2],
                 "direct_hit_count": row[3], "original_changes_known": bool(row[4]),
-                "observation_status": row[5], "changed_edges_count": row[6],
+                "observation_status": status, "changed_edges_count": row[6],
                 "payload_sha256": row[7]}
+        if selector_binding is not None:
+            header["selector_binding"] = selector_binding
+        return header
 
     def publish_event_header(self, scope, event_id, serialized):
         """Add an immutable header derived from the exact immutable payload.
@@ -419,11 +467,23 @@ class KeyedMemoryIndex:
             "observation_status": observation["status"],
             "changed_edges_count": len(observation["changed_edges"]),
             "payload_sha256": hashlib.sha256(serialized.encode()).hexdigest()}
+        stored_status = header["observation_status"]
+        selection = payload["selection"]
+        if "selector_contract" in selection or "selector_receipt" in selection:
+            receipt = selection.get("selector_receipt")
+            if (selection.get("selector_contract") != "selector_receipt_v1"
+                    or not isinstance(receipt, dict) or receipt.get("schema") != "selector_receipt_v1"):
+                raise ValueError("invalid selector event header")
+            binding = {"contract": selection["selector_contract"], "policy": receipt.get("policy"),
+                       "receipt_sha256": hashlib.sha256(_json(receipt).encode()).hexdigest()}
+            stored_status = _SELECTOR_HEADER_PREFIX + _json({"kind": "selector_event_header", "version": 1,
+                "status": header["observation_status"], "selector_binding": binding})
+            _, header["selector_binding"] = _selector_header_status(stored_status)
         self.connection.execute(
             "INSERT OR IGNORE INTO memory_query_event_headers VALUES(?,?,?,?,?,?,?,?,?,?)",
             (scope, event_id, header["query"], header["observed_at"], header["ranking_mode"],
              header["direct_hit_count"], int(header["original_changes_known"]),
-             header["observation_status"], header["changed_edges_count"], header["payload_sha256"]))
+             stored_status, header["changed_edges_count"], header["payload_sha256"]))
         if self.event_header(scope, event_id) != header:
             raise ValueError("memory query immutable event header mismatch")
         return header

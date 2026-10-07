@@ -1,0 +1,10 @@
+{
+  "model": "gpt-6.1-sol",
+  "generation_input_per_million": null,
+  "generation_output_per_million": null,
+  "generation_flat": null,
+  "count_input_per_million": "0",
+  "count_flat": null,
+  "count_billing_basis": null,
+  "provenance": {"kind": null, "source": null, "verified": false}
+}

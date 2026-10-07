@@ -62,10 +62,11 @@ def bot_reply_data(text):
 
 
 class Runtime:
-    def __init__(self, config, store, adapter, scratch):
+    def __init__(self, config, store, adapter, scratch, *, selector=None):
         self.config, self.store, self.adapter, self.scratch = config, store, adapter, scratch
         self.graph = MemoryGraph(store.db, self_marks=(config.name,),
-                                 retrieval_policy=config.runtime.retrieval_policy)
+                                 retrieval_policy=config.runtime.retrieval_policy,
+                                 selector=selector)
         self.knowledge_scope = f"{config.discord.guild_id}:knowledge"
         self._serial = asyncio.Lock()
 

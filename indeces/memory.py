@@ -40,7 +40,10 @@ from contextlib import contextmanager, nullcontext
 from typing import Any
 
 from .identity import AGENT_NAME, SELF_NAME_ALIASES
+from .contracts import GovernedError
 from .memory_index import KeyedMemoryIndex
+from .selection_policy import (SelectionCandidate, SelectionLimits, SelectionPolicy, SelectionRequest,
+                               checked_decision, digest, policy_identity)
 
 
 UPSTREAM_COMMIT = "8769b9ed0af3531b9fbc09fb6e084d8e7adf724d"
@@ -220,9 +223,13 @@ class MemoryGraph:
     """
 
     def __init__(self, connection: sqlite3.Connection,
-                 self_marks: tuple[str, ...] = (AGENT_NAME,), *, retrieval_policy='legacy_v1') -> None:
+                 self_marks: tuple[str, ...] = (AGENT_NAME,), *, retrieval_policy='legacy_v1',
+                 selector: SelectionPolicy | None = None) -> None:
         if retrieval_policy not in ('legacy_v1', 'concept_v1'):
             raise ValueError('unknown retrieval policy')
+        if selector is not None:
+            policy_identity(selector)
+        self.selector = selector
         self.retrieval_policy = retrieval_policy
         self.connection = connection
         self._retrieval_cache = {}
@@ -886,6 +893,40 @@ class MemoryGraph:
                                          audit=audit, ranking_mode=ranking_mode)
         return self._retrieve_neighborhood(scope, marks, query, now, event_id=event_id, audit=audit, context_query=context_query)
 
+    def _selector_event_receipt(self, scope, event_id, stored, header):
+        """Bind injected replay without changing the legacy replay contract."""
+        if self.selector is None:
+            if header and "selector_binding" in header:
+                raise GovernedError("selection_event_mismatch")
+            return None
+        if not stored:
+            if self.connection.execute(
+                    "SELECT 1 FROM main.memory_events WHERE scope=? AND event_id=?",
+                    (scope, event_id)).fetchone():
+                # A legacy event without a frozen selector receipt has no
+                # strategy/candidate binding that a new policy can inherit.
+                raise GovernedError("selection_event_mismatch")
+            return None
+        binding = header.get("selector_binding") if header else None
+        if not binding or binding["policy"] != policy_identity(self.selector):
+            raise GovernedError("selection_event_mismatch")
+        # Only explicit injected replay loads its original receipt. Default
+        # replay, including an injected-to-default mismatch, is header-only.
+        row = self.connection.execute(
+            "SELECT payload_json FROM main.memory_event_audits WHERE scope=? AND event_id=?",
+            (scope, event_id)).fetchone()
+        if not row or hashlib.sha256(row[0].encode()).hexdigest() != header["payload_sha256"]:
+            raise GovernedError("selection_event_mismatch")
+        selection = json.loads(row[0]).get("selection", {})
+        receipt = selection.get("selector_receipt")
+        if (not isinstance(receipt, dict) or receipt.get("schema") != "selector_receipt_v1"
+                or selection.get("selector_contract") != binding["contract"]
+                or digest(receipt) != binding["receipt_sha256"]):
+            raise GovernedError("selection_event_mismatch")
+        if receipt.get("policy") != policy_identity(self.selector):
+            raise GovernedError("selection_event_mismatch")
+        return receipt
+
     def _neighborhood_edges(self, scope, hits, meta):
         edges, ordinals = self.query_index.incident_edges(scope, hits)
         for pair, edge in edges.items():
@@ -968,6 +1009,8 @@ class MemoryGraph:
             stored = self.connection.execute(
                 "SELECT 1 FROM main.memory_event_audits WHERE scope=? AND event_id=?",
                 (scope, event_id)).fetchone()
+            original = self.query_index.event_header(scope, event_id)
+            selector_original = self._selector_event_receipt(scope, event_id, stored, original)
             if stored:
                 header = (self.connection.execute('SELECT context_query FROM memory_coverage_events WHERE scope=? AND event_id=?',
                           (scope, event_id)).fetchone() if self._has_concept_events else None)
@@ -975,7 +1018,6 @@ class MemoryGraph:
                     raise ValueError('retrieval event ID reused with different selection policy')
                 if concept and header[0] != context_query:
                     raise ValueError('retrieval event ID reused with different contextual input')
-            original = self.query_index.event_header(scope, event_id)
             if bool(stored) != bool(original):
                 raise ValueError("memory query event header unavailable; reopen during maintenance")
             legacy = self.connection.execute(
@@ -991,7 +1033,11 @@ class MemoryGraph:
             records = _NeighborhoodRecords(self.query_index, scope, hits, edges, self.self_marks, meta)
             if concept:
                 records.lexical_ids = concept['lexical_ids']
-            result, selection = self._selection(records, hits, edges, query, event_id, concept=concept)
+            selector_options = ({"scope": scope, "context_query": context_query,
+                                 "selector_original": selector_original}
+                                if self.selector is not None else {})
+            result, selection = self._selection(records, hits, edges, query, event_id,
+                                                concept=concept, **selector_options)
             selection.update(ranking_mode="static", weight_basis="static_npmi",
                              mark_frequencies_scope="edge_endpoints_v1")
             for record in result:
@@ -1070,6 +1116,8 @@ class MemoryGraph:
             stored = self.connection.execute(
                 "SELECT payload_json FROM memory_event_audits WHERE scope=? AND event_id=?", (scope, event_id)).fetchone()
             original = json.loads(stored[0]) if stored else None
+            selector_original = self._selector_event_receipt(
+                scope, event_id, stored, self.query_index.event_header(scope, event_id))
             legacy = self.connection.execute(
                 "SELECT query FROM memory_events WHERE scope=? AND event_id=?", (scope, event_id)).fetchone()
             if (original and original["request"]["query"] != query) or (legacy and legacy[0] != query):
@@ -1080,11 +1128,15 @@ class MemoryGraph:
             if (original or legacy) and original_mode != ranking_mode:
                 raise ValueError("retrieval event ID reused with different ranking mode")
             observation = {}
+            selector_options = ({"scope": scope, "ranking_mode": ranking_mode,
+                                 "selector_original": selector_original}
+                                if self.selector is not None else {})
             if hits:
                 if original and not original["match"]["direct_hits"]:
                     raise ValueError("retrieval event ID reused with different input")
                 self._observe(scope, hits, query, now, event_id, audit=observation, commit=False)
-                result, selection = self._selection(records, hits, self._query_edges(scope, ranking_mode, hits), query, event_id)
+                result, selection = self._selection(records, hits, self._query_edges(scope, ranking_mode, hits), query, event_id,
+                                                    **selector_options)
             else:
                 state = self.connection.execute(
                     "SELECT dynamic_seeded FROM memory_scopes WHERE scope=?", (scope,)).fetchone()
@@ -1092,7 +1144,7 @@ class MemoryGraph:
                 observation = {"status": "no_hit", "applied": False, "original_changes_known": True,
                                "seeded_before": seeded, "seeded_after": seeded, "seeded_edges": 0,
                                "changed_edges": [], "reason": "no_literal_known_mark"}
-                result, selection = self._selection(records, [], {}, query, event_id)
+                result, selection = self._selection(records, [], {}, query, event_id, **selector_options)
             selection.update(ranking_mode=ranking_mode,
                              weight_basis="static_npmi" if ranking_mode == "static" else "dynamic_or_static")
             for record in result:
@@ -1119,7 +1171,8 @@ class MemoryGraph:
             audit.update(payload)
         return result
 
-    def _selection(self, records, hits, edges, query, event_id, *, concept=None):
+    def _selection(self, records, hits, edges, query, event_id, *, concept=None,
+                   scope=None, context_query='', ranking_mode='static', selector_original=None):
         """The existing one-hop/ranking policy, with observable decision data."""
         context_matches = {}
 
@@ -1274,8 +1327,31 @@ class MemoryGraph:
             if concept:
                 selection['ranked_candidates'][-1].update(relevance_score=direct_count,
                     relevance_inputs=record['relevance_inputs'])
+        ordered = ranked
+        selector_request = None
+        if self.selector is not None:
+            policy = policy_identity(self.selector)
+            frozen = tuple(SelectionCandidate(
+                record_id=record_id, scope=record["scope"], source_id=record["source_id"],
+                fingerprint=digest([record["text"], record["quote"]]), rank=rank,
+                text=record["text"], quote=record["quote"], marks=tuple(record["marks"]),
+                direct_marks=tuple(record["direct_marks"]), expanded_marks=tuple(record["expanded_marks"]),
+                direct_match_count=len(record["direct_marks"]), effective_score=effective,
+                static_score=static, dynamic_score=record["dynamic_score"],
+                ranking_score=record["ranking_score"])
+                for rank, (_, effective, static, record_id, record) in enumerate(ranked, 1))
+            selector_request = SelectionRequest(scope, event_id, query, context_query, ranking_mode,
+                self.retrieval_policy if ranking_mode == "static" else "legacy_v1", frozen,
+                SelectionLimits(MAX_REFERENCES, MAX_TEXT_CHARS, MAX_ENTRY_CHARS))
+            decision = checked_decision(self.selector, selector_request, policy)
+            by_id = {item[3]: item for item in ranked}
+            frozen_by_id = {candidate.record_id: candidate for candidate in frozen}
+            ordered = [by_id[record_id] for record_id in decision.selected_record_ids]
+            for candidate, row in zip(frozen, selection["ranked_candidates"]):
+                row.update(scope=candidate.scope, fingerprint=candidate.fingerprint,
+                           quote_characters=len(candidate.quote), ranking_score=candidate.ranking_score)
         result, used = [], 0
-        for _, _, _, _, record in ranked:
+        for _, _, _, _, record in ordered:
             if len(result) == MAX_REFERENCES:
                 break
             available = min(MAX_ENTRY_CHARS, MAX_TEXT_CHARS - used)
@@ -1298,4 +1374,33 @@ class MemoryGraph:
             selection['limits']['direct_marks'] = 64
             selection['ranking_order'] = ['relevance_score descending', 'effective_score descending',
                                            'static_score descending', 'record_id descending']
+        if selector_request is not None:
+            inventory = [candidate.identity() for candidate in selector_request.candidates]
+            selector_input = {"scope": scope, "event_id": event_id,
+                "query_sha256": hashlib.sha256(query.encode()).hexdigest(),
+                "context_query": context_query,
+                "context_query_sha256": hashlib.sha256(context_query.encode()).hexdigest(),
+                "ranking_mode": ranking_mode, "retrieval_policy": selector_request.retrieval_policy}
+            candidate_hash = digest(inventory)
+            excluded = {item.record_id: item.reason for item in decision.exclusions}
+            receipt = {"schema": "selector_receipt_v1", "policy": policy, "input": selector_input,
+                "candidate_set": {"scope": "eligible_ranked_candidates_v1", "count": len(inventory),
+                                  "inventory": inventory, "sha256": candidate_hash},
+                "input_sha256": digest({"input": selector_input, "candidate_set_sha256": candidate_hash,
+                                        "limits": selection["limits"]}),
+                "selected_record_ids": list(decision.selected_record_ids),
+                "exclusions": [{"record_id": candidate.record_id, "reason": excluded[candidate.record_id]}
+                               for candidate in selector_request.candidates if candidate.record_id in excluded],
+                "result_bindings": [{"record_id": record["id"], "source_id": record["source_id"],
+                    "scope": record["scope"], "fingerprint": frozen_by_id[record["id"]].fingerprint,
+                    "quote_sha256": hashlib.sha256(record["quote"].encode()).hexdigest(),
+                    "preview_sha256": hashlib.sha256(record["text"].encode()).hexdigest(),
+                    "text_characters": len(record["text"]), "text_truncated": record["text_truncated"]}
+                    for record in result]}
+            if selection["selected_record_ids"] != receipt["selected_record_ids"]:
+                raise GovernedError("invalid_selection_decision")
+            if selector_original is not None and receipt != selector_original:
+                raise GovernedError("selection_event_mismatch")
+            selection["selector_contract"] = "selector_receipt_v1"
+            selection["selector_receipt"] = receipt
         return result, selection

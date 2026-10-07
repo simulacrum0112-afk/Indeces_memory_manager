@@ -1,3 +1,15 @@
+# Manual-entry checkpoint 0.15.1.dev2026100702
+
+This independent checkpoint adds the selector protocol and an explicit finite manual entry. The existing main worktree, its 17 user changes, earlier experiments and production runtime are preserved. The source base is clean main `94ae7bd15120070fb24f88d0e7bd8d4e3d622e20`; the checkpoint branch is `checkpoint/manual-live-ready-20261007`.
+
+The real entry reuses OpenAIAdapter and Discord dispatch, with default-off activation, full operator metadata checks, the original state lease, a fixed approval ledger, 2 count/2 generation limits, cumulative token/time/fee gates and persistent failure stops. It starts no knowledge maintenance or summary stage. See [MANUAL_TRIAL.md](MANUAL_TRIAL.md) for prerequisites, exact limits, held-out separation, billing trust and rollback boundaries.
+
+All validation in this development session is offline and synthetic. The delivery report distinguishes targeted checks, full-suite initial failures and corrected checks, standard build/installed wheel checks, and visible CI status. Its exact commit and source identities are recorded as delivery evidence; a version number does not identify an already running service. No real model/Discord/held-out smoke or deployment has been performed. Expenses remain unapproved until the operator supplies a complete approved descriptor.
+
+The sections below preserve earlier delivery records and their then-current states; their runtime/model evidence must not be attributed to this new manual checkpoint.
+
+---
+
 # 当前与历史代码检查点
 
 当前源码 **0.15.0**：用户授权通用检索覆盖修复及有界恢复。Runtime 默认 concept_v1，显式 legacy_v1 可回滚；归一化、64个问题焦点/IDF命中、128个有界正文候选、概念/正文分数与元数据降权替换长度四词及原始命中数量优先。原始记录、图公式/一跳与context gate、static/dynamic分层、三个完整[M]引用、self-reasoning边界、Sol/medium及所有调用额度保留。新策略与旧审计分版核验，不重释旧事件。参数表、算法和边界见 [RETRIEVAL_COVERAGE.md](RETRIEVAL_COVERAGE.md)。

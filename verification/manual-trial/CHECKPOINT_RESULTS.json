@@ -1,0 +1,161 @@
+{
+  "schema": "indeces_checkpoint_offline_results_v1",
+  "version": "0.15.1.dev2026100702",
+  "scope": "Code checkpoint only; offline synthetic validation, no real model/Discord/held-out acceptance or deployment",
+  "baseline_main": "94ae7bd15120070fb24f88d0e7bd8d4e3d622e20",
+  "checkpoint_branch": "checkpoint/manual-live-ready-20261007",
+  "candidate_identity": "ba2baeda1c52867475a5e840e1ade872e54440879d4951092b25fcaabcea748e",
+  "public_test_command": [
+    "python",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-v"
+  ],
+  "full_regression": {
+    "tests_run": 1154,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 20,
+    "successful": true,
+    "elapsed_seconds": 272.688,
+    "source_identity_sha256": "c7bdf1e9384a7c949465ae36f7a414bc1f566c034724df99da6abfabd30c7685",
+    "source_files": 121,
+    "protected_scope": [
+      "indeces/**",
+      "tests/**",
+      "pyproject.toml",
+      "LICENSE",
+      "config.example.toml",
+      "requirements.lock"
+    ],
+    "source_unchanged": true
+  },
+  "full_regression_guard": "Inherited process-only external-socket guard; only loopback allowed, source origins and before/after SHA maps checked",
+  "full_regression_initial_run": {
+    "version": "0.15.1.dev2026100702",
+    "tests_run": 1154,
+    "failures": 4,
+    "errors": 0,
+    "skipped": 20,
+    "successful": false,
+    "elapsed_seconds": 268.312,
+    "failure_ids": [
+      "test_console_process.ConsoleProcessTests.test_windows_cmd_launchers_route_same_owner_and_forward_config_argument",
+      "test_name_migration.NameMigrationTests.test_new_observer_uses_same_mutex_as_an_old_runtime_process",
+      "test_scratch_observer.ScratchObserverTests.test_aborted_observer_process_does_not_leave_writer_mutex_locked",
+      "test_scratch_observer.ScratchObserverTests.test_cross_process_reader_serializes_writer_with_canonical_directory_alias"
+    ],
+    "error_ids": [],
+    "source_identity_sha256": "c7bdf1e9384a7c949465ae36f7a414bc1f566c034724df99da6abfabd30c7685",
+    "source_unchanged": true,
+    "external_socket_attempts_blocked": []
+  },
+  "initial_failure_categories": {
+    "isolated_checkout_missing_local_venv": [
+      "test_console_process.ConsoleProcessTests.test_windows_cmd_launchers_route_same_owner_and_forward_config_argument"
+    ],
+    "external_checker_spawn_reentry_missing_main_guard": [
+      "test_name_migration.NameMigrationTests.test_new_observer_uses_same_mutex_as_an_old_runtime_process",
+      "test_scratch_observer.ScratchObserverTests.test_aborted_observer_process_does_not_leave_writer_mutex_locked",
+      "test_scratch_observer.ScratchObserverTests.test_cross_process_reader_serializes_writer_with_canonical_directory_alias"
+    ]
+  },
+  "initial_environment_corrections": {
+    "product_source_changes": 0,
+    "public_test_fixture_changes": 0,
+    "external_checker_main_guard_added": true,
+    "isolated_venv_created_without_pip_downloads_or_links": true,
+    "process_only_import_origin_verified": true
+  },
+  "post_full_eol_only_changes": {
+    "schema": "checkpoint_eol_canonicalization_v1",
+    "semantic_change": false,
+    "files": [
+      {
+        "path": "indeces/manual_trial/__init__.py",
+        "before_sha256": "132a5707447e52575c51e74de9f9b06bdd871e606314e18569d6855c8bfc7cd5",
+        "after_sha256": "c0f33cde0e6a39417a138b3835279f87fc1ea855779ba2ebf3253fe041c6be41",
+        "before_crlf": 1,
+        "after_crlf": 0,
+        "ast_identical": true
+      },
+      {
+        "path": "indeces/manual_trial/__main__.py",
+        "before_sha256": "8bc0f79e7a5927d18aac24cb03fe9c9b1be9fa57081c75a8c987681e5f8e49f8",
+        "after_sha256": "a7ab7fe5d3b98dcff43e718b1f53f7324a3254786014ac4ea36e96e7663e2218",
+        "before_crlf": 7,
+        "after_crlf": 0,
+        "ast_identical": true
+      }
+    ]
+  },
+  "canonical_manual_package_checks": {
+    "tests_run": 70,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": true,
+    "elapsed_seconds": 6.187000000005355
+  },
+  "core_selector_regression": {
+    "tests_run": 211,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": true
+  },
+  "wheel": {
+    "sha256": "7a2d18603f3f10a704c1054a8f4e2c11ca7528b0f8a246f072886394a55c67ab",
+    "bytes": 242600,
+    "members": 51,
+    "record_hashes_verified": true,
+    "packaged_source_count": 45
+  },
+  "wheel_filename": "indeces_memory_manager-0.15.1.dev2026100702-py3-none-any.whl",
+  "wheel_source_matches_checkout": true,
+  "installed_cli_check_exit_code": 0,
+  "installed_manual_mock": {
+    "mode": "mock",
+    "request_count": 4,
+    "count_requests": 2,
+    "generation_requests": 2,
+    "real_requests": 0,
+    "background_workers_started": 0,
+    "acceptance_passed": true,
+    "source_identity": "ba2baeda1c52867475a5e840e1ade872e54440879d4951092b25fcaabcea748e"
+  },
+  "installed_live_missing_metadata": {
+    "status": "blocked",
+    "code": "manual_required_metadata_missing",
+    "real_requests": 0,
+    "output_directory_created": false
+  },
+  "production_install": false,
+  "dependency_downloads": false,
+  "real_model_api_calls": 0,
+  "real_discord_sessions": 0,
+  "private_held_out_reads": 0,
+  "original_user_changes_preserved": 17,
+  "remaining_acceptance": [
+    "Owner-approved account/project/target/source/input/tariff/expiry descriptor",
+    "Verified tariff including flat input-count fee",
+    "Real model availability, exact response model, actual usage/billing and latency",
+    "Real Discord delivery",
+    "Independent held-out answer scoring",
+    "Running production build identity"
+  ],
+  "quality_status": "Old Q1-Q3 effect failures remain failures; no held-out questions or gold were requested, read or copied; no answer-effect rerun",
+  "rollback": "Use existing main/production checkout; stop using this independent checkpoint/isolated install. Preserve all original experiments and stopped approval ledgers.",
+  "post_acceptance_test_formatting": {
+    "path": "tests/test_manual_trial.py",
+    "only_change": "Remove one blank line at EOF to satisfy git diff --check; CRLF retained in worktree, Git normalizes LF",
+    "ast_identical": true,
+    "before_sha256": "b9e9d6bf7b6b219832760041eaad8ddbc2007d7cfc6a2a3146eea1bffc27ba91",
+    "after_sha256": "2a78f328a95a5a7b7b18de4793a528abc3374d04ebaf1626a3d51cc2bc17bcaf",
+    "new_test_execution": false,
+    "reason": "Formatting-only change after canonical checks; application source and wheel unchanged"
+  }
+}

@@ -19,6 +19,8 @@ from .contracts import validated_token_usage
 
 MAX_PDF_METADATA_BYTES = 512 * 1024
 MODEL_PROJECTION = "citation_material_v1"
+SELECTOR_MODEL_PROJECTION = "citation_material_selector_v1"
+SELECTOR_RECEIPT_SCHEMA = "selector_receipt_v1"
 NEIGHBORHOOD_AUDIT_SCOPE = "direct_hit_neighborhood_v1"
 NEIGHBORHOOD_FREQUENCY_SCOPE = "edge_endpoints_v1"
 _MODEL_MATERIAL_FIELDS = (
@@ -173,10 +175,13 @@ def freeze_retrieval(db, scope, event_id, query, records, graph_audit):
         audit_content = canonical(graph_audit)
         audit_snapshot = json.loads(audit_content) if _native_json_tree(graph_audit) else deepcopy(graph_audit)
         audit_sha256 = hashlib.sha256(audit_content).hexdigest()
-    result = {"version": 1, "scope": scope, "event_id": event_id, "query": query,
-              "model_projection": MODEL_PROJECTION,
+    selected_contract = "selector_receipt" in audit_snapshot.get("selection", {})
+    result = {"version": 2 if selected_contract else 1, "scope": scope, "event_id": event_id, "query": query,
+              "model_projection": SELECTOR_MODEL_PROJECTION if selected_contract else MODEL_PROJECTION,
               "model_materials": model_materials, "materials": materials, "sources": sources,
               "graph_audit": audit_snapshot, "graph_audit_sha256": audit_sha256}
+    if selected_contract:
+        result["selector_receipt_sha256"] = digest(audit_snapshot["selection"]["selector_receipt"])
     validate_retrieval(result)
     return result
 
@@ -224,8 +229,175 @@ def _require(condition, message):
 def _has_model_projection(record):
     if "model_projection" not in record:
         return False
-    _require(record["model_projection"] == MODEL_PROJECTION, "unsupported model material projection")
+    _require(record["model_projection"] in (MODEL_PROJECTION, SELECTOR_MODEL_PROJECTION),
+             "unsupported model material projection")
     return True
+
+
+def _validate_selection_contract(audit, retrieval=None):
+    """Check optional selector receipts without trusting the strategy code.
+
+    The inventory covers the eligible ranked input, rather than all library
+    records. Unselected bodies are represented by identities and hashes; this
+    establishes receipt consistency, not their semantic correctness.
+    """
+    selection = audit.get("selection", {})
+    ranked = selection.get("ranked_candidates", [])
+    present = "selector_receipt" in selection
+    declared = "selector_contract" in selection
+    _require(present == declared, "selector graph contract missing")
+    if declared:
+        _require(selection["selector_contract"] == SELECTOR_RECEIPT_SCHEMA,
+                 "unsupported selector graph contract")
+    if retrieval is not None:
+        _require(type(retrieval["version"]) is int and retrieval["version"] in (1, 2),
+                 "unsupported retrieval record")
+        modern = retrieval["version"] == 2
+        if modern:
+            _require(retrieval.get("model_projection") == SELECTOR_MODEL_PROJECTION
+                     and present and "selector_receipt_sha256" in retrieval,
+                     "selector material contract missing")
+            _require(retrieval["selector_receipt_sha256"] == digest(selection["selector_receipt"]),
+                     "selector material receipt digest mismatch")
+        else:
+            _require(not present and "selector_receipt_sha256" not in retrieval
+                     and retrieval.get("model_projection") != SELECTOR_MODEL_PROJECTION,
+                     "selector material contract downgrade")
+    if not present:
+        return ranked[:3]
+    receipt = selection["selector_receipt"]
+    _require(type(receipt) is dict and set(receipt) == {
+        "schema", "policy", "input", "candidate_set", "input_sha256",
+        "selected_record_ids", "exclusions", "result_bindings"}, "selector receipt fields mismatch")
+    _require(receipt["schema"] == SELECTOR_RECEIPT_SCHEMA, "unsupported selector receipt")
+    _require(selection["limits"] == {
+        "direct_marks": 64 if "concept_policy" in selection else 4,
+        "neighbors_per_hit": 5, "expanded_marks": 2, "references": 3,
+        "total_text_characters": 400, "entry_text_characters": 110},
+        "selector limits changed")
+    policy = receipt["policy"]
+    _require(type(policy) is dict and set(policy) == {"id", "version"}
+             and all(type(policy[key]) is str
+                     and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", policy[key])
+                     for key in ("id", "version")), "selector policy identity invalid")
+    request = receipt["input"]
+    _require(type(request) is dict and set(request) == {
+        "scope", "event_id", "query_sha256", "context_query", "context_query_sha256",
+        "ranking_mode", "retrieval_policy"}, "selector input fields mismatch")
+    _require(type(request["context_query"]) is str
+             and request["context_query_sha256"] == text_digest(request["context_query"]),
+             "selector context identity mismatch")
+    _require(request["scope"] == audit["scope"] and request["event_id"] == audit["event_id"]
+             and request["query_sha256"] == text_digest(audit["request"]["query"])
+             and request["ranking_mode"] == selection.get("ranking_mode", "dynamic")
+             and request["retrieval_policy"] == (
+                 "concept_v1" if "concept_policy" in selection else "legacy_v1"),
+             "selector input identity mismatch")
+    if "context_query" in audit["request"]:
+        _require(request["context_query"] == audit["request"]["context_query"],
+                 "selector context input mismatch")
+    candidate_set = receipt["candidate_set"]
+    _require(type(candidate_set) is dict and set(candidate_set) == {
+        "scope", "count", "inventory", "sha256"}, "selector candidate set fields mismatch")
+    inventory = candidate_set["inventory"]
+    _require(candidate_set["scope"] == "eligible_ranked_candidates_v1"
+             and type(candidate_set["count"]) is int and type(inventory) is list
+             and candidate_set["count"] == len(inventory) == len(ranked)
+             and candidate_set["sha256"] == digest(inventory), "selector candidate set identity mismatch")
+    _require(receipt["input_sha256"] == digest({"input": request,
+             "candidate_set_sha256": candidate_set["sha256"], "limits": selection["limits"]}),
+             "selector input digest mismatch")
+    identity_fields = {
+        "record_id", "scope", "source_id", "fingerprint", "rank", "marks", "direct_marks",
+        "expanded_marks", "direct_match_count", "effective_score", "static_score", "dynamic_score",
+        "ranking_score", "text_characters", "quote_characters", "text_sha256", "quote_sha256"}
+    candidate_by_id, identity_by_id = {}, {}
+    for identity, candidate in zip(inventory, ranked):
+        _require(type(identity) is dict and set(identity) == identity_fields,
+                 "selector candidate identity fields mismatch")
+        record_id = identity["record_id"]
+        _require(type(record_id) is int and record_id > 0 and record_id not in identity_by_id
+                 and identity["scope"] == audit["scope"] and type(identity["source_id"]) is str
+                 and bool(identity["source_id"]), "selector candidate identity invalid")
+        _require(all(type(identity[key]) is str and re.fullmatch(r"[0-9a-f]{64}", identity[key])
+                     for key in ("fingerprint", "text_sha256", "quote_sha256")),
+                 "selector candidate hash invalid")
+        _require(all(type(identity[key]) is int and identity[key] >= 0
+                     for key in ("text_characters", "quote_characters")),
+                 "selector candidate length invalid")
+        expected = {key: candidate[key] for key in identity_fields}
+        _require(canonical(identity) == canonical(expected), "selector candidate inventory mismatch")
+        ranking_score = (candidate["relevance_score"] if "concept_policy" in selection
+                         else round(candidate["effective_score"], 6))
+        _require(type(identity["ranking_score"]) in (int, float)
+                 and canonical(identity["ranking_score"]) == canonical(ranking_score),
+                 "selector candidate ranking score mismatch")
+        candidate_by_id[record_id] = candidate
+        identity_by_id[record_id] = identity
+    selected_ids, exclusions = receipt["selected_record_ids"], receipt["exclusions"]
+    _require(type(selected_ids) is list and all(type(value) is int for value in selected_ids)
+             and len(selected_ids) <= selection["limits"]["references"]
+             and len(selected_ids) == len(set(selected_ids))
+             and set(selected_ids) <= set(identity_by_id), "selector selected identities invalid")
+    _require(type(exclusions) is list, "selector exclusions invalid")
+    excluded_ids = []
+    for exclusion in exclusions:
+        _require(type(exclusion) is dict and set(exclusion) == {"record_id", "reason"}
+                 and type(exclusion["record_id"]) is int and type(exclusion["reason"]) is str
+                 and re.fullmatch(r"[a-z][a-z0-9_]{0,63}", exclusion["reason"]),
+                 "selector exclusion invalid")
+        excluded_ids.append(exclusion["record_id"])
+    _require(len(excluded_ids) == len(set(excluded_ids))
+             and not set(excluded_ids) & set(selected_ids)
+             and set(excluded_ids) | set(selected_ids) == set(identity_by_id),
+             "selector candidate partition mismatch")
+    _require(selection["selected_record_ids"] == selected_ids
+             and len(selection["selected"]) == len(selected_ids), "selector selection receipt mismatch")
+    bindings = receipt["result_bindings"]
+    _require(type(bindings) is list and len(bindings) == len(selected_ids),
+             "selector result bindings mismatch")
+    for index, (record_id, binding, selected) in enumerate(zip(
+            selected_ids, bindings, selection["selected"]), 1):
+        identity = identity_by_id[record_id]
+        _require(type(binding) is dict and set(binding) == {
+            "record_id", "source_id", "scope", "fingerprint", "quote_sha256", "preview_sha256",
+            "text_characters", "text_truncated"}, "selector result binding fields mismatch")
+        binding_identity_keys = ("record_id", "source_id", "scope", "fingerprint", "quote_sha256")
+        _require(canonical({key: binding[key] for key in binding_identity_keys})
+                 == canonical({key: identity[key] for key in binding_identity_keys}),
+            "selector result identity mismatch")
+        characters = min(identity["text_characters"], selection["limits"]["entry_text_characters"])
+        _require(type(binding["text_characters"]) is int and binding["text_characters"] == characters
+                 and type(binding["text_truncated"]) is bool
+                 and binding["text_truncated"] == (characters < identity["text_characters"])
+                 and type(binding["preview_sha256"]) is str
+                 and re.fullmatch(r"[0-9a-f]{64}", binding["preview_sha256"]),
+                 "selector result preview invalid")
+        expected_selected = {"rank": index, "record_id": record_id, "source_id": binding["source_id"],
+                             **{key: binding[key] for key in (
+                                 "text_characters", "text_truncated", "preview_sha256")}}
+        _require(canonical(selected) == canonical(expected_selected),
+                 "selector selected content mismatch")
+    used_characters = sum(binding["text_characters"] for binding in bindings)
+    _require(selection["used_text_characters"] == used_characters
+             and used_characters <= selection["limits"]["total_text_characters"],
+             "selector text budget mismatch")
+    if retrieval is not None:
+        materials = retrieval["materials"]
+        _require([material["record_id"] for material in materials] == selected_ids,
+                 "selector material identities mismatch")
+        for material, binding in zip(materials, bindings):
+            identity = identity_by_id[material["record_id"]]
+            _require(material["scope"] == identity["scope"]
+                     and material["source_id"] == identity["source_id"]
+                     and material["fingerprint"] == identity["fingerprint"]
+                     and text_digest(material["stored_text"]) == identity["text_sha256"]
+                     and len(material["stored_text"]) == identity["text_characters"]
+                     and text_digest(material["quote"]) == identity["quote_sha256"]
+                     and len(material["quote"]) == identity["quote_characters"]
+                     and text_digest(material["model_payload"]["text"]) == binding["preview_sha256"],
+                     "selector frozen material identity mismatch")
+    return [candidate_by_id[record_id] for record_id in selected_ids]
 
 
 def _validate_projection_keys(payload, material):
@@ -281,8 +453,9 @@ def _validate_legacy_model_material(payload, material, candidate, selection):
 
 
 def validate_retrieval(record):
-    _require(record["version"] == 1, "unsupported retrieval record")
+    _require(type(record["version"]) is int and record["version"] in (1, 2), "unsupported retrieval record")
     projected = _has_model_projection(record)
+    selected_candidates = _validate_selection_contract(record["graph_audit"], record)
     _require(digest(record["graph_audit"]) == record["graph_audit_sha256"], "graph audit digest mismatch")
     materials = record["materials"]
     _require(len(materials) <= 3, "too many recalled materials")
@@ -304,13 +477,13 @@ def validate_retrieval(record):
         _require(payload["text"] == preview and payload["text_truncated"] == (len(full) > 110), "model preview mismatch")
         _require(digest([material["stored_text"], material["quote"]]) == material["fingerprint"], "material fingerprint mismatch")
         selection = record["graph_audit"]["selection"]
-        _require(len(selection["ranked_candidates"]) >= index, "model material candidate missing")
+        _require(len(selected_candidates) >= index, "model material candidate missing")
         if projected:
-            _validate_model_projection(payload, material, selection["ranked_candidates"][index - 1], selection)
+            _validate_model_projection(payload, material, selected_candidates[index - 1], selection)
         else:
             # Missing the projection marker cannot downgrade a compact view
             # to the historical complete-evidence contract.
-            _validate_legacy_model_material(payload, material, selection["ranked_candidates"][index - 1], selection)
+            _validate_legacy_model_material(payload, material, selected_candidates[index - 1], selection)
         if not source["metadata_available"]:
             _require(not material["source_id"].startswith("kb:"), "knowledge version metadata missing")
             _require(not any(key in material for key in ("pdf_page_occurrences", "pdf_page_numbers"))
@@ -1138,13 +1311,14 @@ def validate_graph_audit(audit, retrieval=None):
                  and candidate["effective_score"] == sum(e["effective_score"] for e in evidence)
                  and candidate["static_score"] == sum(e["static_score"] for e in evidence)
                  and candidate["dynamic_score"] == round(sum(e["dynamic_score"] for e in evidence), 6), "ranking arithmetic mismatch")
+    selected_candidates = _validate_selection_contract(audit, retrieval)
     if retrieval is None:
         return
     materials = retrieval["materials"]
     _require(selection["selected_record_ids"] == [m["record_id"] for m in materials]
-             == [c["record_id"] for c in ranked[:3]], "selected ranking mismatch")
+             == [c["record_id"] for c in selected_candidates], "selected ranking mismatch")
     _require(len(selection["selected"]) == len(materials), "selected receipt mismatch")
-    for material, selected, candidate in zip(materials, selection["selected"], ranked):
+    for material, selected, candidate in zip(materials, selection["selected"], selected_candidates):
         if concept:
             from .relevance import metadata_factor, contains
             inputs = candidate['relevance_inputs']
