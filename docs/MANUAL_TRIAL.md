@@ -1,6 +1,6 @@
 # Finite manual acceptance checkpoint
 
-This checkpoint adds an opt-in manual test entry and a selector protocol. It does not replace the normal Console or deploy a running service. Its version is `0.15.1.dev2026100702`; the default reply path keeps the original static retrieval behavior unless a selector is explicitly supplied. The failed offline v1/v2/v3 selectors and keyword-driven NPMI requery are not enabled or included.
+This checkpoint adds an opt-in manual test entry and a selector protocol. It does not replace the normal Console or deploy a running service. Its version is `0.15.1.dev2026100703`; the default reply path keeps the original static retrieval behavior unless a selector is explicitly supplied. The failed offline v1/v2/v3 selectors and keyword-driven NPMI requery are not enabled or included.
 
 ## Commands and operator prerequisites
 

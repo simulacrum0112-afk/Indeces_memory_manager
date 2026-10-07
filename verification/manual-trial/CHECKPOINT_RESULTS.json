@@ -1,10 +1,10 @@
 {
   "schema": "indeces_checkpoint_offline_results_v1",
-  "version": "0.15.1.dev2026100702",
+  "version": "0.15.1.dev2026100703",
   "scope": "Code checkpoint only; offline synthetic validation, no real model/Discord/held-out acceptance or deployment",
   "baseline_main": "94ae7bd15120070fb24f88d0e7bd8d4e3d622e20",
   "checkpoint_branch": "checkpoint/manual-live-ready-20261007",
-  "candidate_identity": "ba2baeda1c52867475a5e840e1ade872e54440879d4951092b25fcaabcea748e",
+  "candidate_identity": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e",
   "public_test_command": [
     "python",
     "-m",
@@ -14,25 +14,6 @@
     "tests",
     "-v"
   ],
-  "full_regression": {
-    "tests_run": 1154,
-    "failures": 0,
-    "errors": 0,
-    "skipped": 20,
-    "successful": true,
-    "elapsed_seconds": 272.688,
-    "source_identity_sha256": "c7bdf1e9384a7c949465ae36f7a414bc1f566c034724df99da6abfabd30c7685",
-    "source_files": 121,
-    "protected_scope": [
-      "indeces/**",
-      "tests/**",
-      "pyproject.toml",
-      "LICENSE",
-      "config.example.toml",
-      "requirements.lock"
-    ],
-    "source_unchanged": true
-  },
   "full_regression_guard": "Inherited process-only external-socket guard; only loopback allowed, source origins and before/after SHA maps checked",
   "full_regression_initial_run": {
     "version": "0.15.1.dev2026100702",
@@ -92,46 +73,12 @@
       }
     ]
   },
-  "canonical_manual_package_checks": {
-    "tests_run": 70,
-    "failures": 0,
-    "errors": 0,
-    "skipped": 0,
-    "passed": true,
-    "elapsed_seconds": 6.187000000005355
-  },
   "core_selector_regression": {
     "tests_run": 211,
     "failures": 0,
     "errors": 0,
     "skipped": 0,
     "passed": true
-  },
-  "wheel": {
-    "sha256": "7a2d18603f3f10a704c1054a8f4e2c11ca7528b0f8a246f072886394a55c67ab",
-    "bytes": 242600,
-    "members": 51,
-    "record_hashes_verified": true,
-    "packaged_source_count": 45
-  },
-  "wheel_filename": "indeces_memory_manager-0.15.1.dev2026100702-py3-none-any.whl",
-  "wheel_source_matches_checkout": true,
-  "installed_cli_check_exit_code": 0,
-  "installed_manual_mock": {
-    "mode": "mock",
-    "request_count": 4,
-    "count_requests": 2,
-    "generation_requests": 2,
-    "real_requests": 0,
-    "background_workers_started": 0,
-    "acceptance_passed": true,
-    "source_identity": "ba2baeda1c52867475a5e840e1ade872e54440879d4951092b25fcaabcea748e"
-  },
-  "installed_live_missing_metadata": {
-    "status": "blocked",
-    "code": "manual_required_metadata_missing",
-    "real_requests": 0,
-    "output_directory_created": false
   },
   "production_install": false,
   "dependency_downloads": false,
@@ -196,14 +143,6 @@
     "linux_execution_status": "Pending exact follow-up GitHub CI; no local Linux executor exists",
     "other_ci_failure_causes_excluded": false
   },
-  "portable_manual_package_checks": {
-    "tests_run": 70,
-    "failures": 0,
-    "errors": 0,
-    "skipped": 0,
-    "passed": true,
-    "elapsed_seconds": 6.23399999999674
-  },
   "full_regression_timeline": [
     {
       "receipt": "CHECKPOINT_FULL_CHECKS.json",
@@ -232,5 +171,182 @@
       "python_app_source_identity_sha256": "f6eb9505afd35ffde66f6a1f1c99e18ae2feeee78f8263bfab613406577922b0"
     }
   ],
-  "followup_validation_scope": "Two test fixtures changed after the preserved Windows full suite. Existing 70 actual-package tests rerun once; unchanged application/wheel were not rebuilt; full Windows suite not repeated. The next exact CI supplies Linux/Windows commit verification without inferring remote test counts."
+  "followup_validation_scope": "Two test fixtures changed after the preserved Windows full suite. Existing 70 actual-package tests rerun once; unchanged application/wheel were not rebuilt; full Windows suite not repeated. The next exact CI supplies Linux/Windows commit verification without inferring remote test counts.",
+  "historical_full_regression_before_fs_fix": {
+    "tests_run": 1154,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 20,
+    "successful": true,
+    "elapsed_seconds": 272.688,
+    "source_identity_sha256": "c7bdf1e9384a7c949465ae36f7a414bc1f566c034724df99da6abfabd30c7685",
+    "source_files": 121,
+    "protected_scope": [
+      "indeces/**",
+      "tests/**",
+      "pyproject.toml",
+      "LICENSE",
+      "config.example.toml",
+      "requirements.lock"
+    ],
+    "source_unchanged": true
+  },
+  "same_b9_commit_fresh_full_failure": {
+    "tests_run": 1154,
+    "failures": 0,
+    "errors": 1,
+    "skipped": 20,
+    "successful": false,
+    "elapsed_seconds": 264.015,
+    "source_identity_sha256": "4924e4ec8af33785b2823ab7e8169fc19da3a29bec70b7515b17c5bbae9c007e",
+    "source_unchanged": true,
+    "test": "test_knowledge_pdf.PdfKnowledgeTests.test_watcher_file_reads_run_off_loop_with_one_file_buffer",
+    "cause": "KnowledgeService.close could return while a cancelled watcher filesystem thread still held the synthetic PDF; async teardown hit WinError 32."
+  },
+  "second_published_checkpoint_ci": {
+    "commit": "b9c06222989dd17b28baffce2e3c44f0f5e15505",
+    "run": 37699992800,
+    "run_url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37699992800",
+    "conclusion": "failure",
+    "jobs": [
+      {
+        "name": "check (windows-latest, ./.venv/Scripts/python.exe)",
+        "conclusion": "failure"
+      },
+      {
+        "name": "check (ubuntu-latest, ./.venv/bin/python)",
+        "conclusion": "success"
+      }
+    ],
+    "exact_windows_ci_case_unknown": "Anonymous job logs returned HTTP 403; local same-commit PDF race must not be attributed to that remote case without its log."
+  },
+  "filesystem_shutdown_fix": {
+    "implementation": "Service-owned shielded scan/read tasks; close cancels background tasks once and drains actual filesystem completion; caller cancellation delayed then propagated; cancelled snapshots discarded",
+    "production_budget_or_schema_change": false,
+    "shared_executor_shutdown": false,
+    "os_hard_preemption_claimed": false,
+    "model_or_api_retry_added": false,
+    "scope": "indeces/knowledge.py and one deterministic test method covering success and late I/O error; existing assertions retained",
+    "remaining_condition": "A genuinely blocked filesystem operation can delay shutdown; cooperative I/O cleanup cannot hard-preempt the operating system."
+  },
+  "latest_full_regression_status": "Passed fresh dev03 run: 1155 tests, 0 failures/errors, 20 skipped; prior failures remain historical",
+  "latest_build_status": "Passed rebuilt dev03 wheel and isolated CLI/manual entry checks",
+  "fs_lifecycle_target_receipt": "KNOWLEDGE_FS_LIFECYCLE_TARGETED.json",
+  "prior_candidate_identity": "ba2baeda1c52867475a5e840e1ade872e54440879d4951092b25fcaabcea748e",
+  "historical_dev02_build": {
+    "wheel": {
+      "sha256": "7a2d18603f3f10a704c1054a8f4e2c11ca7528b0f8a246f072886394a55c67ab",
+      "bytes": 242600,
+      "members": 51,
+      "record_hashes_verified": true,
+      "packaged_source_count": 45
+    },
+    "wheel_filename": "indeces_memory_manager-0.15.1.dev2026100702-py3-none-any.whl",
+    "wheel_source_matches_checkout": true,
+    "installed_cli_check_exit_code": 0,
+    "installed_manual_mock": {
+      "mode": "mock",
+      "request_count": 4,
+      "count_requests": 2,
+      "generation_requests": 2,
+      "real_requests": 0,
+      "background_workers_started": 0,
+      "acceptance_passed": true,
+      "source_identity": "ba2baeda1c52867475a5e840e1ade872e54440879d4951092b25fcaabcea748e"
+    },
+    "installed_live_missing_metadata": {
+      "status": "blocked",
+      "code": "manual_required_metadata_missing",
+      "real_requests": 0,
+      "output_directory_created": false
+    }
+  },
+  "historical_dev02_manual_checks": {
+    "canonical_manual_package_checks": {
+      "tests_run": 70,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": true,
+      "elapsed_seconds": 6.187000000005355
+    },
+    "portable_manual_package_checks": {
+      "tests_run": 70,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": true,
+      "elapsed_seconds": 6.23399999999674
+    }
+  },
+  "filesystem_lifecycle_target_checks": {
+    "tests_run": 29,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": true,
+    "elapsed_seconds": 14.077999999994063
+  },
+  "full_regression": {
+    "tests_run": 1155,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 20,
+    "successful": true,
+    "elapsed_seconds": 249.125,
+    "source_identity_sha256": "f54f1a4ed01b27a740d2a3e6baf80ba577b13dcc39a49020c48e7a8c268803d7",
+    "source_files": 121,
+    "protected_scope": [
+      "indeces/**",
+      "tests/**",
+      "pyproject.toml",
+      "LICENSE",
+      "config.example.toml",
+      "requirements.lock"
+    ],
+    "source_unchanged": true,
+    "receipt": "FSFIX_FULL_CHECKS.json",
+    "tested_source_state": "Frozen dev03 working sources against baseline b9c0622; final commit byte binding checked separately",
+    "actual_time_fields": {
+      "source_binding": {
+        "baseline_commit": "b9c06222989dd17b28baffce2e3c44f0f5e15505",
+        "baseline_tree": "b5b8d0e62274c54660bfb1bbc85b1f40326747dc",
+        "protected_source_is_committed": false,
+        "protected_diff_sha256": "9364d78968ca8dad4df46a25ef3bae24731b6509999378f8eb64c8f65124a038",
+        "protected_diff_bytes": 8712,
+        "raw_source_snapshot_is_authoritative": true
+      },
+      "started_utc": "2026-10-07T23:17:49.655368Z",
+      "ended_utc": "2026-10-07T23:21:58.782880Z",
+      "app_source_identity_sha256": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e"
+    }
+  },
+  "wheel": {
+    "sha256": "9422913e2304b379b5e4912fc2d98682d3c019acbe1c13b36e64ff3d23fe54a9",
+    "bytes": 243060,
+    "members": 51,
+    "record_hashes_verified": true,
+    "packaged_source_count": 45
+  },
+  "wheel_filename": "indeces_memory_manager-0.15.1.dev2026100703-py3-none-any.whl",
+  "wheel_source_matches_checkout": true,
+  "installed_cli_check_exit_code": 0,
+  "installed_manual_mock": {
+    "mode": "mock",
+    "request_count": 4,
+    "count_requests": 2,
+    "generation_requests": 2,
+    "real_requests": 0,
+    "background_workers_started": 0,
+    "acceptance_passed": true,
+    "source_identity": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e"
+  },
+  "installed_live_missing_metadata": {
+    "status": "blocked",
+    "code": "manual_required_metadata_missing",
+    "real_requests": 0,
+    "output_directory_created": false
+  },
+  "latest_test_scope": "Fresh full suite includes the unchanged 70 manual fixtures and the new deterministic lifecycle regression. No old pass substituted for B9 failure. Final CI must bind the next exact source commit.",
+  "smoke_preflight_status": "New live authorization exists separately, but this development checkpoint made zero real model/Discord calls. Gate amounts are approved-tariff calculations, not independently verified provider invoice charges; strict real smoke must stop before HTTP if count pricing, actual fees or hard cap cannot be established."
 }

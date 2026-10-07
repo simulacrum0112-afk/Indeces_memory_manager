@@ -676,6 +676,66 @@ class PdfKnowledgeTests(unittest.IsolatedAsyncioTestCase):
                 await self.service.close()
         self.assertIsNone(self.service.background_error)
 
+    async def test_close_drains_cancelled_watcher_reads_before_releasing_pdf_handles(self):
+        for outcome in ("completed", "failed"):
+            with self.subTest(outcome=outcome):
+                path = self.file(name="held-reader.pdf")
+                entered, finished = asyncio.Event(), asyncio.Event()
+                release = threading.Event()
+                self.addCleanup(release.set)
+                loop = asyncio.get_running_loop()
+                original = self.service._snapshot_file
+                handles = []
+                closing = None
+
+                def held_read(file_path):
+                    try:
+                        with file_path.open("rb") as handle:
+                            handles.append(handle)
+                            loop.call_soon_threadsafe(entered.set)
+                            release.wait()
+                            if outcome == "failed":
+                                raise OSError("synthetic reader failure after cancellation")
+                            return original(file_path)
+                    finally:
+                        loop.call_soon_threadsafe(finished.set)
+
+                with patch.object(self.service, "_snapshot_file", side_effect=held_read):
+                    self.service.start()
+                    try:
+                        async with asyncio.timeout(1):
+                            await entered.wait()
+                        tasks = list(self.service._tasks)
+                        watcher = next(task for task in tasks if task.get_name() == "indeces-knowledge-watch")
+                        watcher.cancel()
+                        await asyncio.gather(*tasks, return_exceptions=True)
+                        closing = asyncio.create_task(self.service.close())
+                        # Already-finished background tasks cannot account for
+                        # a pending close; the reader still owns this real handle.
+                        for _ in range(4):
+                            await asyncio.sleep(0)
+                        self.assertFalse(closing.done())
+                        self.assertFalse(finished.is_set())
+                        self.assertEqual(len(handles), 1)
+                        self.assertFalse(handles[0].closed)
+                        closing.cancel()
+                        for _ in range(4):
+                            await asyncio.sleep(0)
+                        self.assertFalse(closing.done())
+                    finally:
+                        release.set()
+                        if closing is not None:
+                            await asyncio.gather(closing, return_exceptions=True)
+                        async with asyncio.timeout(1):
+                            await finished.wait()
+                self.assertTrue(closing.cancelled())
+                self.assertTrue(handles[0].closed)
+                self.assertEqual(self.service._tasks, [])
+                self.assertEqual(self.adapter.calls, [])
+                self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM knowledge_versions").fetchone()[0], 0)
+                self.assertIsNone(self.published("held-reader.pdf"))
+                path.unlink()
+
     async def test_background_converter_does_not_block_text_updates_and_shutdown_cancels_it(self):
         self.file()
         entered, cancelled = asyncio.Event(), asyncio.Event()

@@ -1,13 +1,13 @@
 {
   "schema": "indeces_checkpoint_python_source_manifest_v1",
-  "version": "0.15.1.dev2026100702",
+  "version": "0.15.1.dev2026100703",
   "baseline_main": "94ae7bd15120070fb24f88d0e7bd8d4e3d622e20",
   "checkpoint_branch": "checkpoint/manual-live-ready-20261007",
   "identity_algorithm": "SHA256 of UTF-8 JSON path-to-SHA256 map, ensure_ascii=false, sort_keys=true, separators comma/colon; indeces/**/*.py exact bytes",
   "python_source_files": 42,
-  "candidate_identity": "ba2baeda1c52867475a5e840e1ade872e54440879d4951092b25fcaabcea748e",
+  "candidate_identity": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e",
   "source_sha256": {
-    "indeces/__init__.py": "8763bcbbad181c442f0ce247d2a500aa52fca9d42ce331d1ed09d0e8665e64d1",
+    "indeces/__init__.py": "60f850f7d293c172e0f564fe17868cd569d4345bf63b979e1df4db35a88e8921",
     "indeces/__main__.py": "abcc116070f461a306416f8237bded7444713e6fd33b07c58b8d72c64bcaea88",
     "indeces/adapter.py": "95ec491c0f8721ef15932e5d75c78c3025855243450c20190fa7686eb309d9b5",
     "indeces/api_key_wizard.py": "7092f6255a9f9e0f42aa1438bb2a2aba578545dd14c6027cab6a2b6a2ca97aaa",
@@ -23,7 +23,7 @@
     "indeces/discord_wizard.py": "787b3754d91c228fe55ce5cdb677d9bf3d0a1c1c1bddca660835269e63b1097f",
     "indeces/identity.py": "64bcf3c86e9c0c4533ae87bf3094830f3d7e32211af0f4d6f7df0bb159ec4b48",
     "indeces/ingest.py": "80a12bc4fae1ac1a78d4dfb82c1d0f342a4fd6d1c341e4b428a0c593bab60a6c",
-    "indeces/knowledge.py": "3731249665b7445f478f0fa27a98ac1fcf15a8c2c3bc682b596ad1d762b92807",
+    "indeces/knowledge.py": "27c54d7b0ca873a82dc5dfe982016afe3d4ddffe82d111c246dc56ba128de87c",
     "indeces/knowledge_audit.py": "6ada4e768c9449a4c7a1b8e830c6475d9913d126dc724705269802fa4f53b713",
     "indeces/knowledge_directory.py": "91ac83fe70d35963bf94caff34113b162f371968f5ed178e382a0411c0837b50",
     "indeces/knowledge_progress.py": "ec5d2c04227f08d37c2f052f99c28cfe019e9036b8b519750369b30b57eb9ced",
@@ -49,5 +49,6 @@
     "indeces/scratch.py": "8d7d495fcc6556792c0b1ddf64ff92477983cffd6b168257b66df414ac993949",
     "indeces/selection_policy.py": "2a4267c12354d66b6cad9d7b37fd5e914903838b4727e7fe5fe79bb1c696f810",
     "indeces/store.py": "78aa9e7ace3cd5e2195646a07981a18ac620da69deebbd0526707843d32ab778"
-  }
+  },
+  "previous_candidate_identity": "ba2baeda1c52867475a5e840e1ade872e54440879d4951092b25fcaabcea748e"
 }

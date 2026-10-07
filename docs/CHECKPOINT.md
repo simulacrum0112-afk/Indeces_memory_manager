@@ -1,3 +1,13 @@
+# Filesystem shutdown checkpoint 0.15.1.dev2026100703
+
+A fresh full run of exact checkpoint `b9c06222989dd17b28baffce2e3c44f0f5e15505` found one Windows PDF watcher teardown error: a reader thread could still hold a synthetic file after KnowledgeService.close returned. Cancellation of the asyncio wait did not stop the underlying filesystem read. This checkpoint retains service ownership of scan/read tasks and waits for their completion before shutdown returns, without publishing cancelled snapshots, changing model budgets or stopping the shared executor.
+
+The prior Linux fixture correction remains; its assertions and production project boundary were preserved. Prior commits, failed CI runs, all full-check receipts and the original 17 user changes remain intact. Targeted lifecycle regression, a new exact-source full regression, rebuilt wheel and exact-commit CI must be recorded separately; earlier passing results are historical evidence. Real model/Discord/held-out smoke remains unrun.
+
+The delivery receipt binds the final source, wheel, command, actual UTC intervals and visible CI state. See [MANUAL_TRIAL.md](MANUAL_TRIAL.md) for operator prerequisites and rollback.
+
+---
+
 # Manual-entry checkpoint 0.15.1.dev2026100702
 
 This independent checkpoint adds the selector protocol and an explicit finite manual entry. The existing main worktree, its 17 user changes, earlier experiments and production runtime are preserved. The source base is clean main `94ae7bd15120070fb24f88d0e7bd8d4e3d622e20`; the checkpoint branch is `checkpoint/manual-live-ready-20261007`.
