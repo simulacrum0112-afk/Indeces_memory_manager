@@ -570,6 +570,279 @@ def _validate_reply_request(context, request, *, bot=False, partial=False):
                  "actual bot reply schema mismatch")
 
 
+_MODEL_SELECTION_POLICY = {"id": "model_npmi_labels", "version": "v1"}
+_MODEL_SELECTION_BINDING = (
+    "policy", "scope", "event_id", "query_sha256", "context_query_sha256",
+    "candidate_count", "candidate_set_sha256", "seen_record_ids",
+    "seen_candidates_sha256", "omitted_record_ids", "omitted_candidates_sha256",
+    "messages_sha256", "instructions_sha256", "schema_sha256", "input_sha256",
+)
+
+
+def _model_selection_json(text, label):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError("duplicate selection JSON key")
+            result[key] = value
+        return result
+
+    def invalid_constant(value):
+        raise ValueError("invalid selection JSON constant")
+
+    try:
+        return json.loads(text, object_pairs_hook=pairs, parse_constant=invalid_constant)
+    except (ValueError, TypeError, RecursionError):
+        raise ValueError(label) from None
+
+
+def _model_selection_binding(fields):
+    binding = {key: fields[key] for key in _MODEL_SELECTION_BINDING}
+    _require(binding["policy"] == _MODEL_SELECTION_POLICY, "unknown model selection policy")
+    _require(all(type(binding[key]) is str and binding[key] for key in ("scope", "event_id")),
+             "model selection scope/event invalid")
+    _require(all(type(binding[key]) is str and re.fullmatch(r"[0-9a-f]{64}", binding[key])
+                 for key in _MODEL_SELECTION_BINDING if key.endswith("sha256")),
+             "model selection hash invalid")
+    _require(binding["input_sha256"] == digest({key: value for key, value in binding.items()
+                                                if key != "input_sha256"}),
+             "model selection input digest mismatch")
+    seen, omitted = binding["seen_record_ids"], binding["omitted_record_ids"]
+    _require(type(seen) is list and type(omitted) is list
+             and all(type(record_id) is int and record_id > 0 for record_id in seen + omitted)
+             and len(set(seen + omitted)) == len(seen + omitted)
+             and type(binding["candidate_count"]) is int
+             and binding["candidate_count"] == len(seen) + len(omitted),
+             "model selection candidate partition invalid")
+    return binding
+
+
+def _validate_model_selection(events, report, *, start=None, graph=None, partial=False):
+    """Bind one bounded model choice to its input, transport and frozen receipt.
+
+    Available retained evidence is checked, but expired input/call/material
+    evidence never establishes a complete model-selection traversal.
+    """
+    inputs = [f for e, f in events if e == "model_selection_input"]
+    decisions = [f for e, f in events if e == "model_selection_decision"]
+    call_fields = [f for _, f in events if f.get("stage") == "selection"]
+    marker = start.get("model_selection_policy") if start is not None else None
+    receipt = graph.get("selection", {}).get("selector_receipt") if graph else None
+    model_receipt = receipt is not None and receipt.get("policy", {}).get("id") == "model_npmi_labels"
+    active = marker is not None or bool(inputs or decisions or call_fields) or model_receipt
+    if not active:
+        return False
+    _require(len(inputs) <= 1 and len(decisions) <= 1, "duplicate model selection stage")
+    if marker is not None:
+        _require(marker == _MODEL_SELECTION_POLICY, "unknown turn model selection policy")
+    ends = [f for e, f in events if e == "turn_end"]
+    successful = bool(ends and ends[0].get("status") in ("delivered", "skipped"))
+    if not inputs and not decisions and not call_fields and graph is None and not successful:
+        # Retrieval may fail before choose writes any input. An unfinished or
+        # failed turn does not establish that model selection was performed.
+        return True
+    if graph is not None:
+        _require(model_receipt and receipt["policy"] == _MODEL_SELECTION_POLICY,
+                 "model selection receipt missing or downgraded")
+    bindings = [_model_selection_binding(fields) for fields in inputs + decisions]
+    _require(not bindings or all(binding == bindings[0] for binding in bindings),
+             "model selection decision input mismatch")
+    binding = bindings[0] if bindings else None
+    if start is not None and binding is not None:
+        _require(binding["scope"] == start["knowledge_scope"]
+                 and binding["event_id"] == start["message_id"]
+                 and binding["query_sha256"] == text_digest(start["input"]["text"]),
+                 "model selection turn identity mismatch")
+    if receipt is not None and binding is not None:
+        request, candidate_set = receipt["input"], receipt["candidate_set"]
+        _require(all(binding[key] == request[key] for key in (
+            "scope", "event_id", "query_sha256", "context_query_sha256")),
+            "model selection frozen input mismatch")
+        inventory = candidate_set["inventory"]
+        seen_count = len(binding["seen_record_ids"])
+        _require(binding["candidate_count"] == len(inventory)
+                 and binding["candidate_set_sha256"] == candidate_set["sha256"]
+                 and binding["seen_record_ids"] == [item["record_id"] for item in inventory[:seen_count]]
+                 and binding["omitted_record_ids"] == [item["record_id"] for item in inventory[seen_count:]]
+                 and binding["seen_candidates_sha256"] == digest(inventory[:seen_count])
+                 and binding["omitted_candidates_sha256"] == digest(inventory[seen_count:]),
+                 "model selection candidate inventory mismatch")
+    if inputs:
+        fields = inputs[0]
+        messages, instructions, schema = fields["messages"], fields["instructions"], fields["response_schema"]
+        _require(type(instructions) is str and bool(instructions)
+                 and text_digest(instructions) == binding["instructions_sha256"]
+                 and type(messages) is list and len(messages) == 1
+                 and type(messages[0]) is dict and set(messages[0]) == {"role", "content"}
+                 and messages[0]["role"] == "user" and type(messages[0]["content"]) is str
+                 and digest(messages) == binding["messages_sha256"]
+                 and digest(schema) == binding["schema_sha256"],
+                 "model selection prompt/schema digest mismatch")
+        required = min(3, binding["candidate_count"])
+        _require(type(fields["required_selection_count"]) is int
+                 and fields["required_selection_count"] == required
+                 and canonical(schema) == canonical({
+                     "type": "object", "additionalProperties": False,
+                     "properties": {"selected_record_ids": {"type": "array", "minItems": required,
+                         "maxItems": required, "items": {"type": "integer"}}},
+                     "required": ["selected_record_ids"]}), "model selection output schema mismatch")
+        _require(type(fields["planning_reservation"]) is int and fields["planning_reservation"] >= 0
+                 and type(fields["planning_input_limit"]) is int and fields["planning_input_limit"] > 0
+                 and fields["omission_reason"] == ("input_budget" if binding["omitted_record_ids"] else None),
+                 "model selection planning declaration invalid")
+        payload = _model_selection_json(messages[0]["content"], "model selection payload invalid")
+        _require(type(payload) is dict and set(payload) == {
+            "query", "context_query", "ranking_mode", "retrieval_policy", "required_selection_count",
+            "candidate_pool_count", "model_visible_count", "model_omitted_count", "candidates"},
+            "model selection payload fields mismatch")
+        _require(type(payload["query"]) is str and type(payload["context_query"]) is str
+                 and text_digest(payload["query"]) == binding["query_sha256"]
+                 and text_digest(payload["context_query"]) == binding["context_query_sha256"]
+                 and payload["ranking_mode"] == "static"
+                 and payload["retrieval_policy"] in ("concept_v1", "legacy_v1")
+                 and all(type(payload[key]) is int for key in ("required_selection_count", "candidate_pool_count",
+                                                              "model_visible_count", "model_omitted_count"))
+                 and payload["required_selection_count"] == required
+                 and payload["candidate_pool_count"] == binding["candidate_count"]
+                 and payload["model_visible_count"] == len(binding["seen_record_ids"])
+                 and payload["model_omitted_count"] == len(binding["omitted_record_ids"]),
+                 "model selection payload identity mismatch")
+        rows = payload["candidates"]
+        row_keys = {"record_id", "rank", "marks", "direct_marks", "expanded_marks", "direct_match_count",
+                    "static_score", "effective_score", "ranking_score", "relevance_score"}
+        _require(type(rows) is list and all(type(row) is dict and set(row) == row_keys for row in rows)
+                 and [row["record_id"] for row in rows] == binding["seen_record_ids"],
+                 "model selection visible labels mismatch")
+        if receipt is not None:
+            _require(payload["ranking_mode"] == request["ranking_mode"]
+                     and payload["retrieval_policy"] == request["retrieval_policy"]
+                     and payload["context_query"] == request["context_query"],
+                     "model selection frozen query mismatch")
+            expected_rows = [{**{key: item[key] for key in row_keys if key != "relevance_score"},
+                              "relevance_score": item["ranking_score"]
+                                  if request["retrieval_policy"] == "concept_v1" else None}
+                             for item in inventory[:len(rows)]]
+            _require(canonical(rows) == canonical(expected_rows), "model selection visible scores/marks mismatch")
+    selection_call_ids = {fields["call_id"] for fields in call_fields}
+    _require(len(selection_call_ids) <= 1, "multiple model selection calls")
+    selection_events = [(e, f) for e, f in events if f.get("call_id") in selection_call_ids]
+    starts = [f for e, f in selection_events if e == "call_start"]
+    completed = [f for e, f in selection_events if e == "call_end" and f.get("status") == "completed"]
+    _require(len(starts) <= 1 and len(completed) <= 1
+             and all(f.get("stage") in (None, "selection") for _, f in selection_events),
+             "model selection call stage mismatch")
+    if completed and not partial:
+        _require(_validate_call(selection_events) == "complete", "model selection call evidence incomplete")
+    if not partial:
+        _require(len(inputs) == 1, "model selection input missing")
+        _require(not selection_events or len(starts) == 1, "model selection call start missing")
+    if inputs and starts:
+        _require(starts[0]["planning_reservation"] == inputs[0]["planning_reservation"]
+                 and starts[0]["budget"]["input_tokens"] == inputs[0]["planning_input_limit"],
+                 "model selection call planning mismatch")
+    requests = [f for e, f in selection_events if e == "http_request"]
+    _require(len(requests) <= 2 and len({f["path"] for f in requests}) == len(requests),
+             "duplicate model selection transport")
+    for fields in requests:
+        _require(fields["path"] in ("/responses/input_tokens", "/responses"),
+                 "unknown model selection transport")
+        if binding is not None:
+            payload = fields["payload"]
+            form = payload.get("text", {}).get("format")
+            _require(digest(payload["input"]) == binding["messages_sha256"]
+                     and text_digest(payload["instructions"]) == binding["instructions_sha256"]
+                     and type(form) is dict and set(form) == {"type", "name", "strict", "schema"}
+                     and form["type"] == "json_schema" and form["name"] == "selection"
+                     and form["strict"] is True and digest(form["schema"]) == binding["schema_sha256"],
+                     "actual model selection prompt digest mismatch")
+    if inputs:
+        expected_format = {"type": "json_schema", "name": "selection", "strict": True,
+                           "schema": inputs[0]["response_schema"]}
+        for fields in requests:
+            payload = fields["payload"]
+            _require(fields["path"] in ("/responses/input_tokens", "/responses")
+                     and payload["input"] == inputs[0]["messages"]
+                     and payload["instructions"] == inputs[0]["instructions"]
+                     and canonical(payload.get("text", {}).get("format")) == canonical(expected_format),
+                     "actual model selection input/schema mismatch")
+        input_position = next(i for i, (e, _) in enumerate(events) if e == "model_selection_input")
+        _require(all(i > input_position for i, (_, f) in enumerate(events)
+                     if f.get("call_id") in selection_call_ids), "model selection input ordering mismatch")
+    if successful and not partial:
+        _require(len(decisions) == 1 and decisions[0]["status"] in ("selected", "no_candidates")
+                 and model_receipt, "successful turn model selection evidence missing")
+    if decisions:
+        decision = decisions[0]
+        status, selected = decision["status"], decision["selected_record_ids"]
+        _require(type(decision["model_call_performed"]) is bool and type(selected) is list
+                 and all(type(record_id) is int for record_id in selected)
+                 and len(set(selected)) == len(selected) and set(selected) <= set(binding["seen_record_ids"]),
+                 "model selection decision invalid")
+        _require(status in ("selected", "no_candidates", "failed"), "unknown model selection decision status")
+        if status == "no_candidates":
+            _require(binding["candidate_count"] == 0 and selected == [] and decision["exclusions"] == []
+                     and decision["model_call_performed"] is False and not selection_events
+                     and decision["reason"] == "empty_candidate_pool", "empty model selection decision mismatch")
+        elif status == "selected":
+            _require(binding["candidate_count"] > 0 and len(selected) == min(3, binding["candidate_count"])
+                     and decision["model_call_performed"] is True
+                     and (not inputs or inputs[0]["planning_reservation"] <= inputs[0]["planning_input_limit"]),
+                     "model selected count/call mismatch")
+            expected_exclusions = [{"record_id": record_id,
+                "reason": "model_not_selected" if record_id in binding["seen_record_ids"] else "input_budget"}
+                for record_id in binding["seen_record_ids"] + binding["omitted_record_ids"] if record_id not in selected]
+            _require(canonical(decision["exclusions"]) == canonical(expected_exclusions),
+                     "model selection exclusions mismatch")
+        else:
+            _require(not selected and not successful, "failed model selection has successful answer")
+            if decision["code"] == "selection_input_budget":
+                _require(decision["model_call_performed"] is False and not selection_events
+                         and (len(binding["seen_record_ids"]) < min(3, binding["candidate_count"])
+                              or (inputs and inputs[0]["planning_reservation"] > inputs[0]["planning_input_limit"])),
+                         "model selection budget failure mismatch")
+            else:
+                _require(decision["code"] == "invalid_model_selection"
+                         and decision["model_call_performed"] is True, "unknown model selection failure")
+        if decision["model_call_performed"]:
+            _require(partial or len(completed) == 1, "model selection result call evidence missing")
+            _require(decision["response_id"] == decision["model_result"]["response_id"],
+                     "model selection response identity mismatch")
+            if completed:
+                _require(canonical(decision["model_result"]) == canonical(completed[0]["result"]),
+                         "model selection result receipt mismatch")
+            if status == "selected":
+                data = _model_selection_json(decision["model_result"]["text"], "model selection output invalid")
+                _require(type(data) is dict and set(data) == {"selected_record_ids"}
+                         and canonical(data["selected_record_ids"]) == canonical(selected),
+                         "model selection output/decision mismatch")
+        if not partial:
+            _require(decision["model_call_performed"] == bool(selection_events),
+                     "model selection call declaration mismatch")
+        decision_position = next(i for i, (e, _) in enumerate(events) if e == "model_selection_decision")
+        _require(all(i < decision_position for i, (_, f) in enumerate(events)
+                     if f.get("call_id") in selection_call_ids), "model selection decision ordering mismatch")
+        if receipt is not None:
+            _require(status != "failed" and receipt["selected_record_ids"] == selected
+                     and canonical(receipt["exclusions"]) == canonical(decision["exclusions"]),
+                     "model selection frozen decision mismatch")
+    elif completed and not partial:
+        _require(not successful and not model_receipt, "completed model selection decision missing")
+    elif completed and model_receipt:
+        data = _model_selection_json(completed[0]["result"]["text"], "retained model selection output invalid")
+        _require(type(data) is dict and set(data) == {"selected_record_ids"}
+                 and canonical(data["selected_record_ids"]) == canonical(receipt["selected_record_ids"]),
+                 "retained model selection output/receipt mismatch")
+    if partial:
+        if not inputs:
+            report["warnings"].append("expired_model_selection_input")
+        if not decisions:
+            report["warnings"].append("expired_model_selection_decision")
+        if graph is None:
+            report["warnings"].append("expired_model_selection_material_binding")
+    return True
+
+
 def _validate_bot_decision(decision, events, *, retrieval=None, context=None, partial=False):
     data = _bot_reply_data(decision["model_result"]["text"])
     _require(decision["action"] == data["action"] and decision["text"] == data["text"],
@@ -645,6 +918,9 @@ def _validate_call(events):
     starts = [f for e, f in events if e == "call_start"]
     ends = [f for e, f in events if e in {"call_end", "call_rejected"}]
     _require(len(starts) == 1 and len(ends) <= 1, "call lifecycle mismatch")
+    _require(all(f.get("trace_id") == starts[0]["trace_id"]
+                 and f.get("stage") in (None, starts[0]["stage"]) for _, f in events),
+             "call event stage/trace mismatch")
     if not ends:
         return "incomplete"
     start, end = starts[0], ends[0]
@@ -806,8 +1082,9 @@ def _validate_unbound_answer(record):
              "retained answer claims unevaluated support")
 
 
-def _validate_partial_turn(events, report):
-    stages = {"memory_observation": 1, "retrieval_record": 2, "reply_context": 3,
+def _validate_partial_turn(events, report, *, start=None):
+    stages = {"model_selection_input": -1, "model_selection_decision": 0,
+              "memory_observation": 1, "retrieval_record": 2, "reply_context": 3,
               "bot_reply_decision": 4, "answer_generated": 5, "delivery_start": 6,
               "answer_delivered": 7, "turn_end": 8}
     present = [stages[e] for e, _ in events if e in stages]
@@ -832,6 +1109,9 @@ def _validate_partial_turn(events, report):
             _require(context["retrieval_sha256"] == digest(retrieval), "retained context link mismatch")
             data = json.loads(context["messages"][0]["content"].split("\n", 1)[1])
             _require(data["memory_citations"] == retrieval["model_materials"], "retained model materials mismatch")
+    _validate_model_selection(events, report, start=start,
+                              graph=retrieval["graph_audit"] if retrieval is not None
+                              else observation["audit"] if observation else None, partial=True)
     for stage in ("answer_generated", "answer_delivered"):
         response = by_event.get(stage)
         if response:
@@ -970,9 +1250,10 @@ def verify_runs(paths: list[Path]):
                     issues.append({'trace_id': trace, 'reason': str(error) if type(error) is ValueError else 'diagnostic schema invalid'})
                 continue
             # Passive label traces do not have conversation stages.
-            is_turn = any(e in {"memory_observation", "retrieval_record", "knowledge_retrieved", "reply_context",
+            is_turn = any(e in {"model_selection_input", "model_selection_decision",
+                                  "memory_observation", "retrieval_record", "knowledge_retrieved", "reply_context",
                                  "bot_reply_decision", "answer_generated", "delivery_start", "answer_delivered", "turn_end"}
-                          or f.get("stage") in {"reply", "summary"} for e, f in events)
+                          or f.get("stage") in {"reply", "summary", "selection"} for e, f in events)
             if not is_turn:
                 continue
             report = {"trace_id": trace, "status": "retention_partial", "warnings": ["expired_turn_start"]}
@@ -993,6 +1274,15 @@ def verify_runs(paths: list[Path]):
         report["status"] = "incomplete"
         try:
             _require(len(starts) == 1, "duplicate turn start")
+            if trace in partial_traces and (starts[0].get("model_selection_policy") is not None
+                    or any(e in {"model_selection_input", "model_selection_decision"}
+                           or f.get("stage") == "selection" for e, f in events)):
+                _validate_partial_turn(events, report, start=starts[0])
+                _require(not any(c["status"] == "invalid" for c in call_reports if c["trace_id"] == trace),
+                         "retained turn has invalid call evidence")
+                report["status"] = "retention_partial"
+                report["warnings"].append("retained_model_selection_contract")
+                continue
             ends = [f for e, f in events if e == "turn_end"]
             retrievals = [f for e, f in events if e == "retrieval_record"]
             generated = [f for e, f in events if e == "answer_generated"]
@@ -1007,7 +1297,8 @@ def verify_runs(paths: list[Path]):
             is_bot = starts[0]["input"].get("author_is_bot", False)
             _require(type(is_bot) is bool, "turn bot author flag invalid")
             _require(not decisions or is_bot, "bot decision has no bot author declaration")
-            stage_order = {"turn_start": 0, "memory_observation": 1, "retrieval_record": 2,
+            stage_order = {"turn_start": -2, "model_selection_input": -1, "model_selection_decision": 0,
+                           "memory_observation": 1, "retrieval_record": 2,
                            "reply_context": 3, "bot_reply_decision": 4, "answer_generated": 5,
                            "delivery_start": 6, "answer_delivered": 7, "turn_end": 8}
             stages = [stage_order[e] for e, _ in events if e in stage_order]
@@ -1042,6 +1333,9 @@ def verify_runs(paths: list[Path]):
                     raise ValueError("delivery without generated answer")
             else:
                 _require(not generated and not delivered and not decisions, "answer/decision without retrieval")
+            _validate_model_selection(events, report, start=starts[0],
+                                      graph=retrieval["graph_audit"] if retrievals
+                                      else observations[0]["audit"] if observations else None)
             bot_data = None
             if decisions:
                 _require(len(retrievals) == len(model_inputs) == 1, "bot decision missing input evidence")

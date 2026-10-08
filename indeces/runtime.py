@@ -13,6 +13,7 @@ from .contracts import FailureNotice, GovernedError
 from .memory import MemoryGraph
 from .run_records import answer_record, digest, freeze_retrieval
 from .scratch import CanonicalSnapshot
+from .selection_policy import policy_identity
 from . import prompts
 
 
@@ -67,6 +68,7 @@ class Runtime:
         self.graph = MemoryGraph(store.db, self_marks=(config.name,),
                                  retrieval_policy=config.runtime.retrieval_policy,
                                  selector=selector)
+        self.model_selector = selector if callable(getattr(selector, "choose", None)) else None
         self.knowledge_scope = f"{config.discord.guild_id}:knowledge"
         self._serial = asyncio.Lock()
 
@@ -147,7 +149,9 @@ class Runtime:
             self.scratch.write("turn_start", trace_id=trace_id, message_id=message.message_id, scope=message.scope,
                                input=input_record,
                                deadline_seconds=self.config.runtime.turn_seconds, run_record_version=1,
-                               knowledge_scope=self.knowledge_scope)
+                               knowledge_scope=self.knowledge_scope,
+                               **({"model_selection_policy": policy_identity(self.model_selector)}
+                                  if self.model_selector is not None else {}))
             delivered = False
             confirmed = False
             local_phase = None
@@ -168,9 +172,28 @@ class Runtime:
                         local_phase = "retrieval"
                         graph_audit = {}
                         previous = self.store.db.execute("SELECT content FROM messages WHERE scope=? AND role='user' AND turn_id!=? ORDER BY seq DESC LIMIT 1", (message.scope, message.message_id)).fetchone()
-                        records = self.graph.retrieve(self.knowledge_scope, [], message.text, time.time(),
-                                                      event_id=message.message_id, audit=graph_audit,
-                                                      ranking_mode="static", context_query=previous[0] if previous else '')
+                        if self.model_selector is None:
+                            records = self.graph.retrieve(self.knowledge_scope, [], message.text, time.time(),
+                                                          event_id=message.message_id, audit=graph_audit,
+                                                          ranking_mode="static", context_query=previous[0] if previous else '')
+                        else:
+                            prepared = self.graph.prepare_retrieval(self.knowledge_scope, [], message.text,
+                                time.time(), event_id=message.message_id,
+                                context_query=previous[0] if previous else '')
+                            if time.monotonic() - started > self.config.runtime.local_seconds:
+                                raise GovernedError("local_memory_timeout")
+                            # No SQLite transaction or local SQL deadline crosses
+                            # the separately bounded, serial model selection call.
+                            self.store.db.set_progress_handler(None, 0)
+                            local_phase = "model_selection"
+                            selection_started = time.monotonic()
+                            try:
+                                decision = await self.model_selector.choose(prepared.request, trace_id)
+                            finally:
+                                started += time.monotonic() - selection_started
+                                self.store.db.set_progress_handler(local_progress, 1000)
+                            local_phase = "selection_commit"
+                            records = self.graph.finish_retrieval(prepared, decision, audit=graph_audit)
                         local_phase = "memory_observation"
                         # One immutable JSON snapshot binds the committed graph
                         # receipt to both scratch and the recalled materials.

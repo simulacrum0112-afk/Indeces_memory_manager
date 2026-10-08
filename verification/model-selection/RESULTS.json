@@ -1,0 +1,221 @@
+{
+  "schema": "model_selection_0160_bounded_validation_v1",
+  "version": "0.16.0",
+  "recorded_utc": "2026-10-08T04:55:34.581025+00:00",
+  "baseline_commit": "59f37b2e18ab1918441971cdd4fa0104f3cb594b",
+  "app_source_identity_sha256": "b9e75a1c2b3e0ef1dfacb2b193a87130d38a4f668623a05a157aff350a9cf1d2",
+  "source_committed": false,
+  "regression": {
+    "distinct_methods": 148,
+    "all_methods_pass_in_latest_applicable_runs": true,
+    "full_suite_run": false,
+    "held_out_inputs_read": false,
+    "runs": [
+      {
+        "receipt": "MODEL_SELECTION_0160_REGRESSION.json",
+        "command": "D:\\Indeces\\.venv\\Scripts\\python.exe - (unittest.TextTestRunner; TCP disabled)",
+        "methods": 148,
+        "failures": 0,
+        "errors": 101,
+        "passed": false,
+        "started_utc": "2026-10-08T04:46:09.869376+00:00",
+        "ended_utc": "2026-10-08T04:46:15.985347+00:00"
+      },
+      {
+        "receipt": "MODEL_SELECTION_0160_REGRESSION_CORRECTED.json",
+        "command": "D:\\Indeces\\.venv\\Scripts\\python.exe -B D:\\Indeces\\build\\selector-manual-live-ready-20261007\\validate_model_selection_0160.py",
+        "methods": 148,
+        "failures": 12,
+        "errors": 0,
+        "passed": false,
+        "started_utc": "2026-10-08T04:49:47.537899+00:00",
+        "ended_utc": "2026-10-08T04:50:04.825606+00:00"
+      },
+      {
+        "receipt": "MODEL_SELECTION_0160_REGRESSION_FAILED_CASE_RECHECK.json",
+        "command": "D:\\Indeces\\.venv\\Scripts\\python.exe -B D:\\Indeces\\build\\selector-manual-live-ready-20261007\\validate_model_selection_0160.py --failed-after-meta-fix",
+        "methods": 7,
+        "failures": 1,
+        "errors": 1,
+        "passed": false,
+        "started_utc": "2026-10-08T04:52:20.114883+00:00",
+        "ended_utc": "2026-10-08T04:52:21.889175+00:00"
+      },
+      {
+        "receipt": "MODEL_SELECTION_0160_REGRESSION_FIXTURE_CASE_RECHECK.json",
+        "command": "D:\\Indeces\\.venv\\Scripts\\python.exe -B D:\\Indeces\\build\\selector-manual-live-ready-20261007\\validate_model_selection_0160.py --failed-after-fixture-fix",
+        "methods": 2,
+        "failures": 0,
+        "errors": 0,
+        "passed": true,
+        "started_utc": "2026-10-08T04:53:04.330320+00:00",
+        "ended_utc": "2026-10-08T04:53:04.951301+00:00"
+      }
+    ],
+    "recheck_scope": "Only failed methods; first run was invalid Windows loopback guard, then prepared snapshot frozenset and two synthetic fixture errors were corrected. Not a fresh 148-method run on final bytes."
+  },
+  "wheel": {
+    "path": "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\MODEL_SELECTION_0160_WHEELS\\indeces_memory_manager-0.16.0-py3-none-any.whl",
+    "sha256": "57b066581a8f8a67c93df96a95bc0115c7c025ff39d11a12fd147020f8a5e622",
+    "bytes": 252193,
+    "record_rows": 52,
+    "record_hashes_verified": true,
+    "source_file_count": 46,
+    "all_source_bytes_match": true
+  },
+  "build_commands": [
+    {
+      "command": [
+        "D:\\Indeces\\.venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "pip",
+        "wheel",
+        "--isolated",
+        "--no-index",
+        "--no-deps",
+        "--no-build-isolation",
+        "--disable-pip-version-check",
+        "--wheel-dir",
+        "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\MODEL_SELECTION_0160_WHEELS",
+        "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\MODEL_SELECTION_0160_BUILD_SOURCE"
+      ],
+      "cwd": "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\MODEL_SELECTION_0160_BUILD_SOURCE",
+      "exit_code": 0,
+      "seconds": 6.827999999979511
+    },
+    {
+      "command": [
+        "D:\\Indeces\\.venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "pip",
+        "install",
+        "--isolated",
+        "--no-index",
+        "--no-deps",
+        "--no-compile",
+        "--disable-pip-version-check",
+        "--target",
+        "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\MODEL_SELECTION_0160_INSTALLED",
+        "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\MODEL_SELECTION_0160_WHEELS\\indeces_memory_manager-0.16.0-py3-none-any.whl"
+      ],
+      "cwd": "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\MODEL_SELECTION_0160_BUILD_SOURCE",
+      "exit_code": 0,
+      "seconds": 1.812999999994645
+    }
+  ],
+  "single_installed_mock_smoke": {
+    "schema": "model_selection_0160_installed_mock_smoke_v1",
+    "started_utc": "2026-10-08T04:54:34.042168+00:00",
+    "ended_utc": "2026-10-08T04:54:34.496286+00:00",
+    "command": [
+      "D:\\Indeces\\.venv\\Scripts\\python.exe",
+      "-X",
+      "utf8",
+      "-B",
+      "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\checkpoint-repo\\verification\\model_selection_smoke.py",
+      "--installed-root",
+      "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\MODEL_SELECTION_0160_INSTALLED"
+    ],
+    "execution": "runpy wrapper with external network guard; synthetic credential overrides",
+    "external_network_prohibited": true,
+    "external_generation_calls": 0,
+    "external_count_calls": 0,
+    "maximum_external_fee_usd": "0",
+    "full_suite_run": false,
+    "held_out_inputs_read": false,
+    "source_committed": false,
+    "baseline_commit": "59f37b2e18ab1918441971cdd4fa0104f3cb594b",
+    "script_sha256": "572dbe97b41f73ac2d9e594241bb54861c5a77937145f965b691efd2ae5c84ee",
+    "result": {
+      "assertions_passed": true,
+      "billing_verified": false,
+      "budgets": {
+        "reply": {
+          "input_tokens": 16384,
+          "output_tokens": 2048,
+          "reasoning": "medium",
+          "seconds": 1
+        },
+        "selection": {
+          "input_tokens": 4096,
+          "output_tokens": 512,
+          "reasoning": "medium",
+          "seconds": 1
+        }
+      },
+      "candidate_count": 6,
+      "frozen_record_ids": [
+        3,
+        2,
+        1
+      ],
+      "installed_package_selected": true,
+      "mock_count_requests": 2,
+      "mock_generation_requests": 2,
+      "model_selected_record_ids": [
+        3,
+        2,
+        1
+      ],
+      "omitted_record_ids": [],
+      "policy": {
+        "id": "model_npmi_labels",
+        "version": "v1"
+      },
+      "real_model_requests": 0,
+      "retrieval_calls": {
+        "finish": 1,
+        "prepare": 1,
+        "retrieve": 0
+      },
+      "run_contract_complete": 1,
+      "seen_record_ids": [
+        6,
+        5,
+        4,
+        3,
+        2,
+        1
+      ],
+      "selected_ranks": [
+        4,
+        5,
+        6
+      ],
+      "source_root": "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\MODEL_SELECTION_0160_INSTALLED",
+      "source_sha256": {
+        "adapter.py": "95ec491c0f8721ef15932e5d75c78c3025855243450c20190fa7686eb309d9b5",
+        "console.py": "c62e5a649bc93d9b22792a0b888ce26cc39a13fd6360ea07316937c35cb7a676",
+        "memory.py": "3a8e91ff93f5475a76faa392c7e39b7b4d40de5624a9cd5fe52ecbb2e3753533",
+        "model_selection.py": "0582c8bba6b9efc8421ed05ef6f8e4f76ed4d0ee9b1840ee0a9d7f089084d6a0",
+        "runtime.py": "a078a4c3fa2d4576431de2af4f61cd2b3f049dc46d504ec4bd86f97e6fd32c55",
+        "selection_policy.py": "628d7baacf12b732dd598ca273876dfb7615f8dcba9973956987548150738f32"
+      },
+      "sqlite_transaction_across_selection_await": false,
+      "status": "pass",
+      "usage": {
+        "reply": {
+          "input_tokens": 47,
+          "output_tokens": 9
+        },
+        "selection": {
+          "input_tokens": 43,
+          "output_tokens": 11
+        }
+      },
+      "version": "0.16.0"
+    }
+  },
+  "external_generation_calls": 0,
+  "external_input_count_calls": 0,
+  "external_fee_usd": "0",
+  "production_install_or_process_switch": false,
+  "publication_or_tag_created": false,
+  "real_model_latency_measured": false,
+  "real_Discord_acceptance": false,
+  "answer_quality_acceptance": "not_tested_for_0.16.0; prior failures retained",
+  "known_limit": "invalid_model_selection failure receipts bind the actual result but do not independently prove output invalidity",
+  "rollback": "Keep previous installed dev04 package; stop/quit through owned Console before opening previous entry. Preserve all DB/scratch receipts; older verifier may reject new receipts; no replay, reset or downgrade of records."
+}

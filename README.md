@@ -1,5 +1,14 @@
 # Indeces_memory_manager
 
+0.16.0 adds one model selection after static retrieval and before the final three
+references. The normal Console supplies existing candidate IDs, topic labels and
+NPMI/relevance scores to the model, validates its selected IDs, and freezes the
+original complete quotes. It does not retrieve again or alter graph weights.
+The selection stage is bounded to 4096 input tokens, 512 output tokens and 15
+seconds by default; larger candidate pools use an explicitly audited ranked
+prefix. Existing reply/summary/label budgets, the 130-second turn and one request
+slot remain unchanged. Source updates do not reload an existing Console.
+
 
 0.15.0 修复通用检索覆盖：Runtime 使用问题焦点/区分度标词、有界正文词索引和元数据降权；旧静态选择可显式回滚，图公式、Sol/medium及调用额度保持。摘要溢出或撞字符边界不提交checkpoint，原历史保留并明确声明上下文缺口；独立试算单独审计。详细规则与边界见 [RETRIEVAL_COVERAGE.md](docs/RETRIEVAL_COVERAGE.md)。
 一个名为 **Indeces** 的小型 Python 无头智能体：一个 Discord Bot 连接、一个串行消息 worker、GPT-6.1-Sol adaptor、本地知识库、静态 NPMI 检索与动态观察历史，以及可检查的输入输出 scratch log。项目仓库名保留 `Indeces_memory_manager`。
@@ -31,8 +40,9 @@
 ```mermaid
 flowchart LR
     D[Discord 显式 at] --> Q[有界队列 / 单 worker]
-    Q --> R[按键静态邻域检索 / 冻结局部证据]
-    R --> C[原文水位 / 必要时摘要]
+    Q --> R[按键静态邻域检索 / 冻结候选]
+    R --> E[模型按 NPMI 标签选三份 / 冻结完整材料]
+    E --> C[原文水位 / 必要时摘要]
     C --> A[回复模型调用]
     A --> O[Discord 引用回复]
     K[knowledge 文件更新] --> F{PDF?}
@@ -44,6 +54,7 @@ flowchart LR
     P --> G[静态 NPMI / 稳定 ID 与邻接索引]
     G --> R
     A --> S[预算 / 请求 / 响应 / usage / 来源日志]
+    E --> S
     L --> S
     C --> S
 ```

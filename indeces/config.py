@@ -58,6 +58,15 @@ class AdapterConfig:
     verbosity: str = "high"
 
     def __post_init__(self):
+        # A separate post-retrieval selection call keeps the three established
+        # stage budgets intact. Older configuration files need no rewrite.
+        if "selection" not in self.budgets:
+            budgets = dict(self.budgets)
+            label = budgets.get("label", Budget(4096, 512, 15.0))
+            reply = budgets.get("reply", label)
+            budgets["selection"] = Budget(min(4096, label.input_tokens),
+                min(512, label.output_tokens), min(15.0, label.seconds), reply.reasoning)
+            object.__setattr__(self, "budgets", budgets)
         if not isinstance(self.verbosity, str) or self.verbosity not in {"low", "medium", "high"}:
             raise ValueError("invalid output verbosity")
         if self.model == "gpt-6.1-sol" and any(b.reasoning == "none" for b in self.budgets.values()):
@@ -182,8 +191,9 @@ def load_config(path: Path) -> Config:
     if type(a.get("failure_threshold", 3)) is not int or not 1 <= a.get("failure_threshold", 3) <= 20:
         raise ValueError("invalid circuit failure threshold")
     budgets = a["budgets"]
-    if set(budgets) != {"label", "summary", "reply"}:
-        raise ValueError("exactly label, summary and reply budgets required")
+    if set(budgets) not in ({"label", "summary", "reply"},
+                            {"label", "summary", "reply", "selection"}):
+        raise ValueError("label, summary and reply budgets required; selection is optional")
     ac = AdapterConfig(**{**a, "budgets": {k: Budget(**v) for k, v in budgets.items()}})
     name = raw.get("name", AGENT_NAME)
     if not isinstance(name, str) or not name.strip() or len(name) > 80:

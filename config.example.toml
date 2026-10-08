@@ -51,6 +51,14 @@ output_tokens = 512
 seconds = 15.0
 reasoning = "medium"
 
+# One model selection after retrieval, before the final three references.
+# Existing label/summary/reply budgets and the 130-second turn remain intact.
+[adapter.budgets.selection]
+input_tokens = 4096
+output_tokens = 512
+seconds = 15.0
+reasoning = "medium"
+
 [adapter.budgets.summary]
 input_tokens = 16384
 output_tokens = 2048

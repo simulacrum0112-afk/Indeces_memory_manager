@@ -37,13 +37,14 @@ import time
 from collections import Counter
 from copy import deepcopy
 from contextlib import contextmanager, nullcontext
+from dataclasses import dataclass
 from typing import Any
 
 from .identity import AGENT_NAME, SELF_NAME_ALIASES
 from .contracts import GovernedError
 from .memory_index import KeyedMemoryIndex
 from .selection_policy import (SelectionCandidate, SelectionLimits, SelectionPolicy, SelectionRequest,
-                               checked_decision, digest, policy_identity)
+                               checked_decision, digest, policy_identity, validate_decision)
 
 
 UPSTREAM_COMMIT = "8769b9ed0af3531b9fbc09fb6e084d8e7adf724d"
@@ -71,6 +72,28 @@ def _hit(mark: str, text: str) -> bool:
 
 def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _request_digest(request: SelectionRequest) -> str:
+    return digest({"scope": request.scope, "event_id": request.event_id,
+        "query": request.query, "context_query": request.context_query,
+        "ranking_mode": request.ranking_mode, "retrieval_policy": request.retrieval_policy,
+        "candidates": [candidate.identity() for candidate in request.candidates],
+        "limits": {"references": request.limits.references,
+                   "total_text_characters": request.limits.total_text_characters,
+                   "entry_text_characters": request.limits.entry_text_characters}})
+
+
+@dataclass(frozen=True, repr=False)
+class PreparedRetrieval:
+    """One graph-owned, immutable static candidate snapshot between calls."""
+
+    request: SelectionRequest
+    _owner: Any
+    _connection: Any
+    _snapshot: str
+    _request_sha256: str
+    _used: bool = False
 
 
 class _IndexedRecords(list):
@@ -893,6 +916,94 @@ class MemoryGraph:
                                          audit=audit, ranking_mode=ranking_mode)
         return self._retrieve_neighborhood(scope, marks, query, now, event_id=event_id, audit=audit, context_query=context_query)
 
+    def prepare_retrieval(self, scope: str, marks: list[str], query: str, now: float,
+                          *, event_id: str | None = None, context_query: str = '') -> PreparedRetrieval:
+        """Read static candidates once and leave no transaction or success audit."""
+        if self.selector is None:
+            raise GovernedError("selection_policy_required")
+        if self.connection.in_transaction:
+            raise GovernedError("selection_prepare_in_transaction")
+        return self._retrieve_neighborhood(scope, marks, query, now, event_id=event_id,
+                                          context_query=context_query, _prepare=True)
+
+    def finish_retrieval(self, prepared: PreparedRetrieval, decision, *, audit=None):
+        """Publish one decision from the frozen pool after source/event checks."""
+        if (type(prepared) is not PreparedRetrieval or prepared._owner is not self
+                or prepared._connection is not self.connection or prepared._used):
+            raise GovernedError("invalid_prepared_retrieval")
+        if audit is not None and not isinstance(audit, dict):
+            raise ValueError("audit must be a dictionary")
+        if self.connection.in_transaction:
+            raise GovernedError("selection_finish_in_transaction")
+        object.__setattr__(prepared, "_used", True)
+        request = prepared.request
+        state = json.loads(prepared._snapshot)
+        if (self.selector is None or policy_identity(self.selector) != state["policy"]
+                or self.retrieval_policy != request.retrieval_policy
+                or sorted(self.self_marks) != state["self_marks"]
+                or _request_digest(request) != prepared._request_sha256):
+            raise GovernedError("selection_event_mismatch")
+        validate_decision(request, decision)
+        scope, event_id = request.scope, request.event_id
+        payload = state["payload"]
+        with self.connection:
+            self.connection.execute("BEGIN IMMEDIATE")
+            self._check_query_schema()
+            if self.query_index.connection is not self.connection:
+                raise GovernedError("selection_sources_changed")
+            if self.connection.execute(
+                    "SELECT 1 FROM temp.sqlite_master WHERE type='table' "
+                    "AND (name IN ('memory_records','memory_static','memory_support','memory_dynamic',"
+                    "'memory_events','memory_scopes','memory_event_audits') "
+                    "OR name GLOB 'memory_query_*' OR name GLOB 'memory_coverage_*') LIMIT 1").fetchone():
+                raise GovernedError("selection_sources_changed")
+            revision = self._query_revision(scope)
+            meta = self.query_index.meta(scope)
+            if meta is None and revision == 0:
+                meta = {"active_record_count": 0, "known_marks_count": 0, "live_edge_count": 0,
+                        "revision": 0, "self_marks": sorted(self.self_marks)}
+            meta = dict(meta, self_marks=sorted(meta["self_marks"])) if meta is not None else None
+            if revision != state["revision"] or meta != state["meta"]:
+                raise GovernedError("selection_sources_changed")
+            stored = bool(self.connection.execute(
+                "SELECT 1 FROM main.memory_event_audits WHERE scope=? AND event_id=?",
+                (scope, event_id)).fetchone())
+            original = self.query_index.event_header(scope, event_id)
+            legacy = self.connection.execute(
+                "SELECT query FROM main.memory_events WHERE scope=? AND event_id=?", (scope, event_id)).fetchone()
+            contextual = (self.connection.execute(
+                "SELECT context_query FROM memory_coverage_events WHERE scope=? AND event_id=?",
+                (scope, event_id)).fetchone() if self._has_concept_events else None)
+            if (stored != state["stored"] or original != state["original"]
+                    or (list(legacy) if legacy else None) != state["legacy"]
+                    or (list(contextual) if contextual else None) != state["contextual"]):
+                raise GovernedError("selection_event_mismatch")
+            selector_original = self._selector_event_receipt(scope, event_id, stored, original)
+            if selector_original != state["selector_original"]:
+                raise GovernedError("selection_event_mismatch")
+            result, selection = self._finish_selection(state["ranked"], payload["selection"],
+                concept=state["concept"], selector_request=request, decision=decision,
+                policy=state["policy"], selector_original=selector_original)
+            for record in result:
+                record.update(ranking_mode="static", weight_basis="static_npmi")
+            payload["selection"] = selection
+            serialized = None if stored else _json(payload)
+            if not stored:
+                self.connection.execute("INSERT INTO main.memory_event_audits VALUES(?,?,?)",
+                                        (scope, event_id, serialized))
+                self.query_index.publish_event_header(scope, event_id, serialized)
+                if state["concept"]:
+                    self.connection.execute("INSERT INTO memory_coverage_events VALUES(?,?,?)",
+                                            (scope, event_id, request.context_query))
+            if self._query_revision(scope) != revision:
+                raise GovernedError("selection_sources_changed")
+        payload["durable_payload_sha256"] = (original["payload_sha256"] if original else
+                                             hashlib.sha256(serialized.encode()).hexdigest())
+        if audit is not None:
+            audit.clear()
+            audit.update(payload)
+        return result
+
     def _selector_event_receipt(self, scope, event_id, stored, header):
         """Bind injected replay without changing the legacy replay contract."""
         if self.selector is None:
@@ -943,7 +1054,8 @@ class MemoryGraph:
         local.static_live_edge_count = meta["live_edge_count"]
         return _QueryEdges(edges, local)
 
-    def _retrieve_neighborhood(self, scope, marks, query, now, *, event_id=None, audit=None, context_query=''):
+    def _retrieve_neighborhood(self, scope, marks, query, now, *, event_id=None, audit=None,
+                              context_query='', _prepare=False):
         """Published keyed indexes only; static queries never mutate shadow."""
         if self.query_index.connection is not self.connection:
             raise ValueError("memory query connection changed; recreate graph during maintenance")
@@ -1036,6 +1148,9 @@ class MemoryGraph:
             selector_options = ({"scope": scope, "context_query": context_query,
                                  "selector_original": selector_original}
                                 if self.selector is not None else {})
+            prepared_selection = {} if _prepare else None
+            if _prepare:
+                selector_options["_prepare_state"] = prepared_selection
             result, selection = self._selection(records, hits, edges, query, event_id,
                                                 concept=concept, **selector_options)
             selection.update(ranking_mode="static", weight_basis="static_npmi",
@@ -1057,6 +1172,22 @@ class MemoryGraph:
                     "observation_status": original["observation_status"],
                     "changed_edges_count": original["changed_edges_count"]}
             payload.update(observation=observation, selection=selection, replay=bool(original or legacy))
+            if _prepare:
+                if self._query_revision(scope) != revision:
+                    raise GovernedError("selection_sources_changed")
+                contextual = (self.connection.execute(
+                    "SELECT context_query FROM memory_coverage_events WHERE scope=? AND event_id=?",
+                    (scope, event_id)).fetchone() if self._has_concept_events else None)
+                request = prepared_selection["request"]
+                snapshot = _json({"payload": payload, "ranked": prepared_selection["ranked"],
+                    "policy": prepared_selection["policy"], "concept": concept,
+                    "revision": revision, "meta": dict(meta, self_marks=sorted(meta["self_marks"])),
+                    "self_marks": sorted(self.self_marks),
+                    "stored": bool(stored), "original": original,
+                    "legacy": list(legacy) if legacy else None,
+                    "contextual": list(contextual) if contextual else None,
+                    "selector_original": selector_original})
+                return PreparedRetrieval(request, self, self.connection, snapshot, _request_digest(request))
             serialized = None if stored else _json(payload)
             if not stored:
                 self.connection.execute("INSERT INTO main.memory_event_audits VALUES(?,?,?)",
@@ -1172,7 +1303,8 @@ class MemoryGraph:
         return result
 
     def _selection(self, records, hits, edges, query, event_id, *, concept=None,
-                   scope=None, context_query='', ranking_mode='static', selector_original=None):
+                   scope=None, context_query='', ranking_mode='static', selector_original=None,
+                   _prepare_state=None):
         """The existing one-hop/ranking policy, with observable decision data."""
         context_matches = {}
 
@@ -1327,8 +1459,8 @@ class MemoryGraph:
             if concept:
                 selection['ranked_candidates'][-1].update(relevance_score=direct_count,
                     relevance_inputs=record['relevance_inputs'])
-        ordered = ranked
         selector_request = None
+        policy = decision = None
         if self.selector is not None:
             policy = policy_identity(self.selector)
             frozen = tuple(SelectionCandidate(
@@ -1343,7 +1475,18 @@ class MemoryGraph:
             selector_request = SelectionRequest(scope, event_id, query, context_query, ranking_mode,
                 self.retrieval_policy if ranking_mode == "static" else "legacy_v1", frozen,
                 SelectionLimits(MAX_REFERENCES, MAX_TEXT_CHARS, MAX_ENTRY_CHARS))
+            if _prepare_state is not None:
+                _prepare_state.update(request=selector_request, ranked=ranked, policy=policy)
+                return [], selection
             decision = checked_decision(self.selector, selector_request, policy)
+        return self._finish_selection(ranked, selection, concept=concept, selector_request=selector_request,
+                                      decision=decision, policy=policy, selector_original=selector_original)
+
+    def _finish_selection(self, ranked, selection, *, concept=None, selector_request=None,
+                          decision=None, policy=None, selector_original=None):
+        ordered = ranked
+        if selector_request is not None:
+            frozen = selector_request.candidates
             by_id = {item[3]: item for item in ranked}
             frozen_by_id = {candidate.record_id: candidate for candidate in frozen}
             ordered = [by_id[record_id] for record_id in decision.selected_record_ids]
@@ -1367,7 +1510,7 @@ class MemoryGraph:
                 "text_truncated": record["text_truncated"],
                 "preview_sha256": hashlib.sha256(record["text"].encode()).hexdigest()})
         selection["selected_record_ids"] = [r["id"] for r in result]
-        selection["excluded_record_count"] = record_count - len(ranked)
+        selection["excluded_record_count"] = selection["active_record_count"] - len(ranked)
         selection["used_text_characters"] = used
         if concept:
             selection['concept_policy'] = concept
@@ -1375,6 +1518,9 @@ class MemoryGraph:
             selection['ranking_order'] = ['relevance_score descending', 'effective_score descending',
                                            'static_score descending', 'record_id descending']
         if selector_request is not None:
+            scope, event_id = selector_request.scope, selector_request.event_id
+            query, context_query = selector_request.query, selector_request.context_query
+            ranking_mode = selector_request.ranking_mode
             inventory = [candidate.identity() for candidate in selector_request.candidates]
             selector_input = {"scope": scope, "event_id": event_id,
                 "query_sha256": hashlib.sha256(query.encode()).hexdigest(),

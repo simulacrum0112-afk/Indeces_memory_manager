@@ -1,3 +1,49 @@
+# Post-retrieval model selection 0.16.0
+
+The normal Console now constructs `ModelNPMILabelSelector`. Runtime retrieves
+and freezes the eligible candidate pool once, releases the SQLite transaction,
+awaits one bounded `selection` model call, validates its existing record IDs,
+then commits selection and freezes the original full quotes before replying.
+Source revision changes during the model call reject the result. No active
+requery, graph-weight change, evidence rewriting or automatic retry is added.
+
+The default new stage is 4096 input / 512 output tokens / 15 seconds, with the
+reply reasoning effort. Older configurations retain their three explicit stage
+budgets and receive only this separate bounded stage; no private configuration
+was rewritten. The normal Console enables this policy in code. The independent
+manual entry keeps its explicit ranked selector and original finite contract.
+
+The bounded related regression covered 148 distinct test methods. The first
+driver rejected Windows asyncio's loopback self-pipe and is retained as an
+invalid harness run (101 errors). With the driver corrected, seven methods
+failed (12 failure reports) because the new prepared snapshot serialized a
+frozenset. Both snapshot and commit comparison now normalize that field.
+Only those seven methods were rechecked: five passed; the remaining two
+exposed fixture mistakes (the model projection uses `id`, and a synthetic
+source update needs `quote`). After correcting those fixtures, both passed.
+No full suite or 20-question evaluation was run or read.
+
+The fresh standard wheel passed all 52 RECORD rows and byte checks for its
+46 application source/resource files. Its isolated installation passed the
+single Console-factory mock smoke: one prepare, one finish, zero requery,
+two mock input counts and two mock generations (selection then reply).
+The selected candidates were ranks 4/5/6 from a six-candidate synthetic pool,
+and the same three IDs/full quotes reached the validated final materials.
+External input-count/generation calls and fees were zero. These checks do not
+establish real model latency, answer quality or Discord acceptance. The retained
+receipts and source identity are in [model-selection/RESULTS.json](../verification/model-selection/RESULTS.json)
+and [model-selection/SOURCE_MANIFEST.json](../verification/model-selection/SOURCE_MANIFEST.json).
+
+One failure-classification audit limit remains: an `invalid_model_selection`
+receipt is bound to the actual completed result, but the record verifier does
+not independently prove why that result violates the selector contract. Success
+still requires the full input, output, candidate and selected-material binding.
+
+Publication and switching the existing dev04 process remain separate gates.
+The database schema is unchanged; older code may reject new model-selector
+receipts, so a rollback preserves all records and never replays or resets them.
+The following sections preserve earlier checkpoints and their historical states.
+
 # Default credential-scope checkpoint 0.15.1.dev2026100704
 
 This checkpoint adds an explicit `existing_credential_default` approval scope for the finite manual entry. It requires null account/project IDs and omission of `--account`, preserving the existing credential's default routing without invented IDs or organization/project headers. Legacy approvals retain their `explicit_organization_project` behavior and original ledger binding. Changing a scope under an existing approval ID remains rejected.

@@ -146,7 +146,14 @@ def checked_decision(selector: SelectionPolicy, request: SelectionRequest,
         if inspect.iscoroutine(decision):
             decision.close()
         raise GovernedError("invalid_selection_decision")
-    if policy_identity(selector) != policy or type(decision) is not SelectionDecision:
+    if policy_identity(selector) != policy:
+        raise GovernedError("invalid_selection_decision")
+    return validate_decision(request, decision)
+
+
+def validate_decision(request: SelectionRequest, decision: SelectionDecision) -> SelectionDecision:
+    """Validate an already returned decision without invoking a strategy."""
+    if type(decision) is not SelectionDecision:
         raise GovernedError("invalid_selection_decision")
     selected, exclusions = decision.selected_record_ids, decision.exclusions
     if (type(selected) is not tuple or type(exclusions) is not tuple
