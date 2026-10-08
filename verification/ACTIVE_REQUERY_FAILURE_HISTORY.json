@@ -1,0 +1,84 @@
+{
+  "schema": "active_requery_failure_history_v1",
+  "simulation_only": true,
+  "original_artifacts_preserved": true,
+  "runs": [
+    {
+      "name": "initial_active_module",
+      "command": "python -X utf8 -B -m unittest tests.test_active_requery -v",
+      "tests_run": 21,
+      "failures": 0,
+      "errors": 16,
+      "cause": "Windows temporary directory cleanup: ScratchLog was not closed; assertion bodies completed",
+      "fix": "Close ScratchLog in asyncTearDown before cleanup",
+      "full_stdout_saved": false,
+      "evidence": "Tool history; complete standalone stdout was not retained to a file"
+    },
+    {
+      "command": "python -X utf8 -B verification/run_active_requery_offline.py --phase one",
+      "tests_run": 193,
+      "failures": 0,
+      "errors": 9,
+      "skipped": 0,
+      "failed_ids": [],
+      "error_ids": [
+        "tests.test_remaining_input_records.RemainingInputRecordTests.test_actual_breach_usage_is_retained_but_cannot_be_claimed_complete",
+        "tests.test_remaining_input_records.RemainingInputRecordTests.test_actual_smaller_gate_is_complete_with_unchanged_stage_budget",
+        "tests.test_remaining_input_records.RemainingInputRecordTests.test_effective_cap_must_match_requested_allowance_and_stage",
+        "tests.test_remaining_input_records.RemainingInputRecordTests.test_gate_cannot_replace_effective_or_configured_stage_cap",
+        "tests.test_remaining_input_records.RemainingInputRecordTests.test_input_denial_is_valid_failed_record_without_generation",
+        "tests.test_remaining_input_records.RemainingInputRecordTests.test_larger_requested_allowance_is_bound_to_original_stage_cap",
+        "tests.test_remaining_input_records.RemainingInputRecordTests.test_partial_receipts_bind_surviving_effective_gate_and_usage",
+        "tests.test_remaining_input_records.RemainingInputRecordTests.test_prior_stage_only_receipts_remain_compatible",
+        "tests.test_remaining_input_records.RemainingInputRecordTests.test_real_adapter_breach_usage_is_persisted_once_in_version_accounting"
+      ],
+      "transport": {
+        "real_provider_attempts_denied": 0,
+        "external_socket_attempts_denied": 0,
+        "injected_count_requests": 138,
+        "injected_generation_requests": 121
+      },
+      "name": "PHASE_ONE_RUN1",
+      "cause": "Derived query budget assumed reply key in legacy label-only AdapterConfig; 9 compatibility fixture errors",
+      "fix": "Derive from reply, otherwise label/default without changing legacy stage budgets",
+      "artifact_sha256": {
+        ".json": "1a44d9721e8ae77bfc6e9a82b3299c7ad242fc3f5353f525d8f3f37fdaa07a60",
+        ".log": "a13e9c419f34a6996862f7e17a0d2550e5fd1d8425c4afd1dbffae61160b73ff"
+      }
+    },
+    {
+      "command": "python -X utf8 -B verification/run_active_requery_offline.py --phase one",
+      "tests_run": 197,
+      "failures": 0,
+      "errors": 1,
+      "skipped": 0,
+      "failed_ids": [],
+      "error_ids": [
+        "tests.test_active_requery.ActiveConsoleTests.test_actual_summary_generation_is_accounted_before_query_and_reply"
+      ],
+      "transport": {
+        "real_provider_attempts_denied": 0,
+        "external_socket_attempts_denied": 0,
+        "injected_count_requests": 147,
+        "injected_generation_requests": 129
+      },
+      "name": "PHASE_ONE_RUN2",
+      "cause": "New long-history summary fixture hit the unchanged initial selection input admission before any provider call; 1 fixture error",
+      "fix": "Exercise summary with initial model selection explicitly disabled; initial selection cumulative accounting remains a separate regression",
+      "artifact_sha256": {
+        ".json": "9670fbc5946127acf3b987226cd1b85b94657f716056ed62b844f277c28af6dc",
+        ".log": "7880992c08ef22719633a2fd9c59011b0bf8e4f656341d19e703776131c54f97"
+      }
+    }
+  ],
+  "post_review_changes": [
+    {
+      "cause": "Audit annotation could overwrite prior time-budget stop after input counting",
+      "fix": "Only set audit failure stop cause when no prior cause; regress expiry between counting and generation",
+      "verification_receipt": "ACTIVE_REQUERY_OFFLINE.json",
+      "tests_run": 203,
+      "failures": 0,
+      "errors": 0
+    }
+  ]
+}

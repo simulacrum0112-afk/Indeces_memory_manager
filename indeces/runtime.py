@@ -72,7 +72,7 @@ class Runtime:
         self.knowledge_scope = f"{config.discord.guild_id}:knowledge"
         self._serial = asyncio.Lock()
 
-    async def _summary(self, message, knowledge, trace_id):
+    async def _summary(self, message, knowledge, trace_id, *, adapter_override=None):
         checkpoint = self.store.checkpoint(message.scope)
         rows = self.store.history(message.scope, checkpoint["through_seq"], exclude_turn=message.message_id)
         instructions = (prompts.bot_reply_instructions(self.config.name) if message.author_is_bot
@@ -98,7 +98,8 @@ class Runtime:
                 admitted = proposed
             if not admitted:
                 raise GovernedError("summary_prefix_too_large")
-            result = await self.adapter.call("summary", prompts.SUMMARY, summary_input(admitted), trace_id, summary_schema)
+            result = await (adapter_override if adapter_override is not None else self.adapter).call(
+                "summary", prompts.SUMMARY, summary_input(admitted), trace_id, summary_schema)
             try:
                 data = strict_json(result.text)
                 if not isinstance(data, dict) or set(data) != {"summary"} or not isinstance(data["summary"], str):
@@ -138,7 +139,10 @@ class Runtime:
         # Discord bridge also serializes. This lock preserves the invariant for
         # direct callers/tests without adding another conversation surface.
         async with self._serial:
-            turn_deadline = time.monotonic() + self.config.runtime.turn_seconds
+            active_enabled = getattr(self.config.runtime, "active_requery_enabled", False)
+            turn_seconds = (min(self.config.runtime.turn_seconds, self.config.runtime.active_requery_seconds)
+                            if active_enabled else self.config.runtime.turn_seconds)
+            turn_deadline = time.monotonic() + turn_seconds
             trace_id = uuid.uuid4().hex
             if not self.store.begin(message):
                 self.scratch.write("duplicate_ignored", trace_id=trace_id, message_id=message.message_id)
@@ -148,15 +152,29 @@ class Runtime:
                 input_record["author_is_bot"] = True
             self.scratch.write("turn_start", trace_id=trace_id, message_id=message.message_id, scope=message.scope,
                                input=input_record,
-                               deadline_seconds=self.config.runtime.turn_seconds, run_record_version=1,
+                               deadline_seconds=turn_seconds,
+                               run_record_version=3 if getattr(self.config.runtime, "active_requery_enabled", False) else 1,
                                knowledge_scope=self.knowledge_scope,
                                **({"model_selection_policy": policy_identity(self.model_selector)}
                                   if self.model_selector is not None else {}))
             delivered = False
             confirmed = False
             local_phase = None
+            active = None
+            turn_adapter = None
+            def halt_budget(code):
+                if turn_adapter is not None:
+                    try:
+                        turn_adapter.halt(code)
+                    except Exception as ledger_error:
+                        print(f"[{self.config.name}] query budget stop persistence failed: {type(ledger_error).__name__}; trace={trace_id}", flush=True)
             try:
-                async with asyncio.timeout(self.config.runtime.turn_seconds):
+                async with asyncio.timeout(turn_seconds):
+                    if active_enabled:
+                        from .active_requery import ActiveRequery, TurnBudgetAdapter
+                        turn_adapter = TurnBudgetAdapter(self.adapter, self.config, self.scratch,
+                                                         trace_id, message.message_id, message.scope)
+                        active = ActiveRequery(self, turn_adapter, trace_id, message)
                     started = time.monotonic()
                     # sqlite is cooperatively interrupted during expensive scans;
                     # graph methods also bound their lookup/expansion outputs.
@@ -188,7 +206,11 @@ class Runtime:
                             local_phase = "model_selection"
                             selection_started = time.monotonic()
                             try:
-                                decision = await self.model_selector.choose(prepared.request, trace_id)
+                                if active is None:
+                                    decision = await self.model_selector.choose(prepared.request, trace_id)
+                                else:
+                                    decision = await self.model_selector.choose(prepared.request, trace_id,
+                                                                               adapter_override=turn_adapter)
                             finally:
                                 started += time.monotonic() - selection_started
                                 self.store.db.set_progress_handler(local_progress, 1000)
@@ -229,16 +251,36 @@ class Runtime:
                     self.scratch.write("knowledge_retrieved", trace_id=trace_id, input_marks=[],
                                        query=message.text, records=knowledge, retrieval_sha256=retrieval_hash,
                                        elapsed_seconds=time.monotonic() - started)
-                    messages = await self._summary(message, knowledge, trace_id)
+                    if active is None:
+                        messages = await self._summary(message, knowledge, trace_id)
+                        record_answer = lambda text: answer_record(text, retrieval)
+                        evidence_link = {"retrieval_sha256": retrieval_hash}
+                        final_fields = {}
+                    else:
+                        from .active_requery import context_with_bundle
+                        from .requery_records import answer_record_bundle
+                        active.append(retrieval, f"{message.message_id}:initial")
+                        messages = await self._summary(message, knowledge, trace_id, adapter_override=turn_adapter)
+                        bundle = await active.gather(messages)
+                        messages = context_with_bundle(messages, bundle)
+                        record_answer = lambda text: answer_record_bundle(text, bundle)
+                        evidence_link = {"bundle_sha256": digest(bundle)}
+                        final_fields = {"final_origin": "bounded_stop" if active.fallback_text else "model",
+                                        "simulation": turn_adapter.mock}
                     instructions = (prompts.bot_reply_instructions(self.config.name) if message.author_is_bot
                                     else prompts.reply_instructions(self.config.name))
                     schema_fields = {"response_schema": prompts.BOT_REPLY_SCHEMA} if message.author_is_bot else {}
-                    self.scratch.write("reply_context", trace_id=trace_id, retrieval_sha256=retrieval_hash,
-                                       instructions=instructions, messages=messages, **schema_fields)
-                    if message.author_is_bot:
-                        result = await self.adapter.call("reply", instructions, messages, trace_id, prompts.BOT_REPLY_SCHEMA)
+                    self.scratch.write("reply_context", trace_id=trace_id, **evidence_link,
+                                       instructions=instructions, messages=messages, **schema_fields, **final_fields,
+                                       **({"no_provider_reply": bool(active.fallback_text)} if active else {}))
+                    reply_adapter = turn_adapter if active is not None else self.adapter
+                    if active is not None and active.fallback_text:
+                        result = None
+                        answer = active.fallback_text
+                    elif message.author_is_bot:
+                        result = await reply_adapter.call("reply", instructions, messages, trace_id, prompts.BOT_REPLY_SCHEMA)
                         decision = bot_reply_data(result.text)
-                        self.scratch.write("bot_reply_decision", trace_id=trace_id, retrieval_sha256=retrieval_hash,
+                        self.scratch.write("bot_reply_decision", trace_id=trace_id, **evidence_link,
                                            **decision, model_result=asdict(result))
                         if decision["action"] == "skip":
                             self.store.fail(message.message_id, "skipped")
@@ -246,24 +288,26 @@ class Runtime:
                             return
                         answer = decision["text"]
                     else:
-                        result = await self.adapter.call("reply", instructions, messages, trace_id)
+                        result = await reply_adapter.call("reply", instructions, messages, trace_id)
                         answer = result.text
-                    self.scratch.write("answer_generated", trace_id=trace_id, retrieval_sha256=retrieval_hash,
-                                       record=answer_record(answer, retrieval), model_result=asdict(result))
+                    self.scratch.write("answer_generated", trace_id=trace_id, **evidence_link, **final_fields,
+                                       record=record_answer(answer), model_result=asdict(result) if result else None)
                     self.store.generated(message.message_id, answer)
                     self.scratch.write("delivery_start", trace_id=trace_id, message_id=message.message_id, text=answer)
                     # Mark attempt before crossing Discord boundary. A timeout
                     # can mean delivered remotely; never automatically retry.
                     delivered = True
                     async with asyncio.timeout(self.config.discord.delivery_seconds):
-                        receipt = await deliver(answer)
+                        receipt = await deliver(FailureNotice(answer) if active is not None and active.fallback_text
+                                                and message.author_is_bot else answer)
                     confirmed = True
                     self.store.finish(message, receipt)
-                    self.scratch.write("answer_delivered", trace_id=trace_id, retrieval_sha256=retrieval_hash,
-                                       record=answer_record(receipt.text, retrieval), receipt_ids=receipt.message_ids)
+                    self.scratch.write("answer_delivered", trace_id=trace_id, **evidence_link, **final_fields,
+                                       record=record_answer(receipt.text), receipt_ids=receipt.message_ids)
                     self.scratch.write("turn_end", trace_id=trace_id, status="delivered", receipt={"ids": receipt.message_ids, "text": receipt.text})
                     return
             except asyncio.CancelledError:
+                halt_budget("post_delivery_record_cancelled" if confirmed else "delivery_unknown" if delivered else "cancelled")
                 if confirmed:
                     print(f"[{self.config.name}] Discord delivery confirmed; post-delivery recording interrupted; trace={trace_id}", flush=True)
                     raise
@@ -273,6 +317,7 @@ class Runtime:
                 raise
             except Exception as error:
                 if confirmed:
+                    halt_budget("post_delivery_record_failed")
                     # A local audit failure cannot erase a confirmed Discord
                     # receipt or trigger another delivery. Preserve history.
                     print(f"[{self.config.name}] Discord delivery confirmed; post-delivery storage/audit failed: {type(error).__name__}; trace={trace_id}; inspect records before restarting.", flush=True)
@@ -280,6 +325,7 @@ class Runtime:
                 code = error.code if isinstance(error, GovernedError) else "turn_timeout" if isinstance(error, TimeoutError) else type(error).__name__
                 if delivered:
                     code = "delivery_unknown:" + code
+                halt_budget(code)
                 self.store.fail(message.message_id, code)
                 diagnostic = error.__cause__ if isinstance(error.__cause__, sqlite3.OperationalError) else error
                 failure_fields = {"error_type": type(diagnostic).__name__}
@@ -308,3 +354,10 @@ class Runtime:
                         self.scratch.write("failure_notice_delivered", trace_id=trace_id, receipt={"ids": receipt.message_ids, "text": receipt.text})
                     except Exception as error:
                         self.scratch.write("failure_notice_unknown", trace_id=trace_id, error_type=type(error).__name__)
+            finally:
+                if turn_adapter is not None:
+                    try:
+                        turn_adapter.finish()
+                    except Exception as error:
+                        # Never convert a confirmed delivery into a second send.
+                        print(f"[{self.config.name}] query budget ledger close failed: {type(error).__name__}; trace={trace_id}", flush=True)

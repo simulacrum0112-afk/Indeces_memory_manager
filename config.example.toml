@@ -20,6 +20,18 @@ low_watermark = 0.70
 retrieval_policy = "concept_v1" # Explicit legacy_v1 restores the previous static selection policy.
 model_selection_enabled = true # false uses the existing deterministic retrieval policy without a selection model call.
 
+# Independent offline feasibility snapshot. These flags do not migrate live state.
+active_requery_enabled = false
+active_requery_max_rounds = 2
+active_requery_max_calls = 6 # Initial selection, any summary, planning and final reply share this cap.
+active_requery_input_tokens = 32768
+active_requery_output_tokens = 4096
+active_requery_seconds = 60.0 # Whole opted-in turn, including delivery; existing stage caps still apply.
+active_requery_allow_real_calls = false
+active_requery_cost_usd = 0.0 # Mock-only until separate authorization and positive configured tariffs/cap.
+active_requery_input_usd_per_million = 0.0
+active_requery_output_usd_per_million = 0.0
+
 [knowledge]
 poll_seconds = 0.5
 max_file_bytes = 8192 # UTF-8 .md/.markdown/.txt source bytes only; supported upper bound 1 MiB.
@@ -55,6 +67,13 @@ reasoning = "medium"
 # One model selection after retrieval, before the final three references.
 # Existing label/summary/reply budgets and the 130-second turn remain intact.
 [adapter.budgets.selection]
+input_tokens = 4096
+output_tokens = 512
+seconds = 15.0
+reasoning = "medium"
+
+# Structured evidence actions; no thought transcript or general tool execution.
+[adapter.budgets.query]
 input_tokens = 4096
 output_tokens = 512
 seconds = 15.0

@@ -111,7 +111,7 @@ class ModelNPMILabelSelector:
             raise ValueError("invalid selected IDs")
         return tuple(selected)
 
-    async def choose(self, request: SelectionRequest, trace_id: str) -> SelectionDecision:
+    async def choose(self, request: SelectionRequest, trace_id: str, *, adapter_override=None) -> SelectionDecision:
         if (type(request) is not SelectionRequest
                 or type(request.limits.references) is not int
                 or not 1 <= request.limits.references <= 3):
@@ -184,7 +184,7 @@ class ModelNPMILabelSelector:
         # The adaptor owns exact input counting, stage/slot admission, usage,
         # output/time caps and transport records. There is one call and no
         # automatic retry, alternate policy, or ranked-prefix answer fallback.
-        result = await self.adapter.call("selection", INSTRUCTIONS, messages,
+        result = await (adapter_override if adapter_override is not None else self.adapter).call("selection", INSTRUCTIONS, messages,
                                          trace_id, schema)
         try:
             selected = self._selected(result.text, set(ids[:visible]), required)

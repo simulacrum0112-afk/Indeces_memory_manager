@@ -47,10 +47,37 @@ class RuntimeConfig:
     low_watermark: float = 0.70
     retrieval_policy: str = 'concept_v1'
     model_selection_enabled: bool = True
+    active_requery_enabled: bool = False
+    active_requery_max_rounds: int = 2
+    active_requery_max_calls: int = 6
+    active_requery_input_tokens: int = 32768
+    active_requery_output_tokens: int = 4096
+    active_requery_seconds: float = 60.0
+    active_requery_cost_usd: float = 0.0
+    active_requery_allow_real_calls: bool = False
+    active_requery_input_usd_per_million: float = 0.0
+    active_requery_output_usd_per_million: float = 0.0
 
     def __post_init__(self):
         if type(self.model_selection_enabled) is not bool:
             raise ValueError("runtime.model_selection_enabled must be a boolean")
+        for key in ("active_requery_enabled", "active_requery_allow_real_calls"):
+            if type(getattr(self, key)) is not bool:
+                raise ValueError(f"runtime.{key} must be a boolean")
+        for key, upper in (("active_requery_max_rounds", 4), ("active_requery_max_calls", 12),
+                           ("active_requery_input_tokens", 65536), ("active_requery_output_tokens", 8192)):
+            value = getattr(self, key)
+            if type(value) is not int or not 1 <= value <= upper:
+                raise ValueError(f"invalid runtime.{key}")
+        if (type(self.active_requery_seconds) not in (int, float)
+                or not 0 < self.active_requery_seconds <= 130
+                or not math.isfinite(self.active_requery_seconds)):
+            raise ValueError("invalid active requery deadline")
+        for key in ("active_requery_cost_usd", "active_requery_input_usd_per_million",
+                    "active_requery_output_usd_per_million"):
+            value = getattr(self, key)
+            if type(value) not in (int, float) or not 0 <= value <= 1000 or not math.isfinite(value):
+                raise ValueError(f"invalid runtime.{key}")
 
 
 @dataclass(frozen=True)
@@ -71,6 +98,13 @@ class AdapterConfig:
             reply = budgets.get("reply", label)
             budgets["selection"] = Budget(min(4096, label.input_tokens),
                 min(512, label.output_tokens), min(15.0, label.seconds), reply.reasoning)
+            object.__setattr__(self, "budgets", budgets)
+        # Separate action planning, never a renamed post-retrieval selector.
+        if "query" not in self.budgets:
+            budgets = dict(self.budgets)
+            reply = budgets.get("reply", budgets.get("label", Budget(4096, 512, 15.0)))
+            budgets["query"] = Budget(min(4096, reply.input_tokens), min(512, reply.output_tokens),
+                                      min(15.0, reply.seconds), reply.reasoning)
             object.__setattr__(self, "budgets", budgets)
         if not isinstance(self.verbosity, str) or self.verbosity not in {"low", "medium", "high"}:
             raise ValueError("invalid output verbosity")
@@ -196,9 +230,8 @@ def load_config(path: Path) -> Config:
     if type(a.get("failure_threshold", 3)) is not int or not 1 <= a.get("failure_threshold", 3) <= 20:
         raise ValueError("invalid circuit failure threshold")
     budgets = a["budgets"]
-    if set(budgets) not in ({"label", "summary", "reply"},
-                            {"label", "summary", "reply", "selection"}):
-        raise ValueError("label, summary and reply budgets required; selection is optional")
+    if not {"label", "summary", "reply"} <= set(budgets) or set(budgets) - {"label", "summary", "reply", "selection", "query"}:
+        raise ValueError("label, summary and reply budgets required; selection and query are optional")
     ac = AdapterConfig(**{**a, "budgets": {k: Budget(**v) for k, v in budgets.items()}})
     name = raw.get("name", AGENT_NAME)
     if not isinstance(name, str) or not name.strip() or len(name) > 80:

@@ -618,7 +618,8 @@ def _model_selection_binding(fields):
     return binding
 
 
-def _validate_model_selection(events, report, *, start=None, graph=None, partial=False):
+def _validate_model_selection(events, report, *, start=None, graph=None, partial=False,
+                              allow_budget_narrowing=False):
     """Bind one bounded model choice to its input, transport and frozen receipt.
 
     Available retained evidence is checked, but expired input/call/material
@@ -739,7 +740,9 @@ def _validate_model_selection(events, report, *, start=None, graph=None, partial
         _require(not selection_events or len(starts) == 1, "model selection call start missing")
     if inputs and starts:
         _require(starts[0]["planning_reservation"] == inputs[0]["planning_reservation"]
-                 and starts[0]["budget"]["input_tokens"] == inputs[0]["planning_input_limit"],
+                 and (0 < starts[0]["budget"]["input_tokens"] <= inputs[0]["planning_input_limit"]
+                      if allow_budget_narrowing else
+                      starts[0]["budget"]["input_tokens"] == inputs[0]["planning_input_limit"]),
                  "model selection call planning mismatch")
     requests = [f for e, f in selection_events if e == "http_request"]
     _require(len(requests) <= 2 and len({f["path"] for f in requests}) == len(requests),
@@ -1252,15 +1255,21 @@ def verify_runs(paths: list[Path]):
             # Passive label traces do not have conversation stages.
             is_turn = any(e in {"model_selection_input", "model_selection_decision",
                                   "memory_observation", "retrieval_record", "knowledge_retrieved", "reply_context",
-                                 "bot_reply_decision", "answer_generated", "delivery_start", "answer_delivered", "turn_end"}
-                          or f.get("stage") in {"reply", "summary", "selection"} for e, f in events)
+                                 "bot_reply_decision", "answer_generated", "delivery_start", "answer_delivered", "turn_end",
+                                 "requery_action", "requery_retrieval", "requery_evidence", "requery_stop"}
+                          or f.get("stage") in {"reply", "summary", "selection", "query"} for e, f in events)
             if not is_turn:
                 continue
             report = {"trace_id": trace, "status": "retention_partial", "warnings": ["expired_turn_start"]}
             reports.append(report)
             try:
                 _require(trace in partial_traces, "turn start missing without retention evidence")
-                _validate_partial_turn(events, report)
+                if any(e in {"requery_action", "requery_retrieval", "requery_evidence", "requery_stop"}
+                       or f.get("stage") == "query" or "bundle_sha256" in f for e, f in events):
+                    from .requery_records import verify_active_turn
+                    verify_active_turn(events, report=report, partial=True)
+                else:
+                    _validate_partial_turn(events, report)
                 _require(not any(c["status"] == "invalid" for c in call_reports if c["trace_id"] == trace),
                          "retained turn has invalid call evidence")
             except (ValueError, KeyError, TypeError, IndexError, AttributeError, OverflowError, ZeroDivisionError) as error:
@@ -1269,6 +1278,17 @@ def verify_runs(paths: list[Path]):
             continue
         report = {"trace_id": trace, "status": "legacy", "warnings": []}
         reports.append(report)
+        if starts[0].get("run_record_version") == 3:
+            try:
+                from .requery_records import verify_active_turn
+                _require(len(starts) == 1, "duplicate active turn start")
+                verify_active_turn(events, starts[0], report, partial=trace in partial_traces)
+                _require(not any(c["status"] == "invalid" for c in call_reports if c["trace_id"] == trace),
+                         "active turn has invalid call evidence")
+            except (ValueError, KeyError, TypeError, IndexError, AttributeError, OverflowError, ZeroDivisionError) as error:
+                report["status"] = "invalid"
+                issues.append({"trace_id": trace, "reason": str(error) if type(error) is ValueError else "active record schema invalid"})
+            continue
         if starts[0].get("run_record_version") != 1:
             continue
         report["status"] = "incomplete"
