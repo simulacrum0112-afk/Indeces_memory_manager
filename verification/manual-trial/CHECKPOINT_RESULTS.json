@@ -1,10 +1,10 @@
 {
   "schema": "indeces_checkpoint_offline_results_v1",
-  "version": "0.15.1.dev2026100703",
-  "scope": "Independent code checkpoint, offline synthetic validation plus native idle Console startup; no real model/Gateway/held-out acceptance or main deployment",
+  "version": "0.15.1.dev2026100704",
+  "scope": "Independent checkpoint with explicit credential-default account scope; offline synthetic checks only for this source change",
   "baseline_main": "94ae7bd15120070fb24f88d0e7bd8d4e3d622e20",
   "checkpoint_branch": "checkpoint/manual-live-ready-20261007",
-  "candidate_identity": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e",
+  "candidate_identity": "d48553c165379897494861940d82c05e9bf714c5b65f86a090cdc6d069b15569",
   "public_test_command": [
     "python",
     "-m",
@@ -15,163 +15,821 @@
     "-v"
   ],
   "full_regression_guard": "Inherited process-only external-socket guard; only loopback allowed, source origins and before/after SHA maps checked",
-  "full_regression_initial_run": {
-    "version": "0.15.1.dev2026100702",
-    "tests_run": 1154,
-    "failures": 4,
-    "errors": 0,
-    "skipped": 20,
-    "successful": false,
-    "elapsed_seconds": 268.312,
-    "failure_ids": [
-      "test_console_process.ConsoleProcessTests.test_windows_cmd_launchers_route_same_owner_and_forward_config_argument",
-      "test_name_migration.NameMigrationTests.test_new_observer_uses_same_mutex_as_an_old_runtime_process",
-      "test_scratch_observer.ScratchObserverTests.test_aborted_observer_process_does_not_leave_writer_mutex_locked",
-      "test_scratch_observer.ScratchObserverTests.test_cross_process_reader_serializes_writer_with_canonical_directory_alias"
-    ],
-    "error_ids": [],
-    "source_identity_sha256": "c7bdf1e9384a7c949465ae36f7a414bc1f566c034724df99da6abfabd30c7685",
-    "source_unchanged": true,
-    "external_socket_attempts_blocked": []
-  },
-  "initial_failure_categories": {
-    "isolated_checkout_missing_local_venv": [
-      "test_console_process.ConsoleProcessTests.test_windows_cmd_launchers_route_same_owner_and_forward_config_argument"
-    ],
-    "external_checker_spawn_reentry_missing_main_guard": [
-      "test_name_migration.NameMigrationTests.test_new_observer_uses_same_mutex_as_an_old_runtime_process",
-      "test_scratch_observer.ScratchObserverTests.test_aborted_observer_process_does_not_leave_writer_mutex_locked",
-      "test_scratch_observer.ScratchObserverTests.test_cross_process_reader_serializes_writer_with_canonical_directory_alias"
-    ]
-  },
-  "initial_environment_corrections": {
-    "product_source_changes": 0,
-    "public_test_fixture_changes": 0,
-    "external_checker_main_guard_added": true,
-    "isolated_venv_created_without_pip_downloads_or_links": true,
-    "process_only_import_origin_verified": true
-  },
-  "post_full_eol_only_changes": {
-    "schema": "checkpoint_eol_canonicalization_v1",
-    "semantic_change": false,
-    "files": [
-      {
-        "path": "indeces/manual_trial/__init__.py",
-        "before_sha256": "132a5707447e52575c51e74de9f9b06bdd871e606314e18569d6855c8bfc7cd5",
-        "after_sha256": "c0f33cde0e6a39417a138b3835279f87fc1ea855779ba2ebf3253fe041c6be41",
-        "before_crlf": 1,
-        "after_crlf": 0,
-        "ast_identical": true
-      },
-      {
-        "path": "indeces/manual_trial/__main__.py",
-        "before_sha256": "8bc0f79e7a5927d18aac24cb03fe9c9b1be9fa57081c75a8c987681e5f8e49f8",
-        "after_sha256": "a7ab7fe5d3b98dcff43e718b1f53f7324a3254786014ac4ea36e96e7663e2218",
-        "before_crlf": 7,
-        "after_crlf": 0,
-        "ast_identical": true
-      }
-    ]
-  },
-  "core_selector_regression": {
-    "tests_run": 211,
+  "targeted_manual_checks": {
+    "tests_run": 81,
+    "new_tests_run": 11,
+    "legacy_tests_run": 70,
     "failures": 0,
     "errors": 0,
     "skipped": 0,
-    "passed": true
+    "passed": true,
+    "elapsed_seconds": 8.014999999999418,
+    "source_identity_before": "d48553c165379897494861940d82c05e9bf714c5b65f86a090cdc6d069b15569",
+    "source_identity_after": "d48553c165379897494861940d82c05e9bf714c5b65f86a090cdc6d069b15569",
+    "source_stable_during_tests": true,
+    "test_source_sha256": {
+      "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\checkpoint-repo\\tests\\test_manual_trial_default_scope.py": "e882af9953f44b415262587ce3d00b2ed4c214349d11b2b20204365b89fb91b4",
+      "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\checkpoint-repo\\tests\\test_manual_trial.py": "1f2a4beb138da7c6c5ca1eb5a475cc0958f8aba1e762d0619a90547d4e98241a",
+      "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\checkpoint-repo\\tests\\test_manual_trial_gate.py": "72fa3f24502be56a1ada287bd612b0cfd0135b0c1011325ccbca77f7c20c751c"
+    }
   },
+  "full_regression": {
+    "version": "0.15.1.dev2026100704",
+    "tests_run": 1166,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 20,
+    "successful": true,
+    "elapsed_seconds": 231.156,
+    "started_utc": "2026-10-08T00:37:07.008540Z",
+    "ended_utc": "2026-10-08T00:40:58.170299Z",
+    "source_identity_sha256": "7f321df16234512767f4c3c965c9156950dc2d6f49e6eef13d8137bde0439417",
+    "app_source_identity_sha256": "d48553c165379897494861940d82c05e9bf714c5b65f86a090cdc6d069b15569",
+    "source_files": 122,
+    "protected_scope": [
+      "indeces/**",
+      "tests/**",
+      "pyproject.toml",
+      "LICENSE",
+      "config.example.toml",
+      "requirements.lock"
+    ],
+    "source_unchanged": true,
+    "source_binding": {
+      "baseline_commit": "5398b075cea499c20a861c1df0f4566d96bc578e",
+      "baseline_tree": "29dfe4ffcbc32ba22497f306cdbb37da8bd84766",
+      "protected_source_is_committed": false,
+      "protected_diff_sha256": "4e0318413eb690378f772d63484e81e100e1a56f8e0eeb8532c7ae3ef4cd954f",
+      "protected_diff_bytes": 11552,
+      "raw_source_snapshot_is_authoritative": true
+    },
+    "failure_ids": [],
+    "error_ids": [],
+    "external_socket_attempts_blocked": []
+  },
+  "full_regression_driver": {
+    "command": [
+      "D:\\Indeces\\.venv\\Scripts\\python.exe",
+      "-B",
+      "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\CHECKPOINT_FULL_CHECKS_TOOLS\\run_full_checks.py",
+      "--repo",
+      "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\checkpoint-repo",
+      "--output",
+      "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\DEFAULT_SCOPE_FULL_CHECKS.json",
+      "--expected-commit",
+      "5398b075cea499c20a861c1df0f4566d96bc578e"
+    ],
+    "cwd": "D:\\Indeces\\build\\selector-manual-live-ready-20261007",
+    "exit_code": 0,
+    "started_utc": "2026-10-08T00:37:05.963417Z",
+    "ended_utc": "2026-10-08T00:40:58.252164Z",
+    "elapsed_seconds": 232.297,
+    "process_only_environment": true,
+    "inherited_subprocess_offline_guard": true,
+    "log_sha256": "c103a5dc57b71f7b4259afa01298ec07a3a03f958cc5533ceae2deb8259634b4"
+  },
+  "standard_build": {
+    "started_utc": "2026-10-08T00:37:02.900166Z",
+    "ended_utc": "2026-10-08T00:37:22.593766Z",
+    "passed": true,
+    "source_binding": {
+      "baseline_commit": "5398b075cea499c20a861c1df0f4566d96bc578e",
+      "baseline_tree": "29dfe4ffcbc32ba22497f306cdbb37da8bd84766",
+      "protected_source_is_committed": false,
+      "protected_diff_sha256": "4e0318413eb690378f772d63484e81e100e1a56f8e0eeb8532c7ae3ef4cd954f",
+      "protected_diff_bytes": 11552,
+      "raw_source_snapshot_is_authoritative": true
+    },
+    "source_files": 122,
+    "source_identity_sha256": "7f321df16234512767f4c3c965c9156950dc2d6f49e6eef13d8137bde0439417",
+    "app_source_identity_sha256": "d48553c165379897494861940d82c05e9bf714c5b65f86a090cdc6d069b15569",
+    "source_unchanged": true,
+    "log_sha256": "27831f5179c7688417762b3820430cae0cb7dff4b05acb6c7bd816f4e945712c"
+  },
+  "build_backend": {
+    "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+    "setuptools": "84.0.0",
+    "wheel": "0.48.0"
+  },
+  "build_commands": [
+    {
+      "command": [
+        "D:\\Indeces\\.venv\\Scripts\\python.exe",
+        "-B",
+        "-c",
+        "import importlib.metadata,json,setuptools,wheel; print(json.dumps({'python':__import__('sys').version,'setuptools':importlib.metadata.version('setuptools'),'wheel':importlib.metadata.version('wheel'),'setuptools_path':setuptools.__file__,'wheel_path':wheel.__file__}))"
+      ],
+      "cwd": "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_DEFAULT_SCOPE_BUILD_SOURCE",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "elapsed_seconds": 0.766
+    },
+    {
+      "command": [
+        "D:\\Indeces\\.venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "pip",
+        "wheel",
+        "--isolated",
+        "--no-index",
+        "--no-deps",
+        "--no-build-isolation",
+        "--wheel-dir",
+        "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_DEFAULT_SCOPE_WHEELS",
+        "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_DEFAULT_SCOPE_BUILD_SOURCE"
+      ],
+      "cwd": "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_DEFAULT_SCOPE_BUILD_SOURCE",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "elapsed_seconds": 10.047
+    },
+    {
+      "command": [
+        "D:\\Indeces\\.venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "pip",
+        "install",
+        "--isolated",
+        "--no-index",
+        "--no-deps",
+        "--no-compile",
+        "--target",
+        "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_DEFAULT_SCOPE_INSTALLED",
+        "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_DEFAULT_SCOPE_WHEELS\\indeces_memory_manager-0.15.1.dev2026100704-py3-none-any.whl"
+      ],
+      "cwd": "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_DEFAULT_SCOPE_BUILD_SOURCE",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "elapsed_seconds": 2.578
+    },
+    {
+      "command": [
+        "D:\\Indeces\\.venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "indeces",
+        "check",
+        "--once",
+        "--config",
+        "config.example.toml"
+      ],
+      "cwd": "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_DEFAULT_SCOPE_INSTALLED",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "elapsed_seconds": 1.906
+    },
+    {
+      "command": [
+        "D:\\Indeces\\.venv\\Scripts\\python.exe",
+        "-B",
+        "-c",
+        "import indeces,json;from pathlib import Path;print(json.dumps({'version':indeces.__version__,'package_path':str(Path(indeces.__file__).resolve())}))"
+      ],
+      "cwd": "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_DEFAULT_SCOPE_INSTALLED",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "elapsed_seconds": 0.094
+    },
+    {
+      "command": [
+        "D:\\Indeces\\.venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "indeces.manual_trial",
+        "--mock",
+        "--output",
+        "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_DEFAULT_SCOPE_INSTALLED\\mock-run"
+      ],
+      "cwd": "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_DEFAULT_SCOPE_INSTALLED",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "elapsed_seconds": 2.844
+    },
+    {
+      "command": [
+        "D:\\Indeces\\.venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "indeces.manual_trial",
+        "--live",
+        "--output",
+        "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_DEFAULT_SCOPE_INSTALLED\\blocked-live-output-must-not-exist"
+      ],
+      "cwd": "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_DEFAULT_SCOPE_INSTALLED",
+      "exit_code": 2,
+      "expected_exit_code": 2,
+      "elapsed_seconds": 0.484
+    }
+  ],
+  "wheel": {
+    "sha256": "3108e45d26625a2a9b72e0fc399562c668e8da86bb87f99e5176198286d202ec",
+    "bytes": 243643,
+    "members": 51,
+    "record_rows": 51,
+    "record_hashes_verified": true,
+    "packaged_source_count": 45,
+    "python_source_count": 42,
+    "all_packaged_source_bytes_match_frozen_checkout": true
+  },
+  "wheel_filename": "indeces_memory_manager-0.15.1.dev2026100704-py3-none-any.whl",
+  "wheel_source_matches_checkout": true,
+  "installed_cli_check_exit_code": 0,
+  "installed_package_origin": {
+    "version": "0.15.1.dev2026100704",
+    "package_path": "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_DEFAULT_SCOPE_INSTALLED\\indeces\\__init__.py"
+  },
+  "installed_manual_mock": {
+    "mode": "mock",
+    "request_count": 4,
+    "count_requests": 2,
+    "generation_requests": 2,
+    "real_requests": 0,
+    "background_workers_started": 0,
+    "acceptance_passed": true,
+    "source_identity": "d48553c165379897494861940d82c05e9bf714c5b65f86a090cdc6d069b15569"
+  },
+  "installed_live_missing_metadata": {
+    "status": "blocked",
+    "code": "manual_required_metadata_missing",
+    "real_requests": 0,
+    "output_directory_created": false
+  },
+  "original_user_changes_preserved": 17,
   "production_install": false,
-  "dependency_downloads": false,
+  "dependency_downloads": 0,
   "real_model_api_calls": 0,
   "real_discord_sessions": 0,
   "private_held_out_reads": 0,
-  "original_user_changes_preserved": 17,
   "remaining_acceptance": [
-    "Owner-approved account/project/target/source/input/tariff/expiry descriptor",
-    "Verified tariff including flat input-count fee",
-    "Real model availability, exact response model, actual usage/billing and latency",
+    "Complete owner-approved target/source/input/account-scope/tariff/expiry descriptor",
+    "Verified tariff including flat remote input-count fee and applicable account spending evidence",
+    "Real model availability, response model, actual usage/billing and latency",
     "Real Discord delivery",
     "Independent held-out answer scoring",
     "Running production build identity"
   ],
-  "quality_status": "Old Q1-Q3 effect failures remain failures; no held-out questions or gold were requested, read or copied; no answer-effect rerun",
-  "rollback": "Use existing main/production checkout; stop using this independent checkpoint/isolated install. Preserve all original experiments and stopped approval ledgers.",
-  "post_acceptance_test_formatting": {
-    "path": "tests/test_manual_trial.py",
-    "only_change": "Remove one blank line at EOF to satisfy git diff --check; CRLF retained in worktree, Git normalizes LF",
-    "ast_identical": true,
-    "before_sha256": "b9e9d6bf7b6b219832760041eaad8ddbc2007d7cfc6a2a3146eea1bffc27ba91",
-    "after_sha256": "2a78f328a95a5a7b7b18de4793a528abc3374d04ebaf1626a3d51cc2bc17bcaf",
-    "new_test_execution": false,
-    "reason": "Formatting-only change after canonical checks; application source and wheel unchanged"
+  "quality_status": "Overall earlier answer-effect acceptance remains failed; corrected experiment provenance is local only; no answer-effect or held-out rerun",
+  "account_scope_contract": {
+    "legacy_scope": "explicit_organization_project",
+    "new_explicit_scope": "existing_credential_default",
+    "default_scope_ids": null,
+    "default_scope_account_cli_omitted": true,
+    "default_scope_routing_headers_sent": false,
+    "legacy_ledger_binding_preserved": true,
+    "scope_change_under_same_approval_id_rejected": true,
+    "remote_count_replaced_with_local_estimate": false,
+    "unknown_counting_fee_blocks_model_http": true,
+    "provider_billing_owner_verified": false
   },
-  "first_published_checkpoint_ci": {
-    "commit": "d25ca32beeaa5c8a8dcc47e158cf5822786074d0",
-    "run": 37698689430,
-    "run_url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37698689430",
+  "prior_exact_checkpoint_ci": {
+    "commit": "5398b075cea499c20a861c1df0f4566d96bc578e",
+    "run_id": 37706120215,
+    "run_url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37706120215",
     "status": "completed",
-    "conclusion": "failure",
+    "conclusion": "success",
+    "checked_at_utc": "2026-10-08T00:14:01.809673+00:00",
     "jobs": [
       {
-        "name": "check (windows-latest, ./.venv/Scripts/python.exe)",
-        "status": "completed",
-        "conclusion": "cancelled"
-      },
-      {
+        "id": 113080768454,
         "name": "check (ubuntu-latest, ./.venv/bin/python)",
         "status": "completed",
-        "conclusion": "failure"
+        "conclusion": "success",
+        "started_at": "2026-10-08T00:08:09Z",
+        "completed_at": "2026-10-08T00:09:45Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "number": 1,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:08:10Z",
+            "completed_at": "2026-10-08T00:08:11Z"
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "number": 2,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:08:11Z",
+            "completed_at": "2026-10-08T00:08:12Z"
+          },
+          {
+            "name": "Run actions/setup-python@v5",
+            "number": 3,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:08:12Z",
+            "completed_at": "2026-10-08T00:08:13Z"
+          },
+          {
+            "name": "Run python -m venv .venv",
+            "number": 4,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:08:13Z",
+            "completed_at": "2026-10-08T00:08:15Z"
+          },
+          {
+            "name": "Run ./.venv/bin/python -m pip install -r requirements.lock",
+            "number": 5,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:08:15Z",
+            "completed_at": "2026-10-08T00:08:19Z"
+          },
+          {
+            "name": "Run ./.venv/bin/python -m pip install --no-deps -e .",
+            "number": 6,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:08:19Z",
+            "completed_at": "2026-10-08T00:08:21Z"
+          },
+          {
+            "name": "Run ./.venv/bin/python -m unittest discover -s tests -v",
+            "number": 7,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:08:21Z",
+            "completed_at": "2026-10-08T00:09:41Z"
+          },
+          {
+            "name": "Run ./.venv/bin/python -m indeces check",
+            "number": 8,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:09:41Z",
+            "completed_at": "2026-10-08T00:09:42Z"
+          },
+          {
+            "name": "Post Run actions/setup-python@v5",
+            "number": 15,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:09:42Z",
+            "completed_at": "2026-10-08T00:09:42Z"
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "number": 16,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:09:42Z",
+            "completed_at": "2026-10-08T00:09:42Z"
+          },
+          {
+            "name": "Complete job",
+            "number": 17,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:09:42Z",
+            "completed_at": "2026-10-08T00:09:42Z"
+          }
+        ]
+      },
+      {
+        "id": 113080768797,
+        "name": "check (windows-latest, ./.venv/Scripts/python.exe)",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-08T00:08:09Z",
+        "completed_at": "2026-10-08T00:13:10Z",
+        "steps": [
+          {
+            "name": "Set up job",
+            "number": 1,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:08:10Z",
+            "completed_at": "2026-10-08T00:08:11Z"
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "number": 2,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:08:11Z",
+            "completed_at": "2026-10-08T00:08:15Z"
+          },
+          {
+            "name": "Run actions/setup-python@v5",
+            "number": 3,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:08:15Z",
+            "completed_at": "2026-10-08T00:08:16Z"
+          },
+          {
+            "name": "Run python -m venv .venv",
+            "number": 4,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:08:16Z",
+            "completed_at": "2026-10-08T00:08:22Z"
+          },
+          {
+            "name": "Run ./.venv/Scripts/python.exe -m pip install -r requirements.lock",
+            "number": 5,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:08:22Z",
+            "completed_at": "2026-10-08T00:08:27Z"
+          },
+          {
+            "name": "Run ./.venv/Scripts/python.exe -m pip install --no-deps -e .",
+            "number": 6,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:08:27Z",
+            "completed_at": "2026-10-08T00:08:34Z"
+          },
+          {
+            "name": "Run ./.venv/Scripts/python.exe -m unittest discover -s tests -v",
+            "number": 7,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:08:34Z",
+            "completed_at": "2026-10-08T00:13:05Z"
+          },
+          {
+            "name": "Run ./.venv/Scripts/python.exe -m indeces check",
+            "number": 8,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:13:05Z",
+            "completed_at": "2026-10-08T00:13:06Z"
+          },
+          {
+            "name": "Post Run actions/setup-python@v5",
+            "number": 15,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:13:06Z",
+            "completed_at": "2026-10-08T00:13:06Z"
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "number": 16,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:13:06Z",
+            "completed_at": "2026-10-08T00:13:08Z"
+          },
+          {
+            "name": "Complete job",
+            "number": 17,
+            "status": "completed",
+            "conclusion": "success",
+            "started_at": "2026-10-08T00:13:08Z",
+            "completed_at": "2026-10-08T00:13:08Z"
+          }
+        ]
       }
     ],
-    "metadata_limit": "Only public run/job/step metadata and check annotations read; exact failed unittest names/output not available from these records"
+    "logs_read": false,
+    "remote_test_counts_inferred": false,
+    "applies_to_current_uncommitted_source": false
   },
-  "test_fixture_portability_correction": {
-    "paths": [
-      "tests/test_manual_trial.py",
-      "tests/test_manual_trial_gate.py"
+  "current_source_exact_commit_ci": {
+    "status": "not_yet_observed",
+    "source_is_uncommitted_during_checks": true
+  },
+  "native_idle_console_startup": {
+    "loaded_version": "0.15.1.dev2026100703",
+    "application_identity": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e",
+    "actual_native_banner_and_prompt_observed": true,
+    "started_from_isolated_installed_wheel": true,
+    "Bot_service_started": false,
+    "KnowledgeService_started": false,
+    "model_requests": 0,
+    "Gateway_requests": 0,
+    "desktop_window_visibility_independently_verified": false
+  },
+  "current_source_loaded_by_active_console": false,
+  "smoke_preflight_status": {
+    "owner_authorized_max_usd": "1.00",
+    "max_generation": 2,
+    "max_count": 2,
+    "real_requests": 0,
+    "status": "blocked_before_model_http",
+    "reason": "count endpoint fee evidence and actual account hard-cap/remaining allocation not independently verifiable; computed tariff reservations are not provider invoice"
+  },
+  "rollback": "Use existing main/production checkout; stop using this independent checkpoint/isolated install. Preserve all original experiments and stopped approval ledgers.",
+  "previous_release_evidence": {
+    "schema": "indeces_checkpoint_offline_results_v1",
+    "version": "0.15.1.dev2026100703",
+    "scope": "Independent code checkpoint, offline synthetic validation plus native idle Console startup; no real model/Gateway/held-out acceptance or main deployment",
+    "baseline_main": "94ae7bd15120070fb24f88d0e7bd8d4e3d622e20",
+    "checkpoint_branch": "checkpoint/manual-live-ready-20261007",
+    "candidate_identity": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e",
+    "public_test_command": [
+      "python",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-v"
     ],
-    "diagnosis": "Live synthetic approval fixtures used the actual package/test path: inside fixed D:\\Indeces on Windows, outside the same unchanged gate boundary on POSIX. POSIX fixtures now use a synthetic boundary in their TemporaryDirectory and restore cwd before cleanup. No actual production paths, credentials or network are used.",
-    "production_path_boundary_changed": false,
-    "application_source_changed": false,
-    "test_names_or_assertions_weakened": false,
-    "original_prototype_tests_restored": true,
-    "current_test_worktree_sha256": {
-      "tests/test_manual_trial.py": "d6c177fc13267a9cebc1a4376f7c1bdfe2724aead498930adfa4f235a8b9e290",
-      "tests/test_manual_trial_gate.py": "72fa3f24502be56a1ada287bd612b0cfd0135b0c1011325ccbca77f7c20c751c"
-    },
-    "patch_sha256": "d4d3f5638c00fa41b6f6f1664649e599c2ddb1d7e0d36ba4d10932d37007fb1a",
-    "linux_execution_status": "Pending exact follow-up GitHub CI; no local Linux executor exists",
-    "other_ci_failure_causes_excluded": false
-  },
-  "full_regression_timeline": [
-    {
-      "receipt": "CHECKPOINT_FULL_CHECKS.json",
+    "full_regression_guard": "Inherited process-only external-socket guard; only loopback allowed, source origins and before/after SHA maps checked",
+    "full_regression_initial_run": {
+      "version": "0.15.1.dev2026100702",
       "tests_run": 1154,
       "failures": 4,
       "errors": 0,
       "skipped": 20,
+      "successful": false,
       "elapsed_seconds": 268.312,
-      "receipt_written_at_utc": "2026-10-07T22:33:30.289245+00:00",
-      "time_basis": "Filesystem UTC mtime of preserved receipt, not a recorded process start time",
-      "source_scope_files": 121,
-      "source_scope_sha256": "c7bdf1e9384a7c949465ae36f7a414bc1f566c034724df99da6abfabd30c7685",
-      "python_app_source_identity_sha256": "f6eb9505afd35ffde66f6a1f1c99e18ae2feeee78f8263bfab613406577922b0"
+      "failure_ids": [
+        "test_console_process.ConsoleProcessTests.test_windows_cmd_launchers_route_same_owner_and_forward_config_argument",
+        "test_name_migration.NameMigrationTests.test_new_observer_uses_same_mutex_as_an_old_runtime_process",
+        "test_scratch_observer.ScratchObserverTests.test_aborted_observer_process_does_not_leave_writer_mutex_locked",
+        "test_scratch_observer.ScratchObserverTests.test_cross_process_reader_serializes_writer_with_canonical_directory_alias"
+      ],
+      "error_ids": [],
+      "source_identity_sha256": "c7bdf1e9384a7c949465ae36f7a414bc1f566c034724df99da6abfabd30c7685",
+      "source_unchanged": true,
+      "external_socket_attempts_blocked": []
     },
-    {
-      "receipt": "CHECKPOINT_FULL_CHECKS_FINAL.json",
+    "initial_failure_categories": {
+      "isolated_checkout_missing_local_venv": [
+        "test_console_process.ConsoleProcessTests.test_windows_cmd_launchers_route_same_owner_and_forward_config_argument"
+      ],
+      "external_checker_spawn_reentry_missing_main_guard": [
+        "test_name_migration.NameMigrationTests.test_new_observer_uses_same_mutex_as_an_old_runtime_process",
+        "test_scratch_observer.ScratchObserverTests.test_aborted_observer_process_does_not_leave_writer_mutex_locked",
+        "test_scratch_observer.ScratchObserverTests.test_cross_process_reader_serializes_writer_with_canonical_directory_alias"
+      ]
+    },
+    "initial_environment_corrections": {
+      "product_source_changes": 0,
+      "public_test_fixture_changes": 0,
+      "external_checker_main_guard_added": true,
+      "isolated_venv_created_without_pip_downloads_or_links": true,
+      "process_only_import_origin_verified": true
+    },
+    "post_full_eol_only_changes": {
+      "schema": "checkpoint_eol_canonicalization_v1",
+      "semantic_change": false,
+      "files": [
+        {
+          "path": "indeces/manual_trial/__init__.py",
+          "before_sha256": "132a5707447e52575c51e74de9f9b06bdd871e606314e18569d6855c8bfc7cd5",
+          "after_sha256": "c0f33cde0e6a39417a138b3835279f87fc1ea855779ba2ebf3253fe041c6be41",
+          "before_crlf": 1,
+          "after_crlf": 0,
+          "ast_identical": true
+        },
+        {
+          "path": "indeces/manual_trial/__main__.py",
+          "before_sha256": "8bc0f79e7a5927d18aac24cb03fe9c9b1be9fa57081c75a8c987681e5f8e49f8",
+          "after_sha256": "a7ab7fe5d3b98dcff43e718b1f53f7324a3254786014ac4ea36e96e7663e2218",
+          "before_crlf": 7,
+          "after_crlf": 0,
+          "ast_identical": true
+        }
+      ]
+    },
+    "core_selector_regression": {
+      "tests_run": 211,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": true
+    },
+    "production_install": false,
+    "dependency_downloads": false,
+    "real_model_api_calls": 0,
+    "real_discord_sessions": 0,
+    "private_held_out_reads": 0,
+    "original_user_changes_preserved": 17,
+    "remaining_acceptance": [
+      "Owner-approved account/project/target/source/input/tariff/expiry descriptor",
+      "Verified tariff including flat input-count fee",
+      "Real model availability, exact response model, actual usage/billing and latency",
+      "Real Discord delivery",
+      "Independent held-out answer scoring",
+      "Running production build identity"
+    ],
+    "quality_status": "Old Q1-Q3 effect failures remain failures; no held-out questions or gold were requested, read or copied; no answer-effect rerun",
+    "rollback": "Use existing main/production checkout; stop using this independent checkpoint/isolated install. Preserve all original experiments and stopped approval ledgers.",
+    "post_acceptance_test_formatting": {
+      "path": "tests/test_manual_trial.py",
+      "only_change": "Remove one blank line at EOF to satisfy git diff --check; CRLF retained in worktree, Git normalizes LF",
+      "ast_identical": true,
+      "before_sha256": "b9e9d6bf7b6b219832760041eaad8ddbc2007d7cfc6a2a3146eea1bffc27ba91",
+      "after_sha256": "2a78f328a95a5a7b7b18de4793a528abc3374d04ebaf1626a3d51cc2bc17bcaf",
+      "new_test_execution": false,
+      "reason": "Formatting-only change after canonical checks; application source and wheel unchanged"
+    },
+    "first_published_checkpoint_ci": {
+      "commit": "d25ca32beeaa5c8a8dcc47e158cf5822786074d0",
+      "run": 37698689430,
+      "run_url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37698689430",
+      "status": "completed",
+      "conclusion": "failure",
+      "jobs": [
+        {
+          "name": "check (windows-latest, ./.venv/Scripts/python.exe)",
+          "status": "completed",
+          "conclusion": "cancelled"
+        },
+        {
+          "name": "check (ubuntu-latest, ./.venv/bin/python)",
+          "status": "completed",
+          "conclusion": "failure"
+        }
+      ],
+      "metadata_limit": "Only public run/job/step metadata and check annotations read; exact failed unittest names/output not available from these records"
+    },
+    "test_fixture_portability_correction": {
+      "paths": [
+        "tests/test_manual_trial.py",
+        "tests/test_manual_trial_gate.py"
+      ],
+      "diagnosis": "Live synthetic approval fixtures used the actual package/test path: inside fixed D:\\Indeces on Windows, outside the same unchanged gate boundary on POSIX. POSIX fixtures now use a synthetic boundary in their TemporaryDirectory and restore cwd before cleanup. No actual production paths, credentials or network are used.",
+      "production_path_boundary_changed": false,
+      "application_source_changed": false,
+      "test_names_or_assertions_weakened": false,
+      "original_prototype_tests_restored": true,
+      "current_test_worktree_sha256": {
+        "tests/test_manual_trial.py": "d6c177fc13267a9cebc1a4376f7c1bdfe2724aead498930adfa4f235a8b9e290",
+        "tests/test_manual_trial_gate.py": "72fa3f24502be56a1ada287bd612b0cfd0135b0c1011325ccbca77f7c20c751c"
+      },
+      "patch_sha256": "d4d3f5638c00fa41b6f6f1664649e599c2ddb1d7e0d36ba4d10932d37007fb1a",
+      "linux_execution_status": "Pending exact follow-up GitHub CI; no local Linux executor exists",
+      "other_ci_failure_causes_excluded": false
+    },
+    "full_regression_timeline": [
+      {
+        "receipt": "CHECKPOINT_FULL_CHECKS.json",
+        "tests_run": 1154,
+        "failures": 4,
+        "errors": 0,
+        "skipped": 20,
+        "elapsed_seconds": 268.312,
+        "receipt_written_at_utc": "2026-10-07T22:33:30.289245+00:00",
+        "time_basis": "Filesystem UTC mtime of preserved receipt, not a recorded process start time",
+        "source_scope_files": 121,
+        "source_scope_sha256": "c7bdf1e9384a7c949465ae36f7a414bc1f566c034724df99da6abfabd30c7685",
+        "python_app_source_identity_sha256": "f6eb9505afd35ffde66f6a1f1c99e18ae2feeee78f8263bfab613406577922b0"
+      },
+      {
+        "receipt": "CHECKPOINT_FULL_CHECKS_FINAL.json",
+        "tests_run": 1154,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 20,
+        "elapsed_seconds": 272.688,
+        "receipt_written_at_utc": "2026-10-07T22:41:02.055944+00:00",
+        "time_basis": "Filesystem UTC mtime of preserved receipt, not a recorded process start time",
+        "source_scope_files": 121,
+        "source_scope_sha256": "c7bdf1e9384a7c949465ae36f7a414bc1f566c034724df99da6abfabd30c7685",
+        "python_app_source_identity_sha256": "f6eb9505afd35ffde66f6a1f1c99e18ae2feeee78f8263bfab613406577922b0"
+      },
+      {
+        "receipt": "WINDOWS_FIXTURE_FULL_CHECKS.json",
+        "version": "0.15.1.dev2026100703",
+        "tests_run": 1155,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 20,
+        "successful": true,
+        "elapsed_seconds": 253.813,
+        "started_utc": "2026-10-07T23:57:21.942954Z",
+        "ended_utc": "2026-10-08T00:01:35.752379Z",
+        "source_identity_sha256": "a7fdf28da00e2d18bb47ccff762dad26f04b40209b55aa832f9f7d25b8114909",
+        "app_source_identity_sha256": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e",
+        "source_unchanged": true,
+        "source_binding": {
+          "baseline_commit": "06daff583461953cc6fc65b1101ed56e0988b961",
+          "baseline_tree": "ed33a46b83328f96f24149d6924e0b0c9742c0d9",
+          "protected_source_is_committed": false,
+          "protected_diff_sha256": "b3a09a4941d713d3c25dceb4925739e5859ac1a3a76ef9692a8c9339f87fd914",
+          "protected_diff_bytes": 2339,
+          "raw_source_snapshot_is_authoritative": true
+        }
+      }
+    ],
+    "followup_validation_scope": "Two test fixtures changed after the preserved Windows full suite. Existing 70 actual-package tests rerun once; unchanged application/wheel were not rebuilt; full Windows suite not repeated. The next exact CI supplies Linux/Windows commit verification without inferring remote test counts.",
+    "historical_full_regression_before_fs_fix": {
       "tests_run": 1154,
       "failures": 0,
       "errors": 0,
       "skipped": 20,
+      "successful": true,
       "elapsed_seconds": 272.688,
-      "receipt_written_at_utc": "2026-10-07T22:41:02.055944+00:00",
-      "time_basis": "Filesystem UTC mtime of preserved receipt, not a recorded process start time",
-      "source_scope_files": 121,
-      "source_scope_sha256": "c7bdf1e9384a7c949465ae36f7a414bc1f566c034724df99da6abfabd30c7685",
-      "python_app_source_identity_sha256": "f6eb9505afd35ffde66f6a1f1c99e18ae2feeee78f8263bfab613406577922b0"
+      "source_identity_sha256": "c7bdf1e9384a7c949465ae36f7a414bc1f566c034724df99da6abfabd30c7685",
+      "source_files": 121,
+      "protected_scope": [
+        "indeces/**",
+        "tests/**",
+        "pyproject.toml",
+        "LICENSE",
+        "config.example.toml",
+        "requirements.lock"
+      ],
+      "source_unchanged": true
     },
-    {
-      "receipt": "WINDOWS_FIXTURE_FULL_CHECKS.json",
+    "same_b9_commit_fresh_full_failure": {
+      "tests_run": 1154,
+      "failures": 0,
+      "errors": 1,
+      "skipped": 20,
+      "successful": false,
+      "elapsed_seconds": 264.015,
+      "source_identity_sha256": "4924e4ec8af33785b2823ab7e8169fc19da3a29bec70b7515b17c5bbae9c007e",
+      "source_unchanged": true,
+      "test": "test_knowledge_pdf.PdfKnowledgeTests.test_watcher_file_reads_run_off_loop_with_one_file_buffer",
+      "cause": "KnowledgeService.close could return while a cancelled watcher filesystem thread still held the synthetic PDF; async teardown hit WinError 32."
+    },
+    "second_published_checkpoint_ci": {
+      "commit": "b9c06222989dd17b28baffce2e3c44f0f5e15505",
+      "run": 37699992800,
+      "run_url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37699992800",
+      "conclusion": "failure",
+      "jobs": [
+        {
+          "name": "check (windows-latest, ./.venv/Scripts/python.exe)",
+          "conclusion": "failure"
+        },
+        {
+          "name": "check (ubuntu-latest, ./.venv/bin/python)",
+          "conclusion": "success"
+        }
+      ],
+      "exact_windows_ci_case_unknown": "Anonymous job logs returned HTTP 403; local same-commit PDF race must not be attributed to that remote case without its log."
+    },
+    "filesystem_shutdown_fix": {
+      "implementation": "Service-owned shielded scan/read tasks; close cancels background tasks once and drains actual filesystem completion; caller cancellation delayed then propagated; cancelled snapshots discarded",
+      "production_budget_or_schema_change": false,
+      "shared_executor_shutdown": false,
+      "os_hard_preemption_claimed": false,
+      "model_or_api_retry_added": false,
+      "scope": "indeces/knowledge.py and one deterministic test method covering success and late I/O error; existing assertions retained",
+      "remaining_condition": "A genuinely blocked filesystem operation can delay shutdown; cooperative I/O cleanup cannot hard-preempt the operating system."
+    },
+    "latest_full_regression_status": "passed_after_windows_fixture_correction",
+    "latest_build_status": "fresh_standard_wheel_and_isolated_install_passed_after_windows_fixture_correction",
+    "fs_lifecycle_target_receipt": "KNOWLEDGE_FS_LIFECYCLE_TARGETED.json",
+    "prior_candidate_identity": "ba2baeda1c52867475a5e840e1ade872e54440879d4951092b25fcaabcea748e",
+    "historical_dev02_build": {
+      "wheel": {
+        "sha256": "7a2d18603f3f10a704c1054a8f4e2c11ca7528b0f8a246f072886394a55c67ab",
+        "bytes": 242600,
+        "members": 51,
+        "record_hashes_verified": true,
+        "packaged_source_count": 45
+      },
+      "wheel_filename": "indeces_memory_manager-0.15.1.dev2026100702-py3-none-any.whl",
+      "wheel_source_matches_checkout": true,
+      "installed_cli_check_exit_code": 0,
+      "installed_manual_mock": {
+        "mode": "mock",
+        "request_count": 4,
+        "count_requests": 2,
+        "generation_requests": 2,
+        "real_requests": 0,
+        "background_workers_started": 0,
+        "acceptance_passed": true,
+        "source_identity": "ba2baeda1c52867475a5e840e1ade872e54440879d4951092b25fcaabcea748e"
+      },
+      "installed_live_missing_metadata": {
+        "status": "blocked",
+        "code": "manual_required_metadata_missing",
+        "real_requests": 0,
+        "output_directory_created": false
+      }
+    },
+    "historical_dev02_manual_checks": {
+      "canonical_manual_package_checks": {
+        "tests_run": 70,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": true,
+        "elapsed_seconds": 6.187000000005355
+      },
+      "portable_manual_package_checks": {
+        "tests_run": 70,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": true,
+        "elapsed_seconds": 6.23399999999674
+      }
+    },
+    "filesystem_lifecycle_target_checks": {
+      "tests_run": 29,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": true,
+      "elapsed_seconds": 14.077999999994063
+    },
+    "full_regression": {
       "version": "0.15.1.dev2026100703",
       "tests_run": 1155,
       "failures": 0,
@@ -192,79 +850,18 @@
         "protected_diff_bytes": 2339,
         "raw_source_snapshot_is_authoritative": true
       }
-    }
-  ],
-  "followup_validation_scope": "Two test fixtures changed after the preserved Windows full suite. Existing 70 actual-package tests rerun once; unchanged application/wheel were not rebuilt; full Windows suite not repeated. The next exact CI supplies Linux/Windows commit verification without inferring remote test counts.",
-  "historical_full_regression_before_fs_fix": {
-    "tests_run": 1154,
-    "failures": 0,
-    "errors": 0,
-    "skipped": 20,
-    "successful": true,
-    "elapsed_seconds": 272.688,
-    "source_identity_sha256": "c7bdf1e9384a7c949465ae36f7a414bc1f566c034724df99da6abfabd30c7685",
-    "source_files": 121,
-    "protected_scope": [
-      "indeces/**",
-      "tests/**",
-      "pyproject.toml",
-      "LICENSE",
-      "config.example.toml",
-      "requirements.lock"
-    ],
-    "source_unchanged": true
-  },
-  "same_b9_commit_fresh_full_failure": {
-    "tests_run": 1154,
-    "failures": 0,
-    "errors": 1,
-    "skipped": 20,
-    "successful": false,
-    "elapsed_seconds": 264.015,
-    "source_identity_sha256": "4924e4ec8af33785b2823ab7e8169fc19da3a29bec70b7515b17c5bbae9c007e",
-    "source_unchanged": true,
-    "test": "test_knowledge_pdf.PdfKnowledgeTests.test_watcher_file_reads_run_off_loop_with_one_file_buffer",
-    "cause": "KnowledgeService.close could return while a cancelled watcher filesystem thread still held the synthetic PDF; async teardown hit WinError 32."
-  },
-  "second_published_checkpoint_ci": {
-    "commit": "b9c06222989dd17b28baffce2e3c44f0f5e15505",
-    "run": 37699992800,
-    "run_url": "https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37699992800",
-    "conclusion": "failure",
-    "jobs": [
-      {
-        "name": "check (windows-latest, ./.venv/Scripts/python.exe)",
-        "conclusion": "failure"
-      },
-      {
-        "name": "check (ubuntu-latest, ./.venv/bin/python)",
-        "conclusion": "success"
-      }
-    ],
-    "exact_windows_ci_case_unknown": "Anonymous job logs returned HTTP 403; local same-commit PDF race must not be attributed to that remote case without its log."
-  },
-  "filesystem_shutdown_fix": {
-    "implementation": "Service-owned shielded scan/read tasks; close cancels background tasks once and drains actual filesystem completion; caller cancellation delayed then propagated; cancelled snapshots discarded",
-    "production_budget_or_schema_change": false,
-    "shared_executor_shutdown": false,
-    "os_hard_preemption_claimed": false,
-    "model_or_api_retry_added": false,
-    "scope": "indeces/knowledge.py and one deterministic test method covering success and late I/O error; existing assertions retained",
-    "remaining_condition": "A genuinely blocked filesystem operation can delay shutdown; cooperative I/O cleanup cannot hard-preempt the operating system."
-  },
-  "latest_full_regression_status": "passed_after_windows_fixture_correction",
-  "latest_build_status": "fresh_standard_wheel_and_isolated_install_passed_after_windows_fixture_correction",
-  "fs_lifecycle_target_receipt": "KNOWLEDGE_FS_LIFECYCLE_TARGETED.json",
-  "prior_candidate_identity": "ba2baeda1c52867475a5e840e1ade872e54440879d4951092b25fcaabcea748e",
-  "historical_dev02_build": {
-    "wheel": {
-      "sha256": "7a2d18603f3f10a704c1054a8f4e2c11ca7528b0f8a246f072886394a55c67ab",
-      "bytes": 242600,
-      "members": 51,
-      "record_hashes_verified": true,
-      "packaged_source_count": 45
     },
-    "wheel_filename": "indeces_memory_manager-0.15.1.dev2026100702-py3-none-any.whl",
+    "wheel": {
+      "sha256": "89834c528e8125aeb194e4d26242f21f5aadeb6705e971f00248a5c4e9a9fa8f",
+      "bytes": 243060,
+      "members": 51,
+      "record_rows": 51,
+      "record_hashes_verified": true,
+      "packaged_source_count": 45,
+      "python_source_count": 42,
+      "all_packaged_source_bytes_match_frozen_checkout": true
+    },
+    "wheel_filename": "indeces_memory_manager-0.15.1.dev2026100703-py3-none-any.whl",
     "wheel_source_matches_checkout": true,
     "installed_cli_check_exit_code": 0,
     "installed_manual_mock": {
@@ -275,194 +872,118 @@
       "real_requests": 0,
       "background_workers_started": 0,
       "acceptance_passed": true,
-      "source_identity": "ba2baeda1c52867475a5e840e1ade872e54440879d4951092b25fcaabcea748e"
+      "source_identity": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e",
+      "result_path": "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_WINDOWS_FIXTURE_INSTALLED\\mock-run\\RESULT.json"
     },
     "installed_live_missing_metadata": {
       "status": "blocked",
       "code": "manual_required_metadata_missing",
       "real_requests": 0,
       "output_directory_created": false
-    }
-  },
-  "historical_dev02_manual_checks": {
-    "canonical_manual_package_checks": {
-      "tests_run": 70,
-      "failures": 0,
-      "errors": 0,
-      "skipped": 0,
-      "passed": true,
-      "elapsed_seconds": 6.187000000005355
     },
-    "portable_manual_package_checks": {
-      "tests_run": 70,
+    "latest_test_scope": "Fresh complete offline regression after fixture-only correction; application source identity unchanged; exact final commit CI still pending",
+    "smoke_preflight_status": {
+      "owner_authorized_max_usd": "1.00",
+      "max_generation": 2,
+      "max_count": 2,
+      "real_requests": 0,
+      "status": "blocked_before_model_http",
+      "reason": "count endpoint fee evidence and actual account hard-cap/remaining allocation not independently verifiable; computed tariff reservations are not provider invoice"
+    },
+    "historical_dev03_before_windows_fixture_full_regression": {
+      "tests_run": 1155,
       "failures": 0,
       "errors": 0,
-      "skipped": 0,
-      "passed": true,
-      "elapsed_seconds": 6.23399999999674
-    }
-  },
-  "filesystem_lifecycle_target_checks": {
-    "tests_run": 29,
-    "failures": 0,
-    "errors": 0,
-    "skipped": 0,
-    "passed": true,
-    "elapsed_seconds": 14.077999999994063
-  },
-  "full_regression": {
-    "version": "0.15.1.dev2026100703",
-    "tests_run": 1155,
-    "failures": 0,
-    "errors": 0,
-    "skipped": 20,
-    "successful": true,
-    "elapsed_seconds": 253.813,
-    "started_utc": "2026-10-07T23:57:21.942954Z",
-    "ended_utc": "2026-10-08T00:01:35.752379Z",
-    "source_identity_sha256": "a7fdf28da00e2d18bb47ccff762dad26f04b40209b55aa832f9f7d25b8114909",
-    "app_source_identity_sha256": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e",
-    "source_unchanged": true,
-    "source_binding": {
-      "baseline_commit": "06daff583461953cc6fc65b1101ed56e0988b961",
-      "baseline_tree": "ed33a46b83328f96f24149d6924e0b0c9742c0d9",
-      "protected_source_is_committed": false,
-      "protected_diff_sha256": "b3a09a4941d713d3c25dceb4925739e5859ac1a3a76ef9692a8c9339f87fd914",
-      "protected_diff_bytes": 2339,
-      "raw_source_snapshot_is_authoritative": true
-    }
-  },
-  "wheel": {
-    "sha256": "89834c528e8125aeb194e4d26242f21f5aadeb6705e971f00248a5c4e9a9fa8f",
-    "bytes": 243060,
-    "members": 51,
-    "record_rows": 51,
-    "record_hashes_verified": true,
-    "packaged_source_count": 45,
-    "python_source_count": 42,
-    "all_packaged_source_bytes_match_frozen_checkout": true
-  },
-  "wheel_filename": "indeces_memory_manager-0.15.1.dev2026100703-py3-none-any.whl",
-  "wheel_source_matches_checkout": true,
-  "installed_cli_check_exit_code": 0,
-  "installed_manual_mock": {
-    "mode": "mock",
-    "request_count": 4,
-    "count_requests": 2,
-    "generation_requests": 2,
-    "real_requests": 0,
-    "background_workers_started": 0,
-    "acceptance_passed": true,
-    "source_identity": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e",
-    "result_path": "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_WINDOWS_FIXTURE_INSTALLED\\mock-run\\RESULT.json"
-  },
-  "installed_live_missing_metadata": {
-    "status": "blocked",
-    "code": "manual_required_metadata_missing",
-    "real_requests": 0,
-    "output_directory_created": false
-  },
-  "latest_test_scope": "Fresh complete offline regression after fixture-only correction; application source identity unchanged; exact final commit CI still pending",
-  "smoke_preflight_status": {
-    "owner_authorized_max_usd": "1.00",
-    "max_generation": 2,
-    "max_count": 2,
-    "real_requests": 0,
-    "status": "blocked_before_model_http",
-    "reason": "count endpoint fee evidence and actual account hard-cap/remaining allocation not independently verifiable; computed tariff reservations are not provider invoice"
-  },
-  "historical_dev03_before_windows_fixture_full_regression": {
-    "tests_run": 1155,
-    "failures": 0,
-    "errors": 0,
-    "skipped": 20,
-    "successful": true,
-    "elapsed_seconds": 249.125,
-    "source_identity_sha256": "f54f1a4ed01b27a740d2a3e6baf80ba577b13dcc39a49020c48e7a8c268803d7",
-    "source_files": 121,
-    "protected_scope": [
-      "indeces/**",
-      "tests/**",
-      "pyproject.toml",
-      "LICENSE",
-      "config.example.toml",
-      "requirements.lock"
-    ],
-    "source_unchanged": true,
-    "receipt": "FSFIX_FULL_CHECKS.json",
-    "tested_source_state": "Frozen dev03 working sources against baseline b9c0622; final commit byte binding checked separately",
-    "actual_time_fields": {
-      "source_binding": {
-        "baseline_commit": "b9c06222989dd17b28baffce2e3c44f0f5e15505",
-        "baseline_tree": "b5b8d0e62274c54660bfb1bbc85b1f40326747dc",
-        "protected_source_is_committed": false,
-        "protected_diff_sha256": "9364d78968ca8dad4df46a25ef3bae24731b6509999378f8eb64c8f65124a038",
-        "protected_diff_bytes": 8712,
-        "raw_source_snapshot_is_authoritative": true
+      "skipped": 20,
+      "successful": true,
+      "elapsed_seconds": 249.125,
+      "source_identity_sha256": "f54f1a4ed01b27a740d2a3e6baf80ba577b13dcc39a49020c48e7a8c268803d7",
+      "source_files": 121,
+      "protected_scope": [
+        "indeces/**",
+        "tests/**",
+        "pyproject.toml",
+        "LICENSE",
+        "config.example.toml",
+        "requirements.lock"
+      ],
+      "source_unchanged": true,
+      "receipt": "FSFIX_FULL_CHECKS.json",
+      "tested_source_state": "Frozen dev03 working sources against baseline b9c0622; final commit byte binding checked separately",
+      "actual_time_fields": {
+        "source_binding": {
+          "baseline_commit": "b9c06222989dd17b28baffce2e3c44f0f5e15505",
+          "baseline_tree": "b5b8d0e62274c54660bfb1bbc85b1f40326747dc",
+          "protected_source_is_committed": false,
+          "protected_diff_sha256": "9364d78968ca8dad4df46a25ef3bae24731b6509999378f8eb64c8f65124a038",
+          "protected_diff_bytes": 8712,
+          "raw_source_snapshot_is_authoritative": true
+        },
+        "started_utc": "2026-10-07T23:17:49.655368Z",
+        "ended_utc": "2026-10-07T23:21:58.782880Z",
+        "app_source_identity_sha256": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e"
+      }
+    },
+    "historical_dev03_before_windows_fixture_build": {
+      "wheel": {
+        "sha256": "9422913e2304b379b5e4912fc2d98682d3c019acbe1c13b36e64ff3d23fe54a9",
+        "bytes": 243060,
+        "members": 51,
+        "record_hashes_verified": true,
+        "packaged_source_count": 45
       },
-      "started_utc": "2026-10-07T23:17:49.655368Z",
-      "ended_utc": "2026-10-07T23:21:58.782880Z",
-      "app_source_identity_sha256": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e"
+      "wheel_filename": "indeces_memory_manager-0.15.1.dev2026100703-py3-none-any.whl",
+      "installed_cli_check_exit_code": 0
+    },
+    "third_published_checkpoint_ci": {
+      "commit": "06daff583461953cc6fc65b1101ed56e0988b961",
+      "run_id": 37703149254,
+      "overall": "failure",
+      "ubuntu_job": "success",
+      "ubuntu_unittest": "success",
+      "ubuntu_cli": "success",
+      "windows_job": "failure",
+      "windows_unittest": "failure",
+      "windows_cli": "skipped",
+      "specific_failed_test_names": "unknown",
+      "exact_job_logs_anonymous_http_status": 403,
+      "log_content_obtained": false,
+      "annotations": "exit code 1 only",
+      "alternate_credential_route_used": false,
+      "remote_test_counts_inferred": false
+    },
+    "windows_fixture_correction": {
+      "production_source_changes": 0,
+      "file": "tests/test_manual_trial.py",
+      "sha256": "1f2a4beb138da7c6c5ca1eb5a475cc0958f8aba1e762d0619a90547d4e98241a",
+      "cause_proved_locally": "Windows fixture reused actual __file__ as approved config; outside fixed project root it was blocked before orchestration",
+      "remote_failure_cause_confirmed": false,
+      "neutral_checkout_original_case_count": 2,
+      "neutral_checkout_before_failures": 2,
+      "neutral_checkout_after_failures": 0,
+      "targeted_tests": 70,
+      "targeted_failures": 0,
+      "targeted_errors": 0,
+      "targeted_skips": 0,
+      "test_method_assert_decorator_changes": 0,
+      "production_fixed_root_check_unchanged": true,
+      "config_fixture": "unique logical approved-root config path; exact Path.read_bytes mapping reads its real synthetic Temp source, other paths retain original reader",
+      "real_config_written_at_fixed_root": false,
+      "real_model_requests": 0,
+      "real_credential_reads": 0,
+      "canonical_approval_ledger_writes": 0
+    },
+    "native_idle_console_startup": {
+      "loaded_version": "0.15.1.dev2026100703",
+      "application_identity": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e",
+      "actual_native_banner_and_prompt_observed": true,
+      "started_from_isolated_installed_wheel": true,
+      "Bot_service_started": false,
+      "KnowledgeService_started": false,
+      "model_requests": 0,
+      "Gateway_requests": 0,
+      "desktop_window_visibility_independently_verified": false
     }
   },
-  "historical_dev03_before_windows_fixture_build": {
-    "wheel": {
-      "sha256": "9422913e2304b379b5e4912fc2d98682d3c019acbe1c13b36e64ff3d23fe54a9",
-      "bytes": 243060,
-      "members": 51,
-      "record_hashes_verified": true,
-      "packaged_source_count": 45
-    },
-    "wheel_filename": "indeces_memory_manager-0.15.1.dev2026100703-py3-none-any.whl",
-    "installed_cli_check_exit_code": 0
-  },
-  "third_published_checkpoint_ci": {
-    "commit": "06daff583461953cc6fc65b1101ed56e0988b961",
-    "run_id": 37703149254,
-    "overall": "failure",
-    "ubuntu_job": "success",
-    "ubuntu_unittest": "success",
-    "ubuntu_cli": "success",
-    "windows_job": "failure",
-    "windows_unittest": "failure",
-    "windows_cli": "skipped",
-    "specific_failed_test_names": "unknown",
-    "exact_job_logs_anonymous_http_status": 403,
-    "log_content_obtained": false,
-    "annotations": "exit code 1 only",
-    "alternate_credential_route_used": false,
-    "remote_test_counts_inferred": false
-  },
-  "windows_fixture_correction": {
-    "production_source_changes": 0,
-    "file": "tests/test_manual_trial.py",
-    "sha256": "1f2a4beb138da7c6c5ca1eb5a475cc0958f8aba1e762d0619a90547d4e98241a",
-    "cause_proved_locally": "Windows fixture reused actual __file__ as approved config; outside fixed project root it was blocked before orchestration",
-    "remote_failure_cause_confirmed": false,
-    "neutral_checkout_original_case_count": 2,
-    "neutral_checkout_before_failures": 2,
-    "neutral_checkout_after_failures": 0,
-    "targeted_tests": 70,
-    "targeted_failures": 0,
-    "targeted_errors": 0,
-    "targeted_skips": 0,
-    "test_method_assert_decorator_changes": 0,
-    "production_fixed_root_check_unchanged": true,
-    "config_fixture": "unique logical approved-root config path; exact Path.read_bytes mapping reads its real synthetic Temp source, other paths retain original reader",
-    "real_config_written_at_fixed_root": false,
-    "real_model_requests": 0,
-    "real_credential_reads": 0,
-    "canonical_approval_ledger_writes": 0
-  },
-  "native_idle_console_startup": {
-    "loaded_version": "0.15.1.dev2026100703",
-    "application_identity": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e",
-    "actual_native_banner_and_prompt_observed": true,
-    "started_from_isolated_installed_wheel": true,
-    "Bot_service_started": false,
-    "KnowledgeService_started": false,
-    "model_requests": 0,
-    "Gateway_requests": 0,
-    "desktop_window_visibility_independently_verified": false
-  }
+  "raw_receipts_preserved": true
 }

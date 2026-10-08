@@ -1,3 +1,17 @@
+# Default credential-scope checkpoint 0.15.1.dev2026100704
+
+This checkpoint adds an explicit `existing_credential_default` approval scope for the finite manual entry. It requires null account/project IDs and omission of `--account`, preserving the existing credential's default routing without invented IDs or organization/project headers. Legacy approvals retain their `explicit_organization_project` behavior and original ledger binding. Changing a scope under an existing approval ID remains rejected.
+
+The input-count call, fixed approval ledger, usage/failure accounting and all token/time/fee gates remain in force. Unknown counting fees still block model HTTP. This change does not approve a smoke run, establish a provider billing owner or price, start a passive Gateway, or alter the normal Console's defaults. See [MANUAL_TRIAL.md](MANUAL_TRIAL.md) for the two scopes and operator prerequisites. Actual offline validation passed: 81 targeted checks (11 new plus 70 unchanged legacy checks), 1166 full-suite tests with 20 skips and zero failures/errors, and a fresh standard wheel with 51 verified RECORD rows. The wheel's 45 public source/resource files match the frozen checkout exactly. Isolated CLI and mock entry checks passed; missing-metadata live activation was blocked before requests. The recorded full-check interval is 2026-10-08T00:37:07.008540Z to 2026-10-08T00:40:58.170299Z. The raw-source identity is `d48553c165379897494861940d82c05e9bf714c5b65f86a090cdc6d069b15569`; full/build checks bind the preceding `5398b075...` commit plus the uncommitted changes. Exact CI for a later commit has not yet been observed. Selected evidence and prior release records are in [CHECKPOINT_RESULTS.json](../verification/manual-trial/CHECKPOINT_RESULTS.json) and [SOURCE_MANIFEST.json](../verification/manual-trial/SOURCE_MANIFEST.json).
+
+The preceding exact checkpoint [`5398b075cea499c20a861c1df0f4566d96bc578e`](https://github.com/simulacrum0112-afk/Indeces_memory_manager/commit/5398b075cea499c20a861c1df0f4566d96bc578e) passed [CI 37706120215](https://github.com/simulacrum0112-afk/Indeces_memory_manager/actions/runs/37706120215): overall, Ubuntu and Windows jobs, and both unittest/CLI steps were success in public metadata checked at 2026-10-08T00:14:01Z. No remote logs or test counts were inferred. That evidence applies to the preceding commit, not this in-progress source change.
+
+Earlier final-summary reporting conflated the initial offline handoff with later local verification. Corrected provenance is retained in separate local correction-only receipts; private questions, answers, experiment traces and runtime records are not copied into the public checkout. Overall answer-quality acceptance remains failed. Implementation tests and build checks do not establish retrieval or answer quality.
+
+The already launched native Console remains an idle `0.15.1.dev2026100703` instance. Updating source or passing new checks does not reload it. No real model, Discord or held-out smoke has been performed for this checkpoint; previous failures and all original user changes remain preserved.
+
+---
+
 # Windows fixture checkpoint 0.15.1.dev2026100703
 
 The exact prior application checkpoint `06daff583461953cc6fc65b1101ed56e0988b961` passed this machine's 1155-test suite, but CI run `37703149254` failed its Windows unittest step; Ubuntu succeeded. Anonymous access to that exact job's logs returned HTTP 403; annotations expose exit code 1 only. The remote failed case names and original remote cause remain unknown.

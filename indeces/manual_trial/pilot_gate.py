@@ -110,6 +110,11 @@ def synthetic_tariff():
                   {"kind": "synthetic", "source": "offline_mock_fixture", "verified": True})
 
 
+def account_scope(approval):
+    """Legacy descriptors retain their exact bytes and explicit routing meaning."""
+    return approval.get("account_scope", "explicit_organization_project")
+
+
 class PilotGate:
     def __init__(self, path=None, *, mode="mock", tariff=None, limits=None, approval=None,
                  input_bundle_sha256="", candidate_identity="", live_enabled=False,
@@ -214,6 +219,13 @@ class PilotGate:
 
     def _validate_live_approval(self, bundle, candidate):
         a = self.approval
+        scope = account_scope(a) if isinstance(a, dict) else None
+        ids_valid = (isinstance(a, dict) and (
+            (scope == "explicit_organization_project"
+             and all(type(a.get(key)) is str and _SAFE_ID.fullmatch(a[key])
+                     for key in ("account_id", "project_id")))
+            or (scope == "existing_credential_default"
+                and a.get("account_id") is None and a.get("project_id") is None)))
         fields = {"approval_id", "status", "project", "account_id", "project_id", "guild_id", "channel_id",
                   "config_path", "config_source_sha256", "model", "owner_evidence", "allowed_stages",
                   "input_bundle_sha256", "candidate_identity", "limits", "tariff_sha256", "expires_at",
@@ -221,8 +233,8 @@ class PilotGate:
                   "background_knowledge_disabled", "delivery_mode"}
         if (not isinstance(a, dict) or not fields <= set(a) or a.get("status") != "approved"
                 or a.get("project") != "Indeces" or a.get("model") != MODEL
-                or any(type(a.get(key)) is not str or not _SAFE_ID.fullmatch(a[key])
-                       for key in ("approval_id", "account_id", "project_id"))
+                or type(a.get("approval_id")) is not str or not _SAFE_ID.fullmatch(a["approval_id"])
+                or not ids_valid
                 or any(type(a.get(key)) is not str or not re.fullmatch(r"[0-9]{1,32}", a[key])
                        for key in ("guild_id", "channel_id"))
                 or not isinstance(a.get("owner_evidence"), str) or not a["owner_evidence"].strip()
@@ -250,7 +262,10 @@ class PilotGate:
             raise PilotBlocked("approval_expired")
         # Retain only declared, noncredential approval fields. An unrecognized
         # caller field never becomes a persistent credential/log sink.
-        self.approval = json.loads(json.dumps({key: a[key] for key in fields}, ensure_ascii=False,
+        # Scope is explicit for new default-credential approvals. Do not insert
+        # it into legacy descriptors and thereby rewrite an existing ledger ID.
+        retained_fields = fields | ({"account_scope"} if "account_scope" in a else set())
+        self.approval = json.loads(json.dumps({key: a[key] for key in retained_fields}, ensure_ascii=False,
                                              allow_nan=False))
         self.approval["config_path"] = str(config_path)
 

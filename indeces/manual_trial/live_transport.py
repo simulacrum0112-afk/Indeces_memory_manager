@@ -18,7 +18,7 @@ import math
 import time
 
 from .pilot_gate import (COUNT_ENDPOINT, GENERATION_ENDPOINT, MODEL, PilotBlocked,
-                        canonical_hash)
+                        account_scope, canonical_hash)
 
 
 _ACTIVE_REPLY = ContextVar("manual_live_active_reply", default=None)
@@ -228,16 +228,24 @@ class GatedHTTPSession:
         except (ValueError, TypeError):
             _halt(self.gate, "invalid_request_payload")
         headers = dict(options["headers"])
-        # These are explicit owner-chosen organization/project routing IDs,
-        # not a claim that the opaque key's identity was preverified locally.
-        for name, value in (("OpenAI-Organization", self.gate.approval["account_id"]),
-                            ("OpenAI-Project", self.gate.approval["project_id"])):
-            matches = [key for key in headers if isinstance(key, str) and key.lower() == name.lower()]
-            if any(headers[key] != value for key in matches):
+        if account_scope(self.gate.approval) == "existing_credential_default":
+            # Preserve the current native Adapter's credential-default routing.
+            # Reject injected routing, rather than guessing IDs or silently
+            # replacing an owner-approved default scope with another project.
+            if any(isinstance(key, str) and key.lower() in {"openai-organization", "openai-project"}
+                   for key in headers):
                 _halt(self.gate, "account_routing_conflict")
-            for key in matches:
-                del headers[key]
-            headers[name] = value
+        else:
+            # Explicit IDs are routing assertions, not local authentication of
+            # the opaque key's billing owner. Legacy behavior is unchanged.
+            for name, value in (("OpenAI-Organization", self.gate.approval["account_id"]),
+                                ("OpenAI-Project", self.gate.approval["project_id"])):
+                matches = [key for key in headers if isinstance(key, str) and key.lower() == name.lower()]
+                if any(headers[key] != value for key in matches):
+                    _halt(self.gate, "account_routing_conflict")
+                for key in matches:
+                    del headers[key]
+                headers[name] = value
         options = dict(options, json=payload, headers=headers)
         expected = _COMMON if endpoint == COUNT_ENDPOINT else _COMMON | _GENERATION_EXTRAS
         if (not isinstance(payload, dict) or set(payload) != expected
@@ -381,7 +389,8 @@ class _GatedResponseContext:
         headers = getattr(response, "headers", {})
         organizations = [value for key, value in headers.items()
                          if isinstance(key, str) and key.lower() == "openai-organization"]
-        if any(value != self.session.gate.approval["account_id"] for value in organizations):
+        if (account_scope(self.session.gate.approval) == "explicit_organization_project"
+                and any(value != self.session.gate.approval["account_id"] for value in organizations)):
             # Preserve valid usage; a response routed to another account has
             # no verified fee under this approval's tariff contract.
             self._settle(status="failed", usage=usage)

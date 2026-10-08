@@ -22,7 +22,7 @@ SOURCE_ROOT = (MODULE_ROOT.parents[1] if MODULE_ROOT.parent.name == 'indeces'
 PROJECT = Path('D:/Indeces')
 RUN_ROOT = PROJECT / 'build/manual-pilot-runs'
 
-from .pilot_gate import MODEL, PilotBlocked, PilotGate, PilotLimits, Tariff, canonical_hash
+from .pilot_gate import MODEL, PilotBlocked, PilotGate, PilotLimits, Tariff, account_scope, canonical_hash
 from .pilot_launcher import candidate_identity, run_mock, validated_inputs
 
 
@@ -77,7 +77,7 @@ def source_modules(candidate):
 
 
 def metadata(args):
-    if not all((args.config, args.channel, args.account, args.inputs, args.approval, args.tariff)):
+    if not all((args.config, args.channel, args.inputs, args.approval, args.tariff)):
         raise PilotBlocked('manual_required_metadata_missing')
     bundle = input_contract(read_json(args.inputs))
     if bundle['kind'] != 'approved_frozen':
@@ -85,13 +85,19 @@ def metadata(args):
     approval = read_json(args.approval)
     if not isinstance(approval, dict):
         raise PilotBlocked('invalid_approval_descriptor')
+    scope = account_scope(approval)
+    if scope == 'explicit_organization_project' and not args.account:
+        raise PilotBlocked('manual_required_metadata_missing')
+    account_matches = ((scope == 'existing_credential_default' and args.account is None
+                        and approval.get('account_id') is None and approval.get('project_id') is None)
+                       or (scope == 'explicit_organization_project' and approval.get('account_id') == args.account))
     tariff = Tariff(**read_json(args.tariff))
     limits = PilotLimits(**approval.get('limits', {}))
     path = Path(args.config).resolve()
     if (approval.get('account_binding_confirmed') is not True
             or approval.get('background_knowledge_disabled') is not True
             or approval.get('delivery_mode') != args.delivery
-            or approval.get('account_id') != args.account
+            or not account_matches
             or approval.get('channel_id') != args.channel
             or Path(approval.get('config_path', '')).resolve() != path
             or approval.get('allowed_response_models') != [MODEL]):
@@ -124,7 +130,9 @@ async def run_live(args):
               'candidate_version': version, 'source_identity': identity,
               'input_bundle_sha256': canonical_hash(bundle), 'background_workers_started': 0,
               'existing_console_reused': False, 'production_store_opened': False,
-              'account_binding': 'operator_attested_not_provider_verified',
+              'account_binding': ('operator_attested_existing_credential_default_not_provider_verified'
+                                  if account_scope(approval) == 'existing_credential_default'
+                                  else 'operator_attested_not_provider_verified'),
               'cost_basis': 'approved_tariff_calculation_not_provider_invoice',
               'held_out_scoring': 'independent_evaluator_only', 'status': 'blocked'}
     try:
@@ -133,7 +141,9 @@ async def run_live(args):
                          live_enabled=True)
         approved_items = {'items': [{'id': row['item_id'], 'text': row['question']}
                                     for row in bundle['questions']]}
-        context = prepare_context(config_path, args.channel, args.account, approved_items)
+        account_descriptor = (account_scope(approval) if account_scope(approval) == 'existing_credential_default'
+                              else args.account)
+        context = prepare_context(config_path, args.channel, account_descriptor, approved_items)
         config = context.config
         if (context.config_path.resolve() != config_path
                 or config.discord.guild_id != approval['guild_id']
