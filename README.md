@@ -1,5 +1,11 @@
 # Indeces_memory_manager
 
+0.16.1 makes the existing model selector optional. `[runtime]`
+`model_selection_enabled = true` preserves 0.16.0 behavior; explicit `false`
+uses the existing deterministic path and configured `retrieval_policy` without
+a selection model call. The setting is a strict boolean and takes effect at
+Console startup. It adds no automatic fallback or graph algorithm change.
+
 0.16.0 adds one model selection after static retrieval and before the final three
 references. The normal Console supplies existing candidate IDs, topic labels and
 NPMI/relevance scores to the model, validates its selected IDs, and freezes the

@@ -1,0 +1,167 @@
+{
+  "scope": "bounded_synthetic_optional_selector_regression",
+  "started_utc": "2026-10-08T06:06:32.071412+00:00",
+  "finished_utc": "2026-10-08T06:09:02.407012+00:00",
+  "test_ids": [
+    "tests.test_model_selection_optional.OptionalModelSelectionConfigTests.test_default_true_and_explicit_values_preserve_other_settings",
+    "tests.test_model_selection_optional.OptionalModelSelectionConfigTests.test_direct_construction_rejects_non_boolean_values",
+    "tests.test_model_selection_optional.OptionalModelSelectionConfigTests.test_toml_loading_rejects_non_boolean_values",
+    "tests.test_model_selection_optional.OptionalModelSelectionRuntimeTests.test_explicit_true_retains_model_selection_record_contract",
+    "tests.test_model_selection_optional.OptionalModelSelectionRuntimeTests.test_false_preserves_explicit_legacy_path_without_selection_calls",
+    "tests.test_model_selection_optional.OptionalModelSelectionRuntimeTests.test_false_uses_existing_concept_path_without_selection_calls",
+    "tests.test_model_selection_optional.OptionalModelSelectionStartupTests.test_disabled_startup_receipt_reports_deterministic_mode",
+    "tests.test_model_selection_optional.OptionalModelSelectionStartupTests.test_enabled_startup_receipt_reports_model_mode",
+    "tests.test_model_selection.ModelSelectionRuntimeTests.test_production_console_model_choice_binds_complete_quotes_inputs_and_usage",
+    "tests.test_selection_policy_integration.SelectionPolicyRuntimeTests.test_default_runtime_retains_old_contract_and_material_behavior",
+    "tests.test_audit_failures.CleanupFailureTests.test_stop_audit_failure_still_closes_all_resources_and_releases_lock"
+  ],
+  "tests_run": 13,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "successful": true,
+  "failed_test_ids": [],
+  "external_http_attempts_blocked": 0,
+  "mock_adapter_posts": [
+    {
+      "path": "/responses",
+      "stage": "reply",
+      "count": 7
+    },
+    {
+      "path": "/responses",
+      "stage": "selection",
+      "count": 2
+    },
+    {
+      "path": "/responses/input_tokens",
+      "stage": "reply",
+      "count": 7
+    },
+    {
+      "path": "/responses/input_tokens",
+      "stage": "selection",
+      "count": 2
+    }
+  ],
+  "config_source": "indeces\\config.py",
+  "console_source": "indeces\\console.py",
+  "full_suite_run": false,
+  "twenty_question_run": false,
+  "model_fees": 0,
+  "schema": "optional_model_selection_bounded_validation_v1",
+  "baseline_commit": "f209fc3006f5a1f3116ffe1f10dfecce486c01b3",
+  "app_source_identity_sha256": "b98b9bf4b16326c2b4e2aeec32920a435f94696e91e5b8a8b0deb4cef76e7c8a",
+  "source_committed": false,
+  "command": "python -X utf8 -B ../run_optional_regression.py",
+  "source_worktree": "work/model-selection-toggle-20261008",
+  "python_version": "3.12.14",
+  "first_run_passed": true,
+  "validation_runs": 2,
+  "reruns": 2,
+  "production_runtime_changed": false,
+  "production_configuration_changed": false,
+  "published": false,
+  "tag_changed": false,
+  "build_performed": false,
+  "validation_driver_sha256": "29c51691d66e226d6bd1b1413c49b7c7822d6d61e312c9f07b4161aa88dd8ac5",
+  "reproduce_command": "python -X utf8 -B -m unittest -v tests.test_model_selection_optional.OptionalModelSelectionConfigTests tests.test_model_selection_optional.OptionalModelSelectionRuntimeTests tests.test_model_selection_optional.OptionalModelSelectionStartupTests tests.test_model_selection.ModelSelectionRuntimeTests.test_production_console_model_choice_binds_complete_quotes_inputs_and_usage tests.test_selection_policy_integration.SelectionPolicyRuntimeTests.test_default_runtime_retains_old_contract_and_material_behavior tests.test_audit_failures.CleanupFailureTests.test_stop_audit_failure_still_closes_all_resources_and_releases_lock",
+  "distinct_test_methods": 11,
+  "initial_tests_run": 11,
+  "runs": [
+    {
+      "scope": "bounded_synthetic_optional_selector_regression",
+      "started_utc": "2026-10-08T06:06:32.071412+00:00",
+      "finished_utc": "2026-10-08T06:06:33.427511+00:00",
+      "test_ids": [
+        "tests.test_model_selection_optional.OptionalModelSelectionConfigTests.test_default_true_and_explicit_values_preserve_other_settings",
+        "tests.test_model_selection_optional.OptionalModelSelectionConfigTests.test_direct_construction_rejects_non_boolean_values",
+        "tests.test_model_selection_optional.OptionalModelSelectionConfigTests.test_toml_loading_rejects_non_boolean_values",
+        "tests.test_model_selection_optional.OptionalModelSelectionRuntimeTests.test_explicit_true_retains_model_selection_record_contract",
+        "tests.test_model_selection_optional.OptionalModelSelectionRuntimeTests.test_false_preserves_explicit_legacy_path_without_selection_calls",
+        "tests.test_model_selection_optional.OptionalModelSelectionRuntimeTests.test_false_uses_existing_concept_path_without_selection_calls",
+        "tests.test_model_selection_optional.OptionalModelSelectionStartupTests.test_disabled_startup_receipt_reports_deterministic_mode",
+        "tests.test_model_selection_optional.OptionalModelSelectionStartupTests.test_enabled_startup_receipt_reports_model_mode",
+        "tests.test_model_selection.ModelSelectionRuntimeTests.test_production_console_model_choice_binds_complete_quotes_inputs_and_usage",
+        "tests.test_selection_policy_integration.SelectionPolicyRuntimeTests.test_default_runtime_retains_old_contract_and_material_behavior",
+        "tests.test_audit_failures.CleanupFailureTests.test_stop_audit_failure_still_closes_all_resources_and_releases_lock"
+      ],
+      "tests_run": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "successful": true,
+      "failed_test_ids": [],
+      "external_http_attempts_blocked": 0,
+      "mock_adapter_posts": [
+        {
+          "path": "/responses",
+          "stage": "reply",
+          "count": 5
+        },
+        {
+          "path": "/responses",
+          "stage": "selection",
+          "count": 2
+        },
+        {
+          "path": "/responses/input_tokens",
+          "stage": "reply",
+          "count": 5
+        },
+        {
+          "path": "/responses/input_tokens",
+          "stage": "selection",
+          "count": 2
+        }
+      ],
+      "config_source": "indeces\\config.py",
+      "console_source": "indeces\\console.py",
+      "full_suite_run": false,
+      "twenty_question_run": false,
+      "model_fees": 0,
+      "regression_test_sha256": "eb9bc46551b890f4b633c2456371451081b5bf45ba4034cfa0415c7458d659af",
+      "validation_driver_sha256": "4559ac9b8dc1b8d6b12740718216c2a1d0e6423dedd69912d6c73ec88eb13218",
+      "app_source_identity_sha256": "b98b9bf4b16326c2b4e2aeec32920a435f94696e91e5b8a8b0deb4cef76e7c8a",
+      "command": "python -X utf8 -B ../run_optional_regression.py"
+    },
+    {
+      "scope": "bounded_synthetic_optional_selector_regression",
+      "started_utc": "2026-10-08T06:09:02.067431+00:00",
+      "finished_utc": "2026-10-08T06:09:02.407012+00:00",
+      "test_ids": [
+        "tests.test_model_selection_optional.OptionalModelSelectionRuntimeTests.test_false_uses_existing_concept_path_without_selection_calls",
+        "tests.test_model_selection_optional.OptionalModelSelectionRuntimeTests.test_false_preserves_explicit_legacy_path_without_selection_calls"
+      ],
+      "tests_run": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "successful": true,
+      "failed_test_ids": [],
+      "external_http_attempts_blocked": 0,
+      "mock_adapter_posts": [
+        {
+          "path": "/responses",
+          "stage": "reply",
+          "count": 2
+        },
+        {
+          "path": "/responses/input_tokens",
+          "stage": "reply",
+          "count": 2
+        }
+      ],
+      "config_source": "indeces\\config.py",
+      "console_source": "indeces\\console.py",
+      "full_suite_run": false,
+      "twenty_question_run": false,
+      "model_fees": 0,
+      "regression_test_sha256": "401e5d38e62f63323e8a7bd7d28226c51398ff782eef6a4debde4c785aac17c6",
+      "validation_driver_sha256": "29c51691d66e226d6bd1b1413c49b7c7822d6d61e312c9f07b4161aa88dd8ac5",
+      "app_source_identity_sha256": "b98b9bf4b16326c2b4e2aeec32920a435f94696e91e5b8a8b0deb4cef76e7c8a",
+      "command": "python -X utf8 -B ../run_optional_regression.py tests.test_model_selection_optional.OptionalModelSelectionRuntimeTests.test_false_uses_existing_concept_path_without_selection_calls tests.test_model_selection_optional.OptionalModelSelectionRuntimeTests.test_false_preserves_explicit_legacy_path_without_selection_calls"
+    }
+  ],
+  "final_coverage_note": "Nine unchanged methods passed in run 1; the only two changed test methods passed again in run 2. Product source unchanged across both runs."
+}

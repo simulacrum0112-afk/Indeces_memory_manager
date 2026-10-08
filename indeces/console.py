@@ -62,10 +62,12 @@ async def _maintain_scratch(scratch):
 
 
 def create_runtime(config, store, adapter, scratch):
-    """Construct the normal reply path with post-retrieval model selection."""
-    from .model_selection import ModelNPMILabelSelector
-    return Runtime(config, store, adapter, scratch,
-        selector=ModelNPMILabelSelector(adapter, scratch, config.adapter.budgets["selection"]))
+    """Construct the configured model or existing deterministic reply path."""
+    selector = None
+    if config.runtime.model_selection_enabled:
+        from .model_selection import ModelNPMILabelSelector
+        selector = ModelNPMILabelSelector(adapter, scratch, config.adapter.budgets["selection"])
+    return Runtime(config, store, adapter, scratch, selector=selector)
 
 
 async def serve(config, key, token, *, lease=None, knowledge_ready=None):
@@ -97,6 +99,8 @@ async def serve(config, key, token, *, lease=None, knowledge_ready=None):
             scratch.write("restart_recovery", interrupted_turns=interrupted, automatically_replayed=False)
         adapter = OpenAIAdapter(config.adapter, scratch, key)
         runtime = create_runtime(config, store, adapter, scratch)
+        selection_enabled = (config.runtime.model_selection_enabled
+                             and getattr(runtime, "model_selector", None) is not None)
         knowledge = KnowledgeService(config, store, runtime.graph, adapter, scratch)
         if knowledge_ready is not None:
             knowledge_ready(knowledge)
@@ -104,7 +108,9 @@ async def serve(config, key, token, *, lease=None, knowledge_ready=None):
         scratch.write("service_start", version=__version__, guild_id=config.discord.guild_id,
                       stage_budgets={k: asdict(v) for k, v in config.adapter.budgets.items()},
                       knowledge_limits=asdict(config.knowledge), model_concurrency=1, chat_labelling=False,
-                      evidence_selection="model_npmi_labels_v1",
+                      evidence_selection=("model_npmi_labels_v1" if selection_enabled
+                                          else config.runtime.retrieval_policy),
+                      model_selection_enabled=selection_enabled,
                       pdf_limits=asdict(getattr(config, "pdf", PdfConfig())), pdf_model_calls=0,
                       scratch_retention_seconds=RETENTION_SECONDS,
                       scratch_maintenance_seconds=RETENTION_MAINTENANCE_SECONDS)

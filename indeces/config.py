@@ -46,6 +46,11 @@ class RuntimeConfig:
     summary_max_bytes: int = 4096
     low_watermark: float = 0.70
     retrieval_policy: str = 'concept_v1'
+    model_selection_enabled: bool = True
+
+    def __post_init__(self):
+        if type(self.model_selection_enabled) is not bool:
+            raise ValueError("runtime.model_selection_enabled must be a boolean")
 
 
 @dataclass(frozen=True)

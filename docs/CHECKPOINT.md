@@ -1,3 +1,54 @@
+# Optional model-selection control 0.16.1
+
+This local change is based on `f209fc3006f5a1f3116ffe1f10dfecce486c01b3`.
+`[runtime].model_selection_enabled` is a strict boolean, defaulting to `true`
+to preserve 0.16.0 behavior and existing configurations. Explicit `false`
+constructs Runtime without a model selector and uses its existing deterministic
+`graph.retrieve` path with the configured `retrieval_policy`. It does not add
+an automatic fallback, new selection algorithm or runtime configuration editor.
+The startup receipt reports the actual selected mode.
+
+The patch retains the default model selector and requires no private configuration
+or credential migration. No paid test call or answer-quality experiment is included.
+The authorized bounded
+offline regression passed all 11 methods on its first run, with no failures,
+errors or skips. Eight new methods cover default/true/false and invalid toggle
+values, unchanged other configuration, both factory paths, zero selection calls
+when disabled under both retrieval policies, full quote/run-record contracts and
+actual startup-mode receipts with mocked resources. Three existing methods cover
+the enabled full contract, the previous deterministic contract and cleanup fault
+handling. Static review then strengthened the disabled tests to require exactly
+three materials and restricted the driver to the existing eleven-test whitelist.
+Only the two affected disabled methods were rerun; both passed. This is coverage
+of 11 distinct methods over 13 executions, not a fresh all-eleven final run.
+The first run used seven mock input counts and seven mock generations; the two
+rechecks added two of each. External HTTP attempts and fees were zero.
+No full suite or 20-question run was performed.
+Python syntax, example TOML parsing and diff checks also passed. The exact scope,
+source hashes and result are retained in
+[model-selection-optional/RESULTS.json](../verification/model-selection-optional/RESULTS.json)
+and [SOURCE_MANIFEST.json](../verification/model-selection-optional/SOURCE_MANIFEST.json).
+
+The historical test manifest retains the exact prepared `0.16.0` source identity;
+it is not relabelled as a test of the later version string. Package and Console
+now declare `0.16.1`; the release manifest separately binds the final source,
+standard wheel and isolated installed bytes. Version-only consistency checks
+reuse the prior behavior regression without a full-suite or 20-question rerun.
+The fresh wheel passed all 52 RECORD entries and exact byte checks for its 46
+application source/resource files. Its isolated installation matches those bytes;
+package metadata, Python version, Console import origin and default enabled mode
+are consistent, and CLI help exits successfully. Only `indeces/__init__.py` changes
+application bytes after behavior validation; it changes the version string only.
+See [RELEASE_MANIFEST.json](../verification/model-selection-optional/RELEASE_MANIFEST.json)
+for the separate release identity and wheel digest. No dependencies were downloaded
+and no model call was made by these build/consistency checks.
+The approved release uses a new release branch and `v0.16.1`, retaining `v0.16.0`
+and main unchanged. Console switching uses normal stop/quit/start, with the
+selector still enabled. Source publication does not reload an existing process.
+To roll back, select the preserved 0.16.0 installation with a normal operator
+switch; preserve all state, scratch and previous selection receipts, and never
+replay or reinterpret old events. No database schema change is introduced.
+
 # Post-retrieval model selection 0.16.0
 
 The normal Console now constructs `ModelNPMILabelSelector`. Runtime retrieves

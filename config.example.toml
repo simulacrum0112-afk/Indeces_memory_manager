@@ -18,6 +18,7 @@ local_seconds = 5.0
 summary_max_bytes = 4096
 low_watermark = 0.70
 retrieval_policy = "concept_v1" # Explicit legacy_v1 restores the previous static selection policy.
+model_selection_enabled = true # false uses the existing deterministic retrieval policy without a selection model call.
 
 [knowledge]
 poll_seconds = 0.5
