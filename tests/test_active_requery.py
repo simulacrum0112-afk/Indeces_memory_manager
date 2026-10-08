@@ -487,6 +487,50 @@ class ActiveConsoleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.event("answer_generated")[0]["final_origin"], "bounded_stop")
         self.assertEqual(verify_runs([self.entries()[0]])["issues"], [])
 
+    async def test_blank_model_stop_has_known_usage_and_fixed_host_notice(self):
+        missing = "Synthetic relationship remains unknown."
+        stopped = dict(done(), action="stop", missing_evidence=[missing], stop_reason="")
+        self.assertEqual(parse_action(json.dumps(stopped), "mystery"), stopped)
+        self.outputs = [action(), stopped]
+        await self.run_turn()
+        self.assertEqual([stage for path, stage, _ in self.requests if path == "/responses"],
+                         ["query", "query"])
+        stop = self.event("requery_stop")[0]
+        self.assertEqual(stop["reason"], "model_stop")
+        self.assertTrue(stop["fallback"])
+        ledger = self.event("requery_budget_event")[-1]["ledger"]
+        self.assertEqual((ledger["phase"], ledger["halted"]), ("stopped", "model_stop"))
+        self.assertTrue(ledger["usage_complete"])
+        self.assertEqual(ledger["unknown_generation_count"], 0)
+        self.assertEqual(ledger["automatic_retries"], 0)
+        generated = self.event("answer_generated")[0]
+        self.assertEqual(generated["final_origin"], "bounded_stop")
+        self.assertIsNone(generated["model_result"])
+        self.assertEqual(len(self.deliveries), 1)
+        self.assertNotIn(missing, self.deliveries[0])
+        self.assertEqual(self.event("turn_end")[0]["status"], "delivered")
+        self.assertEqual(verify_runs([self.entries()[0]])["issues"], [])
+
+    async def test_model_stop_does_not_block_a_new_message_as_unknown_usage(self):
+        self.outputs = [dict(done(), action="stop", stop_reason="",
+                             missing_evidence=["Synthetic missing observation"])]
+        await self.run_turn()
+        self.assertEqual(self.event("requery_budget_event")[-1]["ledger"]
+                         ["unknown_generation_count"], 0)
+        self.message = replace(self.message, message_id="synthetic-new-message-after-stop",
+                               text="amber")
+        self.outputs, self.query_index = [done()], 0
+        previous = len(self.requests)
+        await self.run_turn()
+        stages = [stage for path, stage, _ in self.requests[previous:] if path == "/responses"]
+        self.assertIn("query", stages)
+        self.assertIn("reply", stages)
+        ledger = self.event("requery_budget_event")[-1]["ledger"]
+        self.assertEqual(ledger["phase"], "completed")
+        self.assertIsNone(ledger["halted"])
+        self.assertEqual(ledger["unknown_generation_count"], 0)
+        self.assertEqual(ledger["automatic_retries"], 0)
+
     async def test_duplicate_query_stops_before_second_graph_execution(self):
         self.outputs = [action(), action()]
         await self.run_turn()

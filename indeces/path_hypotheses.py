@@ -10,7 +10,11 @@ from dataclasses import dataclass
 import hashlib
 import json
 import math
+import re
 import time
+
+
+_JSON_CONTROL = re.compile(r"[\x00-\x1f]")
 
 
 @dataclass(frozen=True)
@@ -94,15 +98,28 @@ def _hash(value, cfg, check):
             bound = cfg.max_source_chars if field == "raw_text" else cfg.max_quote_chars if field in ("quote", "stored_text") else cfg.max_serialized_bytes
             if len(node) > bound:
                 raise _Stop("body_characters" if field in ("raw_text", "quote", "stored_text") else "serialized_bytes")
-            # Account for JSON escaping and UTF-8 before encoder allocation.
+            # Keep the same conservative JSON escaping count, but scan valid
+            # text in bounded C-level chunks before allocating the full encoder
+            # output. The time check still runs every 256 source characters.
             lower_bytes += 2
-            for offset, character in enumerate(node):
-                if offset % 256 == 0:
-                    check()
-                code = ord(character)
-                _require(not 0xD800 <= code <= 0xDFFF, "invalid_unicode_scalar")
-                lower_bytes += (6 if code < 32 else 2 if character in ('"', '\\') else
-                                1 if code < 128 else 2 if code < 2048 else 3 if code < 65536 else 4)
+            for offset in range(0, len(node), 256):
+                check()
+                chunk = node[offset:offset + 256]
+                try:
+                    encoded_size = len(chunk.encode("utf-8"))
+                except UnicodeEncodeError:
+                    # Preserve refusal ordering when an earlier character in
+                    # this malformed chunk already exhausts the byte bound.
+                    for character in chunk:
+                        code = ord(character)
+                        _require(not 0xD800 <= code <= 0xDFFF, "invalid_unicode_scalar")
+                        lower_bytes += (6 if code < 32 else 2 if character in ('"', '\\') else
+                                        1 if code < 128 else 2 if code < 2048 else 3 if code < 65536 else 4)
+                        if lower_bytes > cfg.max_serialized_bytes:
+                            raise _Stop("serialized_bytes")
+                    raise ValueError("invalid_unicode_scalar") from None
+                lower_bytes += (encoded_size + chunk.count('"') + chunk.count("\\")
+                                + 5 * len(_JSON_CONTROL.findall(chunk)))
                 if lower_bytes > cfg.max_serialized_bytes:
                     raise _Stop("serialized_bytes")
         elif type(node) is dict or type(node) in (list, tuple):

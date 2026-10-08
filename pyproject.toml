@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "indeces-memory-manager"
-version = "0.17.0.dev5"
+version = "0.17.0.dev6"
 description = "A single Discord headless runtime with governed Hebbian memory and audited model calls"
 requires-python = ">=3.12"
 dependencies = ["discord.py==2.7.1", "pypdf==6.19.0"]

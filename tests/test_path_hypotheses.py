@@ -2,6 +2,7 @@
 from copy import deepcopy
 from dataclasses import replace
 import hashlib
+from itertools import chain, repeat
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -205,6 +206,43 @@ class AutomaticPathTests(unittest.TestCase):
         shared = ["safe"]
         self.assertEqual(_hash([shared, shared], self.cfg, lambda: None), digest([shared, shared]))
 
+    def test_small_and_large_bundles_keep_full_validation_after_preflight(self):
+        from indeces.requery_records import validate_bundle
+        for padding in ("", "\u4e2d\U0001f600\\\"" * 1500):
+            with self.subTest(large=bool(padding)):
+                self.add(raw=quote([fact()]) + "\n" + padding)
+                record = self.frozen()
+                bundle = append_retrieval(None, record, round_index=0,
+                    request_id="synthetic-initial", planning_call_id=None)
+                bundle = append_retrieval(bundle, record, round_index=1,
+                    request_id=record["event_id"], planning_call_id="synthetic-plan")
+                if padding:
+                    self.assertTrue(any(len(item["material"]["quote"]) >= len(padding)
+                                        for item in bundle["materials"]))
+                before, changes = deepcopy(bundle), self.store.db.total_changes
+                with patch("indeces.requery_records.validate_bundle", wraps=validate_bundle) as validator:
+                    result = analyze_path_hypotheses(bundle, [self.wrapper(index=1)], config=self.cfg)
+                    validator.assert_called_once_with(bundle)
+                self.assertEqual(result["status"], "pending_hypothesis")
+                self.assertEqual(bundle, before)
+                self.assertEqual(self.store.db.total_changes, changes)
+
+                # Coordinated equality alone is insufficient: the global ID
+                # and every local binding agree, but canonical numbering is wrong.
+                changed = deepcopy(bundle)
+                uid = changed["materials"][0]["evidence_uid"]
+                changed["materials"][0]["citation_id"] = "M9"
+                for round_ in changed["rounds"]:
+                    for binding in round_["bindings"]:
+                        if binding["evidence_uid"] == uid:
+                            binding["citation_id"] = "M9"
+                with patch("indeces.requery_records.validate_bundle", wraps=validate_bundle) as validator:
+                    rejected = analyze_path_hypotheses(changed, [self.wrapper(index=1)], config=self.cfg)
+                    validator.assert_called_once_with(changed)
+                self.assertEqual(rejected["status"], "unknown")
+                self.assertEqual(rejected["candidates"], [])
+                self.assertFalse(rejected["proof"])
+
     def test_conditions_and_malformed_contract_stay_unknown(self):
         self.add([fact(conditions=["heated"])])
         result = self.run_diagnostic(self.frozen())
@@ -298,6 +336,141 @@ class AutomaticPathTests(unittest.TestCase):
         keyed["x" * 100] = "\x01" * 200
         result = self.run_diagnostic(keyed, cfg=replace(self.cfg, max_serialized_bytes=1000))
         self.assertEqual(result["status"], "budget_stop")
+
+    def test_each_diagnostic_starts_a_fresh_clock_and_caller_deadline_can_shrink_it(self):
+        self.add()
+        record = self.frozen()
+        cfg = replace(self.cfg, max_seconds=0.25)
+        outcomes = []
+        # A long gap between calls must not reuse the first analysis's clock.
+        for now in (100.0, 1000000.0):
+            with patch("indeces.path_hypotheses.time.monotonic", return_value=now):
+                outcomes.append(self.run_diagnostic(record, cfg=cfg))
+        self.assertEqual(outcomes[0]["status"], "pending_hypothesis")
+        self.assertEqual(outcomes[1], outcomes[0])
+
+        # The same local elapsed time fits 0.25s, but exceeds an earlier caller
+        # deadline. These clocks are deterministic; no wall-time assertion.
+        for deadline, expected in ((None, "pending_hypothesis"), (100.125, "budget_stop")):
+            with self.subTest(deadline=deadline), \
+                 patch("indeces.path_hypotheses.time.monotonic",
+                       side_effect=chain((100.0,), repeat(100.126))):
+                result = analyze_path_hypotheses(record, [self.wrapper()], config=cfg, deadline=deadline)
+            self.assertEqual(result["status"], expected)
+            if deadline is not None:
+                self.assertEqual(result["incomplete_reasons"], ["seconds"])
+                self.assertEqual(result["stats"]["expansions"], 0)
+
+
+class BoundedPathHashTests(unittest.TestCase):
+    """Encoding optimization must preserve identities and bounded refusal."""
+
+    def setUp(self):
+        self.cfg = PathHypothesesConfig(enabled=True)
+
+    def test_canonical_hash_unicode_controls_and_chunk_boundaries(self):
+        from indeces.path_hypotheses import _hash
+        controls = "".join(chr(code) for code in range(32))
+        # Include every UTF-8 width and both sides of the source block boundary.
+        for offset in (0, 254, 255, 256, 257, 511):
+            value = {"\u4e2d\U0001f600\\\"": ["a" * offset + "\u00e9\u4e2d\U0001f600" + controls + "\\\"",
+                (None, True, -17, 0.125)], "other": {"quote": "\n\t\\\"" * 130}}
+            with self.subTest(offset=offset):
+                self.assertEqual(_hash(value, self.cfg, lambda: None), digest(value))
+        self.assertEqual(_hash("", self.cfg, lambda: None), digest(""))
+
+    def test_exact_conservative_string_caps_and_one_byte_over_refuse_before_encoder(self):
+        from indeces.path_hypotheses import _hash, _Stop
+        cases = [("a" * 254 + '"' + "\\" + "\n", 266),
+                 ("a" * 255 + "\u00e9\u4e2d\U0001f600", 266),
+                 ("".join(chr(code) for code in range(32)), 194),
+                 ("\U0001f600" * 15, 62)]
+        for value, conservative_bytes in cases:
+            with self.subTest(bytes=conservative_bytes, value_hash=digest(value)):
+                exact = replace(self.cfg, max_serialized_bytes=conservative_bytes)
+                self.assertEqual(_hash(value, exact, lambda: None), digest(value))
+                with patch("indeces.path_hypotheses.json.JSONEncoder",
+                           side_effect=AssertionError("encoded before byte refusal")):
+                    with self.assertRaisesRegex(_Stop, "^serialized_bytes$"):
+                        _hash(value, replace(exact, max_serialized_bytes=conservative_bytes - 1), lambda: None)
+
+    def test_field_character_limits_remain_distinct_from_utf8_byte_limits(self):
+        from indeces.path_hypotheses import _hash, _Stop
+        cfg = replace(self.cfg, max_quote_chars=10, max_source_chars=17)
+        for field, bound in (("quote", 10), ("stored_text", 10), ("raw_text", 17)):
+            with self.subTest(field=field):
+                valid = {field: "\U0001f600" * bound}
+                self.assertEqual(_hash(valid, cfg, lambda: None), digest(valid))
+                with patch("indeces.path_hypotheses.json.JSONEncoder",
+                           side_effect=AssertionError("encoded before character refusal")):
+                    with self.assertRaisesRegex(_Stop, "^body_characters$"):
+                        _hash({field: "\U0001f600" * (bound + 1)}, cfg, lambda: None)
+        unrelated = {"other": "\U0001f600" * 18}
+        self.assertEqual(_hash(unrelated, cfg, lambda: None), digest(unrelated))
+
+    def test_surrogate_refusal_preserves_prior_byte_limit_order(self):
+        from indeces.path_hypotheses import _hash, _Stop
+        for scalar in (chr(0xD800), chr(0xDFFF)):
+            cases = [("\u4e2d" * 21 + scalar, 64, _Stop, "serialized_bytes"),
+                     ("\x01" * 11 + scalar, 64, _Stop, "serialized_bytes"),
+                     (scalar + "\u4e2d" * 21, 64, ValueError, "invalid_unicode_scalar"),
+                     ("a" * 256 + scalar, 257, _Stop, "serialized_bytes"),
+                     ("a" * 256 + scalar, 259, ValueError, "invalid_unicode_scalar")]
+            for value, cap, error, reason in cases:
+                with self.subTest(scalar=ord(scalar), cap=cap, error=error.__name__):
+                    with patch("indeces.path_hypotheses.json.JSONEncoder",
+                               side_effect=AssertionError("encoded invalid scalar")):
+                        with self.assertRaisesRegex(error, "^" + reason + "$"):
+                            _hash(value, replace(self.cfg, max_serialized_bytes=cap), lambda: None)
+
+    def test_long_string_time_check_can_stop_between_256_character_blocks(self):
+        from indeces import path_hypotheses
+        scanned = []
+        original = path_hypotheses._JSON_CONTROL
+
+        class ObservedControls:
+            def findall(self, value):
+                scanned.append(len(value))
+                return original.findall(value)
+
+        def stop_after_first_block():
+            if scanned:
+                raise path_hypotheses._Stop("seconds")
+
+        with patch.object(path_hypotheses, "_JSON_CONTROL", ObservedControls()), \
+             patch.object(path_hypotheses.json, "JSONEncoder",
+                          side_effect=AssertionError("encoded after deadline")):
+            with self.assertRaisesRegex(path_hypotheses._Stop, "^seconds$"):
+                path_hypotheses._hash("\U0001f600" * 4097, self.cfg, stop_after_first_block)
+        self.assertEqual(scanned, [256])
+
+    def test_depth_cycles_shared_children_and_structure_bounds(self):
+        from indeces.path_hypotheses import _hash, _Stop
+        nested = "leaf"
+        for _ in range(32):
+            nested = [nested]
+        self.assertEqual(_hash(nested, self.cfg, lambda: None), digest(nested))
+        shared = ["leaf"]
+        self.assertEqual(_hash([shared, shared], self.cfg, lambda: None), digest([shared, shared]))
+        cyclic = []
+        cyclic.append(cyclic)
+        with patch("indeces.path_hypotheses.json.JSONEncoder",
+                   side_effect=AssertionError("encoded before structure refusal")):
+            with self.assertRaisesRegex(_Stop, "^json_structure$"):
+                _hash([nested], self.cfg, lambda: None)
+            with self.assertRaisesRegex(ValueError, "^invalid_json_structure$"):
+                _hash(cyclic, self.cfg, lambda: None)
+            with self.assertRaisesRegex(_Stop, "^json_structure$"):
+                _hash([None] * 9, replace(self.cfg, max_serialized_bytes=64), lambda: None)
+
+    def test_final_encoded_byte_cap_still_applies_after_conservative_preflight(self):
+        from indeces.path_hypotheses import _hash, _Stop
+        value = 1.2345678901234567
+        actual_bytes = len(json.dumps(value).encode("utf-8"))
+        exact = replace(self.cfg, max_serialized_bytes=actual_bytes)
+        self.assertEqual(_hash(value, exact, lambda: None), digest(value))
+        with self.assertRaisesRegex(_Stop, "^serialized_bytes$"):
+            _hash(value, replace(exact, max_serialized_bytes=actual_bytes - 1), lambda: None)
 
 
 if __name__ == "__main__":
