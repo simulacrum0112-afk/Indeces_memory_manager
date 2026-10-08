@@ -1,0 +1,52 @@
+{
+  "schema": "path_hypotheses_hotfix_failure_history_v1",
+  "baseline_commit": "53b01f1b9224b08c91e39e812e5170a391a3ef4f",
+  "unicode_baseline": {
+    "schema": "path_unicode_regression_baseline_v1",
+    "source_commit": "53b01f1b9224b08c91e39e812e5170a391a3ef4f",
+    "source_sha256": "456eccd64b121c6b9cb8c2d211921e59b0d134a26eeacc32f27ef2fdd3bdb11f",
+    "test_sha256": "ebc76154bbef3cbcb097aa1dc5ada4c482068b87bb10c7e566348e68c23becbb",
+    "log_sha256": "f198ac9681cf73f5431d519966e0dc08a46561d151d6bdcc8a514443dcf639dd",
+    "tests": 4,
+    "failures": 13,
+    "errors": 0,
+    "simulation_only": true,
+    "real_api_calls": 0
+  },
+  "citation_baseline": {
+    "schema": "focused_offline_citation_regression_v1",
+    "tests_run": 4,
+    "failures": 6,
+    "errors": 0,
+    "skipped": 0,
+    "successful": false,
+    "source_identities": {
+      "indeces/path_hypotheses.py": "456eccd64b121c6b9cb8c2d211921e59b0d134a26eeacc32f27ef2fdd3bdb11f",
+      "indeces/requery_records.py": "e697ce31324ae9cfe963a3e02e5a2e4acf82de340edfce313c727e43785c5a27",
+      "tests/test_path_hypotheses_citations.py": "900fdec455aa9c0999ecd146d13f75fb656df2bb85cef5ed92d1901a7d321583"
+    },
+    "network_guard": "socket.create_connection, socket.socket.connect and aiohttp request denied in fixture",
+    "scope": "fresh synthetic Store/MemoryGraph frozen two-round evidence only; no API or production state",
+    "stdout_log": "D:\\Indeces\\build\\active-requery-feasibility-20261008\\PATH_CITATIONS_RUN1.log",
+    "log_sha256": "3add0e67b85c56f99ef30be7e3b56fd2cc251ac8cb6f46da8dc2e4376bc913e5"
+  },
+  "counts_include_unittest_subcases": true,
+  "unicode_baseline_test_bytes": "earlier hash retained; subsequent fixture cleanup not reconstructed",
+  "artifact_sha256": {
+    "PATH_UNICODE_RUN1.json": "028bbd790ce6d8ae2674743b7e5dbf8a6f471f557f32abe10e18341689c3677e",
+    "PATH_UNICODE_RUN1.log": "f198ac9681cf73f5431d519966e0dc08a46561d151d6bdcc8a514443dcf639dd",
+    "PATH_CITATIONS_RUN1.json": "bbf6a567119f369d3b8001dff1371ad0750b9dca30a7eb4f9f3ceb633e58cddf",
+    "PATH_CITATIONS_RUN1.log": "3add0e67b85c56f99ef30be7e3b56fd2cc251ac8cb6f46da8dc2e4376bc913e5",
+    "FINAL_PATH_HOTFIX_RUN1.json": "ccaf2f96d70e74e61a1279927779201fa8ba6f00d362210952e86f05473a5f8c",
+    "FINAL_PATH_HOTFIX_RUN1.log": "65d5ffad3de4890fd0ac7e929272fdcff2d1ab16a688f3964eac65c3bf55f72c",
+    "FINAL_PATH_HOTFIX_RUN2.json": "00441208f2764dca0857c52ea828b54030bd680c5ad874b1cb8c3490d58288bd",
+    "FINAL_PATH_HOTFIX_RUN2.log": "ac27255da8980d81fc576d1362d1463b63e50ed7ad2e085becbde021b7cc1e6d"
+  },
+  "final_test_sha256": {
+    "tests/test_path_hypotheses_unicode.py": "b3cdc4e46229e8edb66332bf7f732be3b588d9a5a1a31c0f55683d89df69a80c",
+    "tests/test_path_hypotheses_citations.py": "900fdec455aa9c0999ecd146d13f75fb656df2bb85cef5ed92d1901a7d321583"
+  },
+  "real_api_calls": 0,
+  "production_changed": false,
+  "existing_failed_quality_acceptance": "not replayed or reclassified"
+}

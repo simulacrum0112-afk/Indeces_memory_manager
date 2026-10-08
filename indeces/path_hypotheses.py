@@ -56,7 +56,8 @@ def _require(value, reason):
 
 
 def _text(value, limit=120):
-    return type(value) is str and 0 < len(value) <= limit
+    return (type(value) is str and 0 < len(value) <= limit
+            and all(not 0xD800 <= ord(character) <= 0xDFFF for character in value))
 
 
 def _sha(value):
@@ -201,6 +202,7 @@ def _rounds(frozen, cfg, check):
                  "record": frozen, "bindings": None, "record_sha256": _hash(frozen, cfg, check)}], None
     _require(frozen.get("schema") == "active_requery_evidence_v1" and type(frozen.get("version")) is int
              and frozen["version"] == 1 and _text(frozen.get("scope"), 200), "unsupported_frozen_bundle")
+    _require(len(frozen) == 7, "invalid_bundle_header_shape")
     rounds = frozen.get("rounds")
     _require(type(rounds) is list and bool(rounds), "invalid_bundle_rounds")
     if len(rounds) > cfg.max_rounds:
@@ -208,7 +210,7 @@ def _rounds(frozen, cfg, check):
     requests = set()
     for index, item in enumerate(rounds):
         check()
-        _require(type(item) is dict and type(item.get("round_index")) is int and item["round_index"] == index
+        _require(type(item) is dict and len(item) == 7 and type(item.get("round_index")) is int and item["round_index"] == index
                  and _text(item.get("request_id"), 512) and item["request_id"] not in requests,
                  "invalid_round_identity")
         _require((index == 0 and item.get("planning_call_id") is None) or
@@ -224,9 +226,20 @@ def _rounds(frozen, cfg, check):
     _require(type(material_catalog) is list and len(material_catalog) <= cfg.max_rounds * 3, "invalid_bundle_materials")
     catalog = {}
     for item in material_catalog:
-        _require(type(item) is dict and _sha(item.get("evidence_uid")) and item["evidence_uid"] not in catalog,
+        _require(type(item) is dict and len(item) == 8 and _sha(item.get("evidence_uid")) and item["evidence_uid"] not in catalog,
                  "invalid_bundle_uid")
         catalog[item["evidence_uid"]] = item
+    # The full append validator allocates/copies frozen data. Preflight each
+    # bounded component first; retain the existing per-record byte cap.
+    _hash({key: value for key, value in frozen.items() if key not in ("rounds", "materials")}, cfg, check)
+    for item in rounds:
+        _hash({key: value for key, value in item.items() if key != "record"}, cfg, check)
+    for item in material_catalog:
+        _hash(item, cfg, check)
+    from .requery_records import validate_bundle
+    check()
+    validate_bundle(frozen)
+    check()
     return rounds, catalog
 
 

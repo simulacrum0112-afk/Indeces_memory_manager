@@ -31,6 +31,9 @@ PHASES = {
             "tests.test_local_retrieval_deadline"],
     "two": ["tests.test_communicability", "tests.test_active_communicability"],
     "paths": ["tests.test_path_hypotheses", "tests.test_active_path_hypotheses"],
+    "hotfix": ["tests.test_path_hypotheses", "tests.test_active_path_hypotheses",
+               "tests.test_path_hypotheses_unicode", "tests.test_path_hypotheses_citations",
+               "tests.test_requery_records"],
 }
 
 

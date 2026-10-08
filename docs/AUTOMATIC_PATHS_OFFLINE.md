@@ -39,6 +39,10 @@ typed_facts_v1: {"facts":[{"subject":"alpha","object":"beta","relation":"links",
 Facts require subject, object, relation and positive/negative polarity. Optional
 `time` and `scope` are literal strings; optional `conditions` is a list of literal
 strings. JSON must be valid and must not contain duplicate keys or extra fields.
+Decoded strings must contain Unicode scalar values: lone high or low surrogates,
+including JSON-escaped surrogates, yield `invalid_typed_facts` and unknown facts.
+Valid Chinese, emoji and correctly paired JSON escapes are preserved. The frozen
+quote is retained; invalid decoded text is never copied into the UTF-8 receipt.
 Fact endpoints must exactly match the graph nodes and the supporting selected
 material's marks. Ordinary cooccurrence prose supplies no typed relation.
 
@@ -50,6 +54,11 @@ quote/text hashes, local/global citation and evidence UID. Typed fact bindings
 also contain the exact quote-line character span and hash. Native material/model
 arrays and citation markers are checked. Bundle UID/citation maps are verified
 against the same-round material; global entries establish citation identity only.
+After bounded component/field-count preflight, bundle input is independently
+replayed through `validate_bundle`. This checks the complete immutable append
+chain, canonical first-seen M1..Mn numbering and global uniqueness, including
+simultaneous catalog/binding tampering. Deadline checks surround the replay;
+they do not preempt an individual validation operation.
 
 Published knowledge metadata requires ready/published source identity, normalized
 raw-text hash, original-byte digest shape and quote occurrence in that frozen

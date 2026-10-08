@@ -1,4 +1,14 @@
-# Revised independent offline feasibility delivery
+# Independent offline feasibility delivery and hotfix
+
+Current isolated version is `0.17.0.dev4`. The finite follow-up fixes decoded
+surrogates in typed facts and complete global citation validation; see
+[PATH_HYPOTHESES_HOTFIX.md](PATH_HYPOTHESES_HOTFIX.md). The new selected group has
+52 passing tests on its exact source, with a newly verified installed wheel and
+actual Console run banner `0.17.0.dev4`. Adjacent `CHECKPOINT_FOUR.json` and
+`DELIVERY_HOTFIX.json` pin that commit and all 47 source hashes. The 283 tests
+below remain historical dev3 results; they were not rerun or added to 52.
+
+## Preserved dev3 delivery
 
 This revision closes three gaps in checkpoint two: successful finished budget
 objects could admit again, the integration fixture used `legacy_v1`, and the
