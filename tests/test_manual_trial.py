@@ -173,17 +173,24 @@ class Fixture:
         self.root = Path(self.temp.name).resolve()
         self.original_cwd = Path.cwd()
         self.addCleanup(os.chdir, self.original_cwd)
-        self.config_file = Path(__file__).resolve()
         if os.name != "nt":
             # On POSIX the Windows boundary is a relative basename. Resolve
             # it within this fixture's temp cwd, without changing the gate.
             os.chdir(self.root)
-            self.config_file = Path(r"D:\Indeces").resolve() / "synthetic-config.toml"
-            self.config_file.parent.mkdir(parents=True)
-            self.config_file.write_text("# Synthetic fixture; config readers are injected.\n", encoding="utf-8")
+        self.config_file = Path(r"D:\Indeces").resolve() / ("synthetic-config-" + self.root.name + ".toml")
+        self.config_source_file = self.root / "synthetic-config-source.toml"
+        self.config_source_file.write_text("# Synthetic fixture; config readers are injected.\n", encoding="utf-8")
+        original_read_bytes = Path.read_bytes
+
+        def fixture_read_bytes(path):
+            if path == self.config_file:
+                return original_read_bytes(self.config_source_file)
+            return original_read_bytes(path)
+
         self.gates, self.stores, self.scratches, self.contexts = [], [], [], []
         self.serial = 0
-        self.guards = [patch("socket.create_connection", deny_network),
+        self.guards = [patch.object(Path, "read_bytes", fixture_read_bytes),
+                       patch("socket.create_connection", deny_network),
                        patch.object(socket.socket, "connect", deny_network),
                        patch.object(socket.socket, "connect_ex", deny_network),
                        patch.object(pilot_gate, "LIVE_LEDGER_ROOT", self.root / "approval-ledgers"),
@@ -193,6 +200,7 @@ class Fixture:
                        patch("indeces.credentials.prompt_secret", side_effect=AssertionError("No private prompt"))]
         for guard in self.guards:
             guard.start()
+            self.addCleanup(guard.stop)
 
     def tearDown(self):
         for context in self.contexts:

@@ -1,3 +1,15 @@
+# Windows fixture checkpoint 0.15.1.dev2026100703
+
+The exact prior application checkpoint `06daff583461953cc6fc65b1101ed56e0988b961` passed this machine's 1155-test suite, but CI run `37703149254` failed its Windows unittest step; Ubuntu succeeded. Anonymous access to that exact job's logs returned HTTP 403; annotations expose exit code 1 only. The remote failed case names and original remote cause remain unknown.
+
+A separate controlled Windows reproduction found a test fixture dependency on checkout location: two unchanged orchestration tests passed only when the test file path lay within the fixed approved project root. Their neutral checkout reproduction failed twice before the fixture correction and passed twice afterwards. The correction changes only Fixture.setUp: its unique logical config remains under the original fixed approval root, while an exact read mapping supplies real synthetic bytes from the owned Temp fixture. All other reads, all 70 test methods/assertions, and all product sources remain unchanged. This is a demonstrated fixture defect, not a claim that unavailable remote logs confirmed its cause.
+
+Fresh complete regression and standard wheel/isolated-install results are recorded in verification/manual-trial/CHECKPOINT_RESULTS.json. The final application identity remains `b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e`; exact append-commit CI is delivered separately. Every prior failure and receipt is retained, and main plus the 17 original user changes remain unchanged.
+
+The authorized native Console was actually launched from an isolated installed wheel and displayed `Indeces 0.15.1.dev2026100703 console` with its menu prompt. It remains idle: no Bot, Gateway, knowledge worker or model request was started by this task. The bounded USD 1 smoke remains blocked before model HTTP because fee/account hard-cap evidence is incomplete. Earlier sections describe their then-current states. No real answer-quality or held-out acceptance is claimed.
+
+---
+
 # Filesystem shutdown checkpoint 0.15.1.dev2026100703
 
 A fresh full run of exact checkpoint `b9c06222989dd17b28baffce2e3c44f0f5e15505` found one Windows PDF watcher teardown error: a reader thread could still hold a synthetic file after KnowledgeService.close returned. Cancellation of the asyncio wait did not stop the underlying filesystem read. This checkpoint retains service ownership of scan/read tasks and waits for their completion before shutdown returns, without publishing cancelled snapshots, changing model budgets or stopping the shared executor.

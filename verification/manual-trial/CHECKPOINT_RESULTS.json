@@ -1,7 +1,7 @@
 {
   "schema": "indeces_checkpoint_offline_results_v1",
   "version": "0.15.1.dev2026100703",
-  "scope": "Code checkpoint only; offline synthetic validation, no real model/Discord/held-out acceptance or deployment",
+  "scope": "Independent code checkpoint, offline synthetic validation plus native idle Console startup; no real model/Gateway/held-out acceptance or main deployment",
   "baseline_main": "94ae7bd15120070fb24f88d0e7bd8d4e3d622e20",
   "checkpoint_branch": "checkpoint/manual-live-ready-20261007",
   "candidate_identity": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e",
@@ -169,6 +169,29 @@
       "source_scope_files": 121,
       "source_scope_sha256": "c7bdf1e9384a7c949465ae36f7a414bc1f566c034724df99da6abfabd30c7685",
       "python_app_source_identity_sha256": "f6eb9505afd35ffde66f6a1f1c99e18ae2feeee78f8263bfab613406577922b0"
+    },
+    {
+      "receipt": "WINDOWS_FIXTURE_FULL_CHECKS.json",
+      "version": "0.15.1.dev2026100703",
+      "tests_run": 1155,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 20,
+      "successful": true,
+      "elapsed_seconds": 253.813,
+      "started_utc": "2026-10-07T23:57:21.942954Z",
+      "ended_utc": "2026-10-08T00:01:35.752379Z",
+      "source_identity_sha256": "a7fdf28da00e2d18bb47ccff762dad26f04b40209b55aa832f9f7d25b8114909",
+      "app_source_identity_sha256": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e",
+      "source_unchanged": true,
+      "source_binding": {
+        "baseline_commit": "06daff583461953cc6fc65b1101ed56e0988b961",
+        "baseline_tree": "ed33a46b83328f96f24149d6924e0b0c9742c0d9",
+        "protected_source_is_committed": false,
+        "protected_diff_sha256": "b3a09a4941d713d3c25dceb4925739e5859ac1a3a76ef9692a8c9339f87fd914",
+        "protected_diff_bytes": 2339,
+        "raw_source_snapshot_is_authoritative": true
+      }
     }
   ],
   "followup_validation_scope": "Two test fixtures changed after the preserved Windows full suite. Existing 70 actual-package tests rerun once; unchanged application/wheel were not rebuilt; full Windows suite not repeated. The next exact CI supplies Linux/Windows commit verification without inferring remote test counts.",
@@ -229,8 +252,8 @@
     "scope": "indeces/knowledge.py and one deterministic test method covering success and late I/O error; existing assertions retained",
     "remaining_condition": "A genuinely blocked filesystem operation can delay shutdown; cooperative I/O cleanup cannot hard-preempt the operating system."
   },
-  "latest_full_regression_status": "Passed fresh dev03 run: 1155 tests, 0 failures/errors, 20 skipped; prior failures remain historical",
-  "latest_build_status": "Passed rebuilt dev03 wheel and isolated CLI/manual entry checks",
+  "latest_full_regression_status": "passed_after_windows_fixture_correction",
+  "latest_build_status": "fresh_standard_wheel_and_isolated_install_passed_after_windows_fixture_correction",
   "fs_lifecycle_target_receipt": "KNOWLEDGE_FS_LIFECYCLE_TARGETED.json",
   "prior_candidate_identity": "ba2baeda1c52867475a5e840e1ade872e54440879d4951092b25fcaabcea748e",
   "historical_dev02_build": {
@@ -288,6 +311,67 @@
     "elapsed_seconds": 14.077999999994063
   },
   "full_regression": {
+    "version": "0.15.1.dev2026100703",
+    "tests_run": 1155,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 20,
+    "successful": true,
+    "elapsed_seconds": 253.813,
+    "started_utc": "2026-10-07T23:57:21.942954Z",
+    "ended_utc": "2026-10-08T00:01:35.752379Z",
+    "source_identity_sha256": "a7fdf28da00e2d18bb47ccff762dad26f04b40209b55aa832f9f7d25b8114909",
+    "app_source_identity_sha256": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e",
+    "source_unchanged": true,
+    "source_binding": {
+      "baseline_commit": "06daff583461953cc6fc65b1101ed56e0988b961",
+      "baseline_tree": "ed33a46b83328f96f24149d6924e0b0c9742c0d9",
+      "protected_source_is_committed": false,
+      "protected_diff_sha256": "b3a09a4941d713d3c25dceb4925739e5859ac1a3a76ef9692a8c9339f87fd914",
+      "protected_diff_bytes": 2339,
+      "raw_source_snapshot_is_authoritative": true
+    }
+  },
+  "wheel": {
+    "sha256": "89834c528e8125aeb194e4d26242f21f5aadeb6705e971f00248a5c4e9a9fa8f",
+    "bytes": 243060,
+    "members": 51,
+    "record_rows": 51,
+    "record_hashes_verified": true,
+    "packaged_source_count": 45,
+    "python_source_count": 42,
+    "all_packaged_source_bytes_match_frozen_checkout": true
+  },
+  "wheel_filename": "indeces_memory_manager-0.15.1.dev2026100703-py3-none-any.whl",
+  "wheel_source_matches_checkout": true,
+  "installed_cli_check_exit_code": 0,
+  "installed_manual_mock": {
+    "mode": "mock",
+    "request_count": 4,
+    "count_requests": 2,
+    "generation_requests": 2,
+    "real_requests": 0,
+    "background_workers_started": 0,
+    "acceptance_passed": true,
+    "source_identity": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e",
+    "result_path": "D:\\Indeces\\build\\selector-manual-live-ready-20261007\\STANDARD_WINDOWS_FIXTURE_INSTALLED\\mock-run\\RESULT.json"
+  },
+  "installed_live_missing_metadata": {
+    "status": "blocked",
+    "code": "manual_required_metadata_missing",
+    "real_requests": 0,
+    "output_directory_created": false
+  },
+  "latest_test_scope": "Fresh complete offline regression after fixture-only correction; application source identity unchanged; exact final commit CI still pending",
+  "smoke_preflight_status": {
+    "owner_authorized_max_usd": "1.00",
+    "max_generation": 2,
+    "max_count": 2,
+    "real_requests": 0,
+    "status": "blocked_before_model_http",
+    "reason": "count endpoint fee evidence and actual account hard-cap/remaining allocation not independently verifiable; computed tariff reservations are not provider invoice"
+  },
+  "historical_dev03_before_windows_fixture_full_regression": {
     "tests_run": 1155,
     "failures": 0,
     "errors": 0,
@@ -321,32 +405,64 @@
       "app_source_identity_sha256": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e"
     }
   },
-  "wheel": {
-    "sha256": "9422913e2304b379b5e4912fc2d98682d3c019acbe1c13b36e64ff3d23fe54a9",
-    "bytes": 243060,
-    "members": 51,
-    "record_hashes_verified": true,
-    "packaged_source_count": 45
+  "historical_dev03_before_windows_fixture_build": {
+    "wheel": {
+      "sha256": "9422913e2304b379b5e4912fc2d98682d3c019acbe1c13b36e64ff3d23fe54a9",
+      "bytes": 243060,
+      "members": 51,
+      "record_hashes_verified": true,
+      "packaged_source_count": 45
+    },
+    "wheel_filename": "indeces_memory_manager-0.15.1.dev2026100703-py3-none-any.whl",
+    "installed_cli_check_exit_code": 0
   },
-  "wheel_filename": "indeces_memory_manager-0.15.1.dev2026100703-py3-none-any.whl",
-  "wheel_source_matches_checkout": true,
-  "installed_cli_check_exit_code": 0,
-  "installed_manual_mock": {
-    "mode": "mock",
-    "request_count": 4,
-    "count_requests": 2,
-    "generation_requests": 2,
-    "real_requests": 0,
-    "background_workers_started": 0,
-    "acceptance_passed": true,
-    "source_identity": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e"
+  "third_published_checkpoint_ci": {
+    "commit": "06daff583461953cc6fc65b1101ed56e0988b961",
+    "run_id": 37703149254,
+    "overall": "failure",
+    "ubuntu_job": "success",
+    "ubuntu_unittest": "success",
+    "ubuntu_cli": "success",
+    "windows_job": "failure",
+    "windows_unittest": "failure",
+    "windows_cli": "skipped",
+    "specific_failed_test_names": "unknown",
+    "exact_job_logs_anonymous_http_status": 403,
+    "log_content_obtained": false,
+    "annotations": "exit code 1 only",
+    "alternate_credential_route_used": false,
+    "remote_test_counts_inferred": false
   },
-  "installed_live_missing_metadata": {
-    "status": "blocked",
-    "code": "manual_required_metadata_missing",
-    "real_requests": 0,
-    "output_directory_created": false
+  "windows_fixture_correction": {
+    "production_source_changes": 0,
+    "file": "tests/test_manual_trial.py",
+    "sha256": "1f2a4beb138da7c6c5ca1eb5a475cc0958f8aba1e762d0619a90547d4e98241a",
+    "cause_proved_locally": "Windows fixture reused actual __file__ as approved config; outside fixed project root it was blocked before orchestration",
+    "remote_failure_cause_confirmed": false,
+    "neutral_checkout_original_case_count": 2,
+    "neutral_checkout_before_failures": 2,
+    "neutral_checkout_after_failures": 0,
+    "targeted_tests": 70,
+    "targeted_failures": 0,
+    "targeted_errors": 0,
+    "targeted_skips": 0,
+    "test_method_assert_decorator_changes": 0,
+    "production_fixed_root_check_unchanged": true,
+    "config_fixture": "unique logical approved-root config path; exact Path.read_bytes mapping reads its real synthetic Temp source, other paths retain original reader",
+    "real_config_written_at_fixed_root": false,
+    "real_model_requests": 0,
+    "real_credential_reads": 0,
+    "canonical_approval_ledger_writes": 0
   },
-  "latest_test_scope": "Fresh full suite includes the unchanged 70 manual fixtures and the new deterministic lifecycle regression. No old pass substituted for B9 failure. Final CI must bind the next exact source commit.",
-  "smoke_preflight_status": "New live authorization exists separately, but this development checkpoint made zero real model/Discord calls. Gate amounts are approved-tariff calculations, not independently verified provider invoice charges; strict real smoke must stop before HTTP if count pricing, actual fees or hard cap cannot be established."
+  "native_idle_console_startup": {
+    "loaded_version": "0.15.1.dev2026100703",
+    "application_identity": "b77eeea4c54990c2b554ba5a97e24f396bd97b116824b9f76f52d0c12461a30e",
+    "actual_native_banner_and_prompt_observed": true,
+    "started_from_isolated_installed_wheel": true,
+    "Bot_service_started": false,
+    "KnowledgeService_started": false,
+    "model_requests": 0,
+    "Gateway_requests": 0,
+    "desktop_window_visibility_independently_verified": false
+  }
 }
