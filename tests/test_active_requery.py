@@ -18,7 +18,7 @@ from indeces.console import create_runtime
 from indeces.contracts import DeliveryReceipt, FailureNotice, GovernedError, IncomingMessage
 from indeces.memory import MemoryGraph
 from indeces.requery_records import bundle_model_materials, validate_bundle
-from indeces.run_records import verify_runs
+from indeces.run_records import digest, verify_runs
 from indeces.scratch import ScratchLog
 from indeces.store import Store
 
@@ -185,6 +185,139 @@ class ActiveConsoleTests(unittest.IsolatedAsyncioTestCase):
         report = verify_runs([self.entries()[0]])
         self.assertEqual(report["issues"], [])
         self.assertEqual(report["counts"]["complete"], 1)
+
+    async def test_default_concept_policy_two_query_rounds_append_stable_evidence(self):
+        # Construct RuntimeConfig without a retrieval_policy override: this is
+        # the shipped concept_v1 policy, with the model selector still enabled.
+        self.config.runtime = RuntimeConfig(active_requery_enabled=True,
+            turn_seconds=30, summary_max_bytes=256)
+        self.runtime = create_runtime(self.config, self.store, self.adapter, self.scratch)
+        self.assertEqual(self.config.runtime.retrieval_policy, "concept_v1")
+        self.assertTrue(self.config.runtime.model_selection_enabled)
+        weights = list(self.store.db.execute("SELECT * FROM memory_static"))
+        await self.run_turn()
+        bundle = self.event("requery_evidence")[0]["bundle"]
+        validate_bundle(bundle)
+        self.assertEqual([r["round_index"] for r in bundle["rounds"]], [0, 1, 2])
+        self.assertEqual(bundle["rounds"][0]["record"]["materials"], [])
+        for retrieval in bundle["rounds"]:
+            self.assertEqual(retrieval["record"]["graph_audit"]["selection"]
+                             ["concept_policy"]["policy"], "concept_v1")
+        material = bundle_model_materials(bundle)
+        self.assertEqual([(m["citation_id"], m["source_id"], m["round_index"])
+                          for m in material],
+                         [("M1", "synthetic:amber", 1), ("M2", "synthetic:cobalt", 2)])
+        self.assertEqual(bundle["rounds"][2]["parent_evidence_sha256"], digest({
+            **bundle, "rounds": bundle["rounds"][:2],
+            "materials": bundle["materials"][:1]}))
+        query_inputs = [json.loads(p["input"][0]["content"])
+                        for path, stage, p in self.requests if path == "/responses" and stage == "query"]
+        self.assertEqual(query_inputs[0]["evidence"], [])
+        self.assertEqual(query_inputs[1]["evidence"], material[:1])
+        self.assertEqual(query_inputs[2]["evidence"], material)
+        reply = next(p for path, stage, p in self.requests if path == "/responses" and stage == "reply")
+        final_context = json.loads(reply["input"][0]["content"].split("\n", 1)[1])
+        self.assertEqual(final_context["memory_citations"], material)
+        self.assertEqual(list(self.store.db.execute("SELECT * FROM memory_static")), weights)
+        self.assertEqual(self.event("answer_generated")[0]["record"]["unresolved_markers"], [])
+        report = verify_runs([self.entries()[0]])
+        self.assertEqual(report["issues"], [])
+        self.assertEqual(report["counts"]["complete"], 1)
+
+    async def test_default_concept_selection_summary_query_reply_share_one_budget_and_citations(self):
+        # A 1.2KB synthetic prior turn is small enough for the unchanged 4096
+        # selector admission. Narrow only this fixture's reply input window to
+        # trigger real compaction, and its cumulative output to verify narrowing.
+        self.config.runtime = RuntimeConfig(active_requery_enabled=True,
+            turn_seconds=30, summary_max_bytes=256, active_requery_output_tokens=1024)
+        budgets = dict(self.config.adapter.budgets)
+        budgets["reply"] = Budget(5500, 2048, 15, "medium")
+        self.config.adapter = replace(self.config.adapter, budgets=budgets)
+        self.adapter.config = self.config.adapter
+        self.runtime = create_runtime(self.config, self.store, self.adapter, self.scratch)
+        self.assertEqual(self.config.runtime.retrieval_policy, "concept_v1")
+        self.assertTrue(self.config.runtime.model_selection_enabled)
+        self.assertEqual(self.config.adapter.budgets["selection"].input_tokens, 4096)
+        self.message = replace(self.message, text="amber")
+        self.outputs = [action("cobalt", "amber"), done()]
+        previous = replace(self.message, message_id="synthetic-short-history",
+                           text="Synthetic continuity " + "x" * 1200)
+        self.store.begin(previous)
+        self.store.generated(previous.message_id, "Synthetic preceding observation.")
+        self.store.finish(previous, DeliveryReceipt(("synthetic-old-reply",),
+                                                   "Synthetic preceding observation."))
+        weights = list(self.store.db.execute("SELECT * FROM memory_static"))
+        await self.run_turn()
+        stages = [s for p, s, _ in self.requests if p == "/responses"]
+        self.assertEqual(stages, ["selection", "summary", "query", "query", "reply"])
+        self.assertEqual(len(self.event("model_selection_decision")), 1)
+        self.assertTrue(self.event("model_selection_decision")[0]["model_call_performed"])
+        selection = self.event("model_selection_input")[0]
+        self.assertLessEqual(selection["planning_reservation"], selection["planning_input_limit"])
+        self.assertEqual(json.loads(selection["messages"][0]["content"])["context_query"], previous.text)
+        watermark = self.event("context_watermark")[0]
+        self.assertGreater(watermark["raw_reservation"], watermark["raw_capacity"])
+        self.assertEqual(watermark["planned_source_seqs"], [1, 2])
+        self.assertEqual(len(self.event("checkpoint_saved")), 1)
+        self.assertEqual(self.store.checkpoint(self.message.scope)["summary"],
+                         "Synthetic bounded continuity summary.")
+        self.assertEqual(self.store.history(self.message.scope, 0)[0]["content"], previous.text)
+
+        ledger = self.saved_ledger()
+        final_audit = self.event("requery_budget_event")[-1]["ledger"]
+        self.assertEqual({k: v for k, v in ledger.items() if k != "elapsed_seconds"},
+                         {k: v for k, v in final_audit.items() if k != "elapsed_seconds"})
+        self.assertEqual(ledger["phase"], "completed")
+        self.assertEqual([c["stage"] for c in ledger["calls"]], stages)
+        self.assertEqual((ledger["input_tokens"], ledger["output_tokens"]), (320, 160))
+        self.assertEqual(sum(c["usage"]["input_tokens"] for c in ledger["calls"]), 320)
+        self.assertEqual(sum(c["usage"]["output_tokens"] for c in ledger["calls"]), 160)
+        self.assertEqual(ledger["calls"][1]["reserved_output_tokens"], 992)
+        self.assertEqual(ledger["calls"][-1]["reserved_output_tokens"], 896)
+        self.assertEqual(ledger["unknown_generation_count"], 0)
+        self.assertTrue(ledger["usage_complete"])
+        self.assertEqual(ledger["mode"], "mock")
+        self.assertEqual(ledger["estimated_cost_usd"], "0")
+        self.assertEqual(ledger["automatic_retries"], 0)
+        calls = self.event("call_end")
+        self.assertEqual([c["call_id"] for c in calls], [c["call_id"] for c in ledger["calls"]])
+        self.assertEqual({c["trace_id"] for c in calls}, {self.event("turn_start")[0]["trace_id"]})
+
+        bundle = self.event("requery_evidence")[0]["bundle"]
+        validate_bundle(bundle)
+        self.assertEqual(len(bundle["rounds"]), 2)
+        initial = self.event("retrieval_record")[0]["record"]
+        self.assertEqual(bundle["rounds"][0]["record"], initial)
+        self.assertEqual(bundle["rounds"][1]["parent_evidence_sha256"], digest({
+            **bundle, "rounds": bundle["rounds"][:1], "materials": bundle["materials"][:1]}))
+        # The newly ranked local M1 is cobalt. The old global M1 remains amber;
+        # append translation must give cobalt M2 rather than replacing amber.
+        self.assertEqual([(b["local_citation_id"], b["citation_id"])
+                          for b in bundle["rounds"][1]["bindings"]], [("M1", "M2"), ("M2", "M1")])
+        material = bundle_model_materials(bundle)
+        self.assertEqual([(m["citation_id"], m["source_id"], m["round_index"])
+                          for m in material],
+                         [("M1", "synthetic:amber", 0), ("M2", "synthetic:cobalt", 1)])
+        query_inputs = [json.loads(p["input"][0]["content"])
+                        for path, stage, p in self.requests if path == "/responses" and stage == "query"]
+        self.assertEqual(query_inputs[0]["evidence"], material[:1])
+        self.assertEqual(query_inputs[1]["evidence"], material)
+        reply = next(p for path, stage, p in self.requests if path == "/responses" and stage == "reply")
+        final_context = json.loads(reply["input"][0]["content"].split("\n", 1)[1])
+        self.assertEqual(final_context["continuity_summary"], "Synthetic bounded continuity summary.")
+        self.assertEqual(final_context["memory_citations"], material)
+        answer = self.event("answer_generated")[0]["record"]
+        self.assertEqual(answer["version"], 3)
+        self.assertEqual(answer["bundle_sha256"], digest(bundle))
+        self.assertEqual([(c["citation_id"], c["source_id"], c["round_index"], c["status"])
+                          for c in answer["citations"]],
+                         [("M1", "synthetic:amber", 0, "resolved"), ("M2", "synthetic:cobalt", 1, "resolved")])
+        self.assertEqual(list(self.store.db.execute("SELECT * FROM memory_static")), weights)
+        self.assertEqual(self.event("turn_end")[0]["status"], "delivered")
+        report = verify_runs([self.entries()[0]])
+        self.assertEqual(report["issues"], [])
+        self.assertEqual(report["counts"]["complete"], 1)
+        self.assertEqual(report["call_counts"]["complete"], 5)
 
     async def test_initial_selection_and_summary_share_cumulative_budget(self):
         self.message = replace(self.message, text="amber")

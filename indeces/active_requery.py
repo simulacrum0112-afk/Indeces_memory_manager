@@ -208,6 +208,7 @@ class TurnBudgetAdapter:
         self.calls, self.input_tokens, self.output_tokens = [], 0, 0
         self.cost = Decimal("0")
         self.halted, self.phase, self.last_call_id = None, "open", None
+        self._call_active = False
         self._save()
 
     def snapshot(self):
@@ -231,6 +232,9 @@ class TurnBudgetAdapter:
         _atomic_json(self.path, self.snapshot())
 
     def check(self):
+        if self.phase != "open":
+            raise GovernedError("active_requery_run_closed",
+                                remote_usage_unknown=self.halted == "requery_usage_unknown")
         if self.halted:
             raise GovernedError(self.halted, remote_usage_unknown=self.halted == "requery_usage_unknown")
         if time.monotonic() >= self.deadline:
@@ -239,16 +243,23 @@ class TurnBudgetAdapter:
             raise GovernedError(self.halted, remote_usage_unknown=False)
 
     def halt(self, code):
+        if self.phase != "open":
+            return
         # Preserve the first safety/stop cause across outer Runtime failures.
         if self.halted is None:
             self.halted = code
         self._save()
 
     def reject(self, code):
+        self.check()
         self.halt(code)
         raise GovernedError(code, remote_usage_unknown=False)
 
     def finish(self):
+        if self.phase != "open":
+            return
+        if self._call_active:
+            raise GovernedError("active_requery_call_in_progress", remote_usage_unknown=False)
         self.phase = ("halted" if self.halted in {"requery_usage_unknown", "requery_ledger_audit_failed",
                                                 "requery_provider_budget_breach"}
                       else "stopped" if self.halted else "completed")
@@ -258,6 +269,8 @@ class TurnBudgetAdapter:
 
     async def call(self, stage, instructions, messages, trace_id, schema=None, **kwargs):
         self.check()
+        if self._call_active:
+            raise GovernedError("active_requery_call_in_progress", remote_usage_unknown=False)
         reserve_reply = stage == "query"
         if len(self.calls) >= self.limits.active_requery_max_calls - int(reserve_reply):
             self.reject("requery_call_budget")
@@ -314,6 +327,7 @@ class TurnBudgetAdapter:
             if external_audit is not None:
                 OpenAIAdapter._audit(external_audit, event, **fields)
 
+        self._call_active = True
         try:
             result = await self.base.call(stage, instructions, messages, trace_id, schema,
                                           input_limit=input_limit, budget_override=budget, audit=audit, **kwargs)
@@ -334,6 +348,8 @@ class TurnBudgetAdapter:
                                       else "requery_call_failed")
             self._save()
             raise
+        finally:
+            self._call_active = False
 
 
 def context_with_bundle(messages, bundle, *, limitation=None):
@@ -354,6 +370,7 @@ class ActiveRequery:
         self.runtime, self.adapter, self.trace_id, self.message = runtime, adapter, trace_id, message
         self.bundle = None
         self.queries = set()
+        self.query_actions = []
         self.rounds = 0
         self.stop_reason = None
         self.fallback_text = None
@@ -435,6 +452,9 @@ class ActiveRequery:
                     raise GovernedError("requery_local_timeout", remote_usage_unknown=False)
                 before = len(bundle_model_materials(self.bundle))
                 self.append(frozen, request_id, planning_call_id)
+                self.query_actions.append({"evidence_round_index": len(self.bundle["rounds"]) - 1,
+                    "planning_call_id": planning_call_id, "action": deepcopy(action),
+                    "action_sha256": digest(action), "anchors_validated": True})
                 after = len(bundle_model_materials(self.bundle))
                 if not records or after == before:
                     self.stop("empty_results" if not records else "no_new_evidence")

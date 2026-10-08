@@ -1,0 +1,24 @@
+{
+  "schema": "offline_package_verification_v1",
+  "version": "0.17.0.dev3",
+  "loaded_package_verified": true,
+  "application_files_checked": 47,
+  "record_files_checked": 60,
+  "cli_help_exit_code": 0,
+  "record_script_relocations": [
+    {
+      "declared": "../../bin/indeces-manual.exe",
+      "verified": "bin\\indeces-manual.exe"
+    },
+    {
+      "declared": "../../bin/indeces.exe",
+      "verified": "bin\\indeces.exe"
+    }
+  ],
+  "console_banner_version_verified": true,
+  "console_lifecycle": "synthetic_immediate_quit",
+  "service_started": false,
+  "credentials_loaded": false,
+  "production_data_read": false,
+  "real_network_or_model_calls": 0
+}

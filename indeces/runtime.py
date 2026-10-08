@@ -5,6 +5,7 @@ import json
 import sqlite3
 import time
 import uuid
+from copy import deepcopy
 from dataclasses import asdict
 
 from .adapter import reservation
@@ -284,6 +285,24 @@ class Runtime:
                                            evidence_kind="bundle" if active is not None else "retrieval",
                                            evidence_sha256=digest(diagnostic_input), receipt=diagnostic,
                                            independent_diagnostic=True)
+                    if getattr(self.config.runtime, "path_hypotheses_enabled", False):
+                        from .path_hypotheses import PathHypothesesConfig, analyze_path_hypotheses
+                        path_input = bundle if active is not None else retrieval
+                        path_actions = active.query_actions if active is not None else []
+                        path_config = PathHypothesesConfig(enabled=True)
+                        try:
+                            path_receipt = analyze_path_hypotheses(path_input, path_actions, config=path_config,
+                                deadline=min(turn_deadline, time.monotonic() + path_config.max_seconds))
+                        except Exception as path_error:
+                            path_receipt = {"schema": "automatic_path_hypotheses_v1", "status": "unknown",
+                                            "reason": "diagnostic_error", "error_type": type(path_error).__name__,
+                                            "proof": False, "changes_selection": False,
+                                            "changes_base_weights": False}
+                        self.scratch.write("path_hypotheses_diagnostic", trace_id=trace_id,
+                            evidence_kind="bundle" if active is not None else "retrieval",
+                            evidence_sha256=digest(path_input), query_actions=deepcopy(path_actions),
+                            query_actions_sha256=digest(path_actions), receipt=path_receipt,
+                            independent_diagnostic=True)
                     instructions = (prompts.bot_reply_instructions(self.config.name) if message.author_is_bot
                                     else prompts.reply_instructions(self.config.name))
                     schema_fields = {"response_schema": prompts.BOT_REPLY_SCHEMA} if message.author_is_bot else {}

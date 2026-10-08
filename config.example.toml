@@ -32,6 +32,7 @@ active_requery_cost_usd = 0.0 # Mock-only until separate authorization and posit
 active_requery_input_usd_per_million = 0.0
 active_requery_output_usd_per_million = 0.0
 communicability_enabled = false # Independent frozen-neighborhood diagnostic; never changes ranking or evidence.
+path_hypotheses_enabled = false # Bounded automatic candidates and frozen source binding; hypotheses only.
 
 [knowledge]
 poll_seconds = 0.5

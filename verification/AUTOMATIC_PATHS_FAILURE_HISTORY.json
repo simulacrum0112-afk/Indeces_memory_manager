@@ -1,0 +1,65 @@
+{
+  "schema": "automatic_paths_failure_history_v1",
+  "historical_checkpoint": "3d2fea4a2114f5a84ef6f2582f6ecfeb10be10da",
+  "superseded_claims": [
+    "supplied typed-path validation is automatic source-bound search",
+    "finished successful budget object cannot admit again",
+    "legacy-only integration covers default concept_v1 complete chain"
+  ],
+  "retained_unit_failure": {
+    "started_utc": "2026-10-08T09:16:42.072465+00:00",
+    "elapsed_seconds": 2.062000000005355,
+    "command": "D:\\Indeces\\.venv\\Scripts\\python.exe -B -X utf8 -m unittest tests.test_path_hypotheses -v",
+    "tests_run": 14,
+    "failures": 1,
+    "errors": 0,
+    "skipped": 0,
+    "passed": false,
+    "network_calls": 0,
+    "model_calls": 0,
+    "fixtures": "fresh synthetic Store/MemoryGraph only",
+    "source_sha256": {
+      "indeces/path_hypotheses.py": "5d2638365f90a7b20d963d1a087394b1992b6f49c5777a9ba56675642058578a",
+      "tests/test_path_hypotheses.py": "4fdabd394ae847753b2d7face49dacf047f68c5ed8745a79f24af0019e72d7cb"
+    }
+  },
+  "corrected_owned_unit_run": {
+    "started_utc": "2026-10-08T09:20:56.890765+00:00",
+    "elapsed_seconds": 1.9839999999967404,
+    "command": "D:\\Indeces\\.venv\\Scripts\\python.exe -B -X utf8 -m unittest tests.test_path_hypotheses -v",
+    "tests_run": 16,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": true,
+    "network_calls": 0,
+    "model_calls": 0,
+    "fixtures": "fresh synthetic Store/MemoryGraph only",
+    "source_sha256": {
+      "indeces/path_hypotheses.py": "456eccd64b121c6b9cb8c2d211921e59b0d134a26eeacc32f27ef2fdd3bdb11f",
+      "tests/test_path_hypotheses.py": "dce9c00b7cb605cffd1dc059e013a9292b983445b3a02aeafed01c6c3af7800b",
+      "docs/AUTOMATIC_PATHS_OFFLINE.md": "52143536eda579f0b2e972c9af704bb327a50a7ff51b25a161c1ebc27ad65d51"
+    }
+  },
+  "artifact_sha256": {
+    "AUTOMATIC_PATHS_UNIT_RUN1.json": "f8f2f0eaba910e494e7c2b35a85db74f0359b568caec1c26b6199bab9cd8081c",
+    "AUTOMATIC_PATHS_UNIT_RUN1.log": "092359635157c1ba8f823d35307cdf30d06b5fc1ab2c3fc90007653c89a89bdf",
+    "AUTOMATIC_PATHS_UNIT_RUN2.json": "cc523dd81b40341a777ea79fb519efe8c74a5b6f8e38d189af5974acfca6d84a",
+    "AUTOMATIC_PATHS_UNIT_RUN2.log": "a6483ff7c82eac67930daba237bb4eb83684037cd4ef07aa9c52efd08361248c",
+    "CONCEPT_FIXTURE_DESIGN.json": "573a992619d983c6a497dfe9798e8514f3dc06bda7184255cebdeb7397840dc3",
+    "CONCEPT_FULL_CHAIN_RUN1.json": "1cd427771eb6db251805f38635a11e12688362aee90e874de6cd445cad5c301e",
+    "CONCEPT_FULL_CHAIN_RUN1.log": "ed5295caf0c20f36057cdc503ebba4ba85806d4397d4da313b70a069822f6f51"
+  },
+  "review_fixes": [
+    "terminal and in-flight admission guard",
+    "default concept_v1 selection/summary/query/reply single fixture",
+    "automatic bounded meeting generation and same-round frozen source resolution",
+    "partial/empty demand and independent negation stay unknown",
+    "predicate/direction/literal applicability filtering and unknown opposing facts",
+    "native model-material/citation binding guards",
+    "pre-encoding keys/escaped UTF-8/structure resource checks and binding cap"
+  ],
+  "historical_data_substituted": false,
+  "real_api_calls": 0,
+  "original_failed_quality_acceptance": "not replayed or reclassified"
+}

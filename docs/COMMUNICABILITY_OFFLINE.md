@@ -153,6 +153,17 @@ required. Known unknowns: certified floating-point error, full-graph behavior
 beyond the frozen neighborhood, real relation semantics, end-to-end latency and
 real-model usefulness remain unvalidated.
 
+## Automatic path generation is a separate layer
+
+The original `validate_path_meeting` function checks supplied typed paths;
+that validator alone does not generate paths or resolve supporting record IDs
+into frozen bodies. The revised snapshot adds `path_hypotheses.py` and the
+separate default-off `runtime.path_hypotheses_enabled` flow. See
+[AUTOMATIC_PATHS_OFFLINE.md](AUTOMATIC_PATHS_OFFLINE.md) for actual automatic
+search, meeting-point generation, same-round source binding and strict unknown
+cases. Sparse numerical convergence is neither a requirement nor a substitute
+for those provenance and logical-demand checks.
+
 ## Review failures and fixes
 
 Review reproduced two pre-checkpoint failures: a nonzero `1e-14` Arnoldi residual

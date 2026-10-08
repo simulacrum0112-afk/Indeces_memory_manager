@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
+import traceback
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -24,7 +25,9 @@ def _arguments():
                         help="Directory containing indeces/; default is this checkout")
     parser.add_argument("--output", type=Path, help="Save compact synthetic JSON receipt")
     parser.add_argument("--communicability", action="store_true",
-                        help="Also exercise the independent frozen graph and typed synthetic diagnostics")
+                        help="Also exercise the independent frozen graph numerical diagnostic")
+    parser.add_argument("--automatic-paths", action="store_true",
+                        help="Also discover typed paths automatically from frozen synthetic facts")
     return parser.parse_args()
 
 
@@ -38,7 +41,21 @@ def _action(term, original):
         "clarification": "", "stop_reason": ""}
 
 
-async def _smoke(package_root, communicability=False):
+def _path_action(terms, original):
+    def anchor(surface):
+        start = original.index(surface)
+        return {"surface": surface, "span": [start, start + len(surface)]}
+    value = _action(terms[0], original)
+    value["query"].update({"entities": [
+        dict(anchor("mockamber"), id="e1", canonical="alpha"),
+        dict(anchor("endpoint"), id="e2", canonical="beta")],
+        "relations": [dict(anchor("follows"), subject_id="e1", object_id="e2",
+            predicate="links", negated=False, direction="subject_to_object")],
+        "canonical_terms": terms})
+    return value
+
+
+async def _smoke(package_root, communicability=False, automatic_paths=False):
     from indeces import __version__
     import indeces
     from indeces.adapter import OpenAIAdapter
@@ -56,8 +73,10 @@ async def _smoke(package_root, communicability=False):
         raise RuntimeError("isolated package selection failed")
 
     requests, delivered = [], []
-    original = "unknown probe"
-    outputs = [_action("mockamber", original), _action("mockcobalt", original),
+    original = "mockamber follows endpoint" if automatic_paths else "mockamber"
+    make_action = (lambda term: _path_action([term, term + "diagnostic"], original)
+                   if automatic_paths else _action(term, original))
+    outputs = [make_action("mockcobalt"), make_action("mockdelta"),
                {"action": "answer", "query": None, "missing_evidence": [],
                 "clarification": "", "stop_reason": "evidence_sufficient"}]
     query_index = 0
@@ -75,10 +94,18 @@ async def _smoke(package_root, communicability=False):
                 raise AssertionError("unexpected extra planner generation")
             text = json.dumps(outputs[query_index])
             query_index += 1
+        elif stage == "selection":
+            data = json.loads(payload["input"][0]["content"])
+            text = json.dumps({"selected_record_ids": [
+                c["record_id"] for c in data["candidates"][:data["required_selection_count"]]]})
+        elif stage == "summary":
+            text = json.dumps({"summary": "Synthetic bounded continuity summary."})
         elif stage == "reply":
-            text = "Simulation only: synthetic observations [M1] and [M2]."
+            historical = json.loads(payload["input"][0]["content"].split("\n", 1)[1])
+            markers = " ".join(material["citation_marker"] for material in historical["memory_citations"])
+            text = "Simulation only: synthetic observations " + markers + "."
         else:
-            raise AssertionError("smoke has no selector, summary, or label generation")
+            raise AssertionError("unexpected synthetic model stage")
         return {"id": f"synthetic-{stage}-{len(requests)}", "status": "completed",
                 "usage": {"input_tokens": 64, "output_tokens": 32},
                 "output": [{"type": "message", "role": "assistant", "content": [
@@ -101,26 +128,48 @@ async def _smoke(package_root, communicability=False):
         scratch = ScratchLog(root / "scratch")
         adapter = None
         try:
+            runtime_options = {"active_requery_enabled": True,
+                "summary_max_bytes": 256, "active_requery_output_tokens": 1024,
+                "communicability_enabled": communicability}
+            if automatic_paths:
+                runtime_options["path_hypotheses_enabled"] = True
             config = SimpleNamespace(name="Indeces", state_dir=root / "state",
                 discord=DiscordConfig("10"),
-                runtime=RuntimeConfig(active_requery_enabled=True,
-                    model_selection_enabled=False, retrieval_policy="legacy_v1",
-                    communicability_enabled=communicability),
+                runtime=RuntimeConfig(**runtime_options),
                 adapter=AdapterConfig("gpt-6.1-sol", "https://api.openai.com/v1", {
-                    stage: Budget(16384, 2048, 15, "medium")
+                    stage: Budget(5500 if stage == "reply" else 16384, 2048, 15, "medium")
                     for stage in ("label", "summary", "reply")}))
             adapter = OpenAIAdapter(config.adapter, scratch, request=transport)
             adapter.offline_mock = True
             runtime = create_runtime(config, store, adapter, scratch)
+            if (config.runtime.retrieval_policy != "concept_v1"
+                    or not config.runtime.model_selection_enabled):
+                raise AssertionError("default retrieval and selector flags were changed")
             for suffix, mark, companion in (("amber", "mockamber", "amberdiagnostic"),
-                                            ("cobalt", "mockcobalt", "cobaltdiagnostic")):
+                                            ("cobalt", "mockcobalt", "mockcobaltdiagnostic"),
+                                            ("delta", "mockdelta", "mockdeltadiagnostic")):
                 text = f"Synthetic {suffix} observation is an isolated mock fixture."
                 runtime.graph.add("10:knowledge", "synthetic:" + suffix,
                     "synthetic-source-" + suffix,
                     [{"text": text, "quote": text, "marks": [mark, companion]}], 1.0)
+            if automatic_paths:
+                for suffix, subject, target in (("fact-left", "alpha", "beta"),
+                                                ("fact-right", "beta", "gamma")):
+                    text = "typed_facts_v1: " + json.dumps({"facts": [{"subject": subject,
+                        "object": target, "relation": "links", "polarity": "positive"}]})
+                    runtime.graph.add("10:knowledge", "synthetic:" + suffix,
+                        "synthetic-source-" + suffix,
+                        [{"text": text, "quote": text, "marks": [subject, target]}], 1.0)
             static_before = list(store.db.execute("SELECT * FROM memory_static"))
             message = IncomingMessage("synthetic-requery-smoke", "20", "10", "30",
                 "Synthetic operator", original, "2026-10-08T00:00:00Z")
+            previous = IncomingMessage("synthetic-prior-smoke", "20", "10", "30",
+                "Synthetic operator", "Synthetic continuity " + "x" * 1200,
+                "2026-10-08T00:00:00Z")
+            store.begin(previous)
+            store.generated(previous.message_id, "Synthetic preceding observation.")
+            store.finish(previous, DeliveryReceipt(("synthetic-prior-delivery",),
+                "Synthetic preceding observation."))
             await runtime.process(message, deliver)
             if adapter._session is not None:
                 raise AssertionError("real HTTP session created")
@@ -134,18 +183,31 @@ async def _smoke(package_root, communicability=False):
             bundle = events("requery_evidence")[0]["bundle"]
             validate_bundle(bundle)
             materials = bundle_model_materials(bundle)
-            if [m["citation_id"] for m in materials] != ["M1", "M2"]:
+            if [m["citation_id"] for m in materials][:2] != ["M1", "M2"]:
                 raise AssertionError("stable cumulative citations missing")
-            if [m["source_id"] for m in materials] != ["synthetic:amber", "synthetic:cobalt"]:
-                raise AssertionError("unexpected synthetic source selection")
+            if materials[0]["source_id"] != "synthetic:amber" or materials[0]["round_index"] != 0:
+                raise AssertionError("initial citation was replaced")
+            if [r["round_index"] for r in bundle["rounds"]] != [0, 1, 2]:
+                raise AssertionError("two additional graph query rounds missing")
+            if any(not any(m["round_index"] == index for m in materials) for index in (1, 2)):
+                raise AssertionError("a query round added no new material")
+            if any(r["record"]["graph_audit"]["selection"]["concept_policy"]["policy"]
+                   != "concept_v1" for r in bundle["rounds"]):
+                raise AssertionError("native query bypassed configured concept policy")
             stages = [stage for path, stage, _ in requests if path == "/responses"]
-            if stages != ["query", "query", "query", "reply"]:
+            if stages != ["selection", "summary", "query", "query", "query", "reply"]:
                 raise AssertionError("unexpected model stage order")
+            if (len(events("model_selection_decision")) != 1
+                    or not events("model_selection_decision")[0]["model_call_performed"]
+                    or len(events("checkpoint_saved")) != 1):
+                raise AssertionError("real selector or summary execution missing")
             reply = next(payload for path, stage, payload in requests
                          if path == "/responses" and stage == "reply")
             historical = json.loads(reply["input"][0]["content"].split("\n", 1)[1])
             if historical["memory_citations"] != materials:
                 raise AssertionError("new evidence did not reach final model input")
+            if historical["continuity_summary"] != "Synthetic bounded continuity summary.":
+                raise AssertionError("actual summary did not reach final model input")
             if len(delivered) != 1 or events("turn_end")[0]["status"] != "delivered":
                 raise AssertionError("single synthetic delivery missing")
             report = verify_runs(paths)
@@ -155,7 +217,6 @@ async def _smoke(package_root, communicability=False):
             ledger = events("requery_budget_event")[-1]["ledger"]
             diagnostic_fields = {}
             if communicability:
-                from indeces.communicability import TypedEdge, PathRequirement, validate_path_meeting
                 from indeces.run_records import digest
                 diagnostics = events("communicability_diagnostic")
                 if len(diagnostics) != 1 or diagnostics[0]["evidence_sha256"] != digest(bundle):
@@ -168,23 +229,68 @@ async def _smoke(package_root, communicability=False):
                     raise AssertionError("association diagnostic contract failed")
                 if diagnostic["status"] == "unknown" and numerical.get("reason") != "krylov_or_matvec_limit":
                     raise AssertionError("unexpected diagnostic metadata or numeric error")
-                typed = validate_path_meeting(
-                    [TypedEdge("mock-demand", "mock-meeting", "requires", ("synthetic-demand-source",),
-                               time_window=(1.0, 2.0), scope="synthetic-scope")],
-                    [TypedEdge("mock-meeting", "mock-observation", "reports", ("synthetic-data-source",),
-                               time_window=(1.0, 2.0), scope="synthetic-scope")],
-                    requirements=[PathRequirement("mock-demand", "mock-meeting", "requires", time_window=(1.0, 2.0),
-                                     scope="synthetic-scope")])
-                if typed["status"] != "pending_hypothesis" or typed["proof"] is not False:
-                    raise AssertionError("typed synthetic meeting contract failed")
                 diagnostic_fields = {"communicability": {
                     "status": diagnostic["status"], "edge_count": len(diagnostic["edges"]),
                     "evidence_kind": diagnostics[0]["evidence_kind"],
                     "semantic_status": diagnostic["semantic_status"], "proof": False,
                     "numerical_accepted_observation": diagnostic["numerical"].get("accepted", False),
                     "matvecs": numerical["matvecs"], "numerical_stop_reason": numerical.get("reason"),
-                    "certified_total_error_bound": diagnostic["numerical"].get("certified_total_error_bound"),
-                    "typed_fixture_status": typed["status"], "typed_source_truth_verified": typed["source_truth_verified"]}}
+                    "certified_total_error_bound": diagnostic["numerical"].get("certified_total_error_bound")}}
+            if automatic_paths:
+                from indeces.run_records import digest
+                diagnostics = events("path_hypotheses_diagnostic")
+                if (len(diagnostics) != 1 or diagnostics[0]["evidence_sha256"] != digest(bundle)
+                        or not diagnostics[0]["independent_diagnostic"]
+                        or diagnostics[0]["query_actions_sha256"] != digest(diagnostics[0]["query_actions"])):
+                    raise AssertionError("automatic paths diagnostic binding failed")
+                actions = diagnostics[0]["query_actions"]
+                if (len(actions) != 2 or [a["evidence_round_index"] for a in actions] != [1, 2]
+                        or any(a["anchors_validated"] is not True for a in actions)):
+                    raise AssertionError("automatic query wrappers are not bound to both actual rounds")
+                automatic = diagnostics[0]["receipt"]
+                candidates = automatic.get("candidates", [])
+                pending = [candidate for candidate in candidates if candidate["status"] == "pending_hypothesis"]
+                if (automatic["status"] != "pending_hypothesis" or not pending
+                        or not automatic.get("meetings")
+                        or any(item["automatic"] is not True for item in automatic["meetings"])
+                        or automatic["proof"] is not False):
+                    raise AssertionError("automatic frozen graph meeting was not discovered")
+                catalog = {m["evidence_uid"]: m for m in bundle["materials"]}
+                for candidate in pending:
+                    if not candidate["edge_bindings"] or candidate["proof"] is not False:
+                        raise AssertionError("pending path has no frozen source binding")
+                    for binding in candidate["edge_bindings"]:
+                        material = catalog[binding["evidence_uid"]]
+                        if (binding["citation_id"] != material["citation_id"]
+                                or binding["source_id"] != material["material"]["source_id"]
+                                or binding["quote_sha256"] != hashlib.sha256(
+                                    material["material"]["quote"].encode("utf-8")).hexdigest()):
+                            raise AssertionError("automatic path source binding does not match frozen evidence")
+                diagnostic_fields["automatic_paths"] = {
+                    "status": automatic["status"], "receipt_sha256": digest(automatic),
+                    "query_action_count": len(actions), "candidate_count": len(candidates),
+                    "automatic_meeting_count": len(automatic["meetings"]),
+                    "pending_hypothesis_count": len(pending),
+                    "unknown_candidate_count": sum(c["status"] == "unknown" for c in candidates),
+                    "rejected_candidate_count": sum(c["status"] == "rejected" for c in candidates),
+                    "source_bindings_verified_against_bundle": True,
+                    "proof": False, "truth_verified": automatic["truth_verified"],
+                    "semantic_support_verified": automatic["semantic_support_verified"],
+                    "proposals_verified": automatic["proposals_verified"],
+                    "incomplete": automatic["incomplete"],
+                    "incomplete_reasons": automatic["incomplete_reasons"],
+                    "stats": automatic["stats"],
+                    "candidates": [{"candidate_sha256": digest(candidate),
+                        "status": candidate["status"], "reasons": candidate["reasons"],
+                        "round_index": candidate["round_index"], "request_id": candidate["request_id"],
+                        "planning_call_id": candidate["planning_call_id"],
+                        "path_node_count": len(candidate["path_nodes"]),
+                        "meeting_node_sha256": hashlib.sha256(candidate["meeting_node"].encode()).hexdigest(),
+                        "bindings": [{key: binding[key] for key in (
+                            "edge_id", "evidence_uid", "citation_id", "source_id",
+                            "quote_sha256", "stored_text_sha256", "fact_line_sha256")}
+                            for binding in candidate["edge_bindings"]]}
+                        for candidate in candidates]}
             return {"schema": "active_requery_mock_smoke_v1", "simulation_only": True,
                 "package_version": __version__, "package_root_verified": True,
                 "package_init_sha256": hashlib.sha256(Path(indeces.__file__).read_bytes()).hexdigest(),
@@ -192,7 +298,9 @@ async def _smoke(package_root, communicability=False):
                 "service_started": False, "discord_gateway_started": False,
                 "credentials_loaded": False, "production_data_read": False,
                 "real_network_calls": 0, "real_model_calls": 0,
-                "initial_model_selector_enabled": False,
+                "initial_model_selector_enabled": True,
+                "retrieval_policy": config.runtime.retrieval_policy,
+                "actual_summary_checkpoint_saved": True,
                 "generation_stages": stages, "mock_transport_requests": len(requests),
                 "retrieval_rounds": [{"round_index": item["round_index"],
                     "request_id": item["request_id"],
@@ -225,13 +333,28 @@ def main():
     if not (package_root / "indeces" / "__init__.py").is_file():
         raise SystemExit("package root must contain indeces/__init__.py")
     sys.path.insert(0, str(package_root))
-    receipt = asyncio.run(_smoke(package_root, arguments.communicability))
+    try:
+        receipt = asyncio.run(_smoke(package_root, arguments.communicability, arguments.automatic_paths))
+        exit_code = 0
+    except Exception as error:
+        # Never print arbitrary exception text: imported components may carry
+        # source bodies. A failed receipt remains useful without private data.
+        frame = traceback.extract_tb(error.__traceback__)[-1]
+        receipt = {"schema": "active_requery_mock_smoke_v1", "simulation_only": True,
+                   "status": "failed", "error_type": type(error).__name__,
+                   "error_location": {"module": Path(frame.filename).name,
+                                      "function": frame.name, "line": frame.lineno},
+                   "automatic_paths_requested": arguments.automatic_paths,
+                   "communicability_requested": arguments.communicability,
+                   "real_network_calls": 0, "real_model_calls": 0}
+        exit_code = 1
     text = json.dumps(receipt, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False) + "\n"
     if arguments.output:
         arguments.output.parent.mkdir(parents=True, exist_ok=True)
         arguments.output.write_text(text, encoding="utf-8")
     print(text, end="")
+    return exit_code
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

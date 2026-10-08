@@ -24,12 +24,13 @@ sys.path.insert(0, str(ROOT))
 from indeces.adapter import OpenAIAdapter
 
 PHASES = {
-    "one": ["tests.test_active_requery", "tests.test_requery_records",
+    "one": ["tests.test_active_requery", "tests.test_active_requery_terminal", "tests.test_requery_records",
             "tests.test_model_selection_optional", "tests.test_model_selection",
             "tests.test_run_records", "tests.test_adapter", "tests.test_context",
             "tests.test_remaining_input_records", "tests.test_bot_reply_records",
             "tests.test_local_retrieval_deadline"],
     "two": ["tests.test_communicability", "tests.test_active_communicability"],
+    "paths": ["tests.test_path_hypotheses", "tests.test_active_path_hypotheses"],
 }
 
 
@@ -82,7 +83,7 @@ def main():
                "existing_question_or_gold_data_read": False, "transport": counters,
                "source_sha256": {str(p.relative_to(ROOT)).replace("\\", "/"): hashlib.sha256(p.read_bytes()).hexdigest()
                                   for p in sorted((ROOT / "indeces").rglob("*.py"))
-                                  if args.phase != "one" or p.name != "communicability.py"},
+                                  },
                "command": f"python -X utf8 -B verification/run_active_requery_offline.py --phase {args.phase}"}
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

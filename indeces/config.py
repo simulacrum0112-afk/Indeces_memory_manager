@@ -58,11 +58,13 @@ class RuntimeConfig:
     active_requery_input_usd_per_million: float = 0.0
     active_requery_output_usd_per_million: float = 0.0
     communicability_enabled: bool = False
+    path_hypotheses_enabled: bool = False
 
     def __post_init__(self):
         if type(self.model_selection_enabled) is not bool:
             raise ValueError("runtime.model_selection_enabled must be a boolean")
-        for key in ("active_requery_enabled", "active_requery_allow_real_calls", "communicability_enabled"):
+        for key in ("active_requery_enabled", "active_requery_allow_real_calls", "communicability_enabled",
+                    "path_hypotheses_enabled"):
             if type(getattr(self, key)) is not bool:
                 raise ValueError(f"runtime.{key} must be a boolean")
         for key, upper in (("active_requery_max_rounds", 4), ("active_requery_max_calls", 12),

@@ -146,9 +146,18 @@ It lists its exact module selection and writes source identities and actual
 results to an explicitly requested local output. Retain unsuccessful receipts
 beside successful reruns. A long raw history may still be rejected by the
 unchanged initial selector's 4096-byte admission before summary runs. Summary
-execution is therefore tested separately with initial selection disabled;
-testing that all calls share a ledger must not be reported as proof that a
-single fixture executed all four stages successfully.
+execution was initially tested separately with initial selection disabled.
+The revision adds a short synthetic history and narrower test-only reply
+input budget, allowing one fixture to execute initial selection, summary,
+two native queries and final reply with the default `concept_v1` policy.
+Production defaults and the selector admission are unchanged. The fixture
+checks one five-call cumulative ledger and stable local-to-global citations;
+it does not establish real latency or semantic correctness.
+
+All finished in-memory budget objects now reject further admission, including
+successful `completed` objects. Repeated `finish`, late `halt` and late
+`reject` preserve the original durable terminal bytes and first stop cause.
+Unknown usage retains its reservation and cannot buy a retry or refund.
 
 ## Rollback and remaining validation
 

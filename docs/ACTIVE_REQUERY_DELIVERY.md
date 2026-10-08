@@ -1,127 +1,120 @@
-# Independent offline feasibility delivery
+# Revised independent offline feasibility delivery
 
-This snapshot is confined to
-`D:\Indeces\build\active-requery-feasibility-20261008\checkout`, branch
-`work/active-requery-feasibility-20261008`. Its published base is
-`152503bf99b2fb092257b703b53f52470dc2fcd3` (`0.16.1`). The original dirty
-`D:\Indeces` checkout, installed production package, configuration, databases,
-and process have not been switched by this work.
+This revision closes three gaps in checkpoint two: successful finished budget
+objects could admit again, the integration fixture used `legacy_v1`, and the
+supplied-path validator did not implement automatic path search/source-body
+resolution. Original commits, experiments and failed receipts remain preserved;
+their results do not establish those missing features.
 
-Checkpoint one is local commit
-`fc2fd952a3d1b0457b1c77bf133de26748b8311c` (`0.17.0.dev1`): bounded structured
-actions, actual local static graph queries, immutable cumulative evidence and
-budget/run-record verification. Checkpoint two adds the independent sparse
-Krylov and typed-path diagnostics (`0.17.0.dev2`). Its final full commit and
-source manifest are in the adjacent `CHECKPOINT_TWO.json` / `DELIVERY.json`;
-they are not inferred from this version string. Neither checkpoint was pushed.
+Worktree: `D:\Indeces\build\active-requery-feasibility-20261008\checkout`.
+Branch: `work/active-requery-feasibility-20261008`.
+Published base: `152503bf99b2fb092257b703b53f52470dc2fcd3` (`0.16.1`).
+Prior local checkpoints: `fc2fd952a3d1b0457b1c77bf133de26748b8311c`
+(`0.17.0.dev1`) and `3d2fea4a2114f5a84ef6f2582f6ecfeb10be10da`
+(`0.17.0.dev2`). Revised version: `0.17.0.dev3`. Adjacent
+`CHECKPOINT_THREE.json` / `DELIVERY_REVISION.json` record the exact new commit,
+all 47 application source hashes and manifest digest. Version strings are not
+source identity. No checkpoint was pushed; original dirty files, production
+package/configuration/databases and existing processes were not switched.
 
-Both Runtime feature flags default to false:
+## Implemented changes and validation
 
-```toml
-[runtime]
-active_requery_enabled = false
-communicability_enabled = false
-```
+All terminal budget objects reject admission. Late halt/reject, repeated finish
+and expired deadlines preserve durable terminal bytes/first cause. In-flight
+calls cannot be prematurely finished or admit concurrent calls. Unknown usage
+keeps its reservation with no refund or automatic retry.
 
-Real active-query admission is additionally disabled, with zero configured
-cost cap/prices. This task permits simulation, not real provider calls.
+Default `concept_v1` has a direct two-query immutable-append regression. Another
+single fixture executes selection, actual summary, two queries and final reply;
+its five-call ledger records synthetic usage 320 input/160 output. Local query
+M1 becomes global M2 while original global M1 remains intact. Only test reply
+window/history parameters trigger summary; production defaults, the 4096-byte
+selector admission and model/stage caps remain unchanged.
 
-## Actual validation
+The new independent path layer consumes actual native frozen graph rounds and
+validated query actions. It automatically searches from both endpoints, finds
+meetings, and resolves each support ID against same-round selected source
+bodies, versions/hashes, UIDs and citations. Missing IDs are named; later rounds
+cannot supply older bodies. Ordinary prose has no typed relation and remains
+unknown. Explicit `typed_facts_v1` quote lines supply declarations; no paths are
+handed to the new API. See [AUTOMATIC_PATHS_OFFLINE.md](AUTOMATIC_PATHS_OFFLINE.md).
 
-| Command / scope | Final result |
+| Executed command/scope | Frozen revision result |
 | --- | --- |
-| `python -X utf8 -B verification/run_active_requery_offline.py --phase one` at checkpoint one | 203 tests, 0 failures/errors/skips |
-| Same selected regression group after diagnostic wiring | 203 tests, 0 failures/errors/skips |
-| `python -X utf8 -B verification/run_active_requery_offline.py --phase two` | 44 tests: 34 numerical/metadata/typed, 10 Console Runtime integration; 0 failures/errors/skips |
-| `python -X utf8 -B verification/mock_active_requery.py` | Two additional native retrievals, cumulative M1/M2 in final mock input; run-record complete 1/issues 0 |
-| Same script with `--communicability` from source and isolated installed wheel | Native multi-round bundle diagnosed; one final mock delivery; unchanged static weights; complete 1/issues 0 |
-| `verification/build_offline_snapshot.py` with explicit local wheelhouse | Build tools, wheel build, isolated target install: each exit 0; `--no-index`, no dependency download |
-| `verification/verify_offline_package.py` | 46 Python source files match tested identities; 59 RECORD entries checked; CLI help exit 0; real Console run banner prints `0.17.0.dev2` under synthetic immediate quit |
+| `verification/run_active_requery_offline.py --phase one` | 212 tests; 0 failures/errors/skips |
+| Same harness `--phase two` | 44 tests; 0 failures/errors/skips |
+| Same harness `--phase paths` | 27 tests: 16 module + 11 Console; 0 failures/errors/skips |
+| `verification/mock_active_requery.py --automatic-paths --communicability` | Source and isolated installed wheel both exit 0; complete 1/issues 0 |
+| `verification/build_offline_snapshot.py` with explicit local wheelhouse | Build tools/wheel/isolated target install each exit 0; no index/download |
+| `verification/verify_offline_package.py` | 47 Python identities/60 RECORD entries; CLI help exit 0; actual Console run banner `0.17.0.dev3` under synthetic immediate quit |
 
-There are **247 distinct tests across the two selected groups**, rather than a
-full-suite claim. Repeated runs are not added to this total. Command receipts,
-exact module lists and source hashes are committed under `verification/`.
-Original successful and unsuccessful full harness logs remain beside the
-checkout. Failure histories identify earlier logs that were not retained in
-full, instead of reconstructing them.
+**283 distinct tests** are in three selected groups, not full repository
+discovery. Repeated runs are not added. Final receipts under `verification/`
+pin exact modules, hashes and transport counts; full logs are beside checkout.
+The first automatic-path unit run had 14 tests/one classification failure;
+its full JSON/log is preserved. The corrected 16-test run and final 27-test
+group passed. Failure history explicitly identifies earlier missing stdout;
+no lost history has been reconstructed.
 
-The build used an existing local cached setuptools 84.0.0 wheel, SHA256
+The offline build uses existing cached setuptools 84.0.0, SHA256
 `51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670`.
-It installed build tools and the application into fresh artifact directories,
-without changing the active virtual environment. The application wheel is
-`indeces_memory_manager-0.17.0.dev2-py3-none-any.whl`, SHA256
-`715f317224f8d2544337ffefdffa45bd9ef09068694d6ac2da7edf1f8c7a3548`.
-The package verifier checks pip's two generated launcher relocations inside
-the isolated target directory and refuses other escaping RECORD paths.
+The wheel `indeces_memory_manager-0.17.0.dev3-py3-none-any.whl` has SHA256
+`f782314616d53326ce5030505f180553fa81075dcfb527fe67597d036acc33a7`.
+No active venv/production installation changed. Package verification checks
+the two expected target-local launcher relocations and rejects other escaping
+RECORD paths.
 
-## Simulation stages and limits
+## Combined simulation and remaining unknowns
 
-The standalone smoke disables the initial model selector. Its original
-synthetic query has no result; additional query one contributes M1, query two
-contributes M2, then the planner selects answer. Generation stages are
-`query/query/query/reply`, eight injected count/generation transport requests,
-synthetic usage 256 input / 128 output. All new evidence reaches the final mock
-input, earlier rounds remain intact, and no static weight changes. No historical
-questions, answers, gold, user sources or production state enter this fixture.
+One fresh synthetic question/history/source fixture executes
+`selection → summary → query → query → query(answer) → reply`: six generations,
+twelve injected count/generation requests, synthetic usage 384/192, one ledger
+and one delivery. Per-round selected counts are 1/3/3. Immutable citations grow
+M1 → M1–M4 → M1–M5, all reaching final mock input. No old questions, gold or
+production sources enter this fixture.
 
-The diagnostic actually performs four sparse matvecs on two copied association
-edges. With unchanged default numerical caps it reports `unknown`,
-`accepted=false`, reason `krylov_or_matvec_limit`. This is a valid bounded
-unaccepted observation, not numerical convergence. It does not change the
-selected evidence or final mock response. Analytic numerical fixtures in the
-module group separately observe convergence. Certified floating-point error
-remains unknown (`certified_total_error_bound=None`) in every case.
+Automatic search produces two candidates/two meetings with source bindings
+cross-checked against the frozen bundle. Status is only `pending_hypothesis`,
+with `incomplete=true/frozen_neighborhood_only`; proof/truth/semantic-support/
+proposal verification all remain false. This checks an explicit declaration
+and frozen byte contract, not truth, semantic equivalence or scientific proof.
+Native positive fixtures exercise `record_content_version`. Real knowledge
+versions, original PDF bytes and PDF semantics were not accepted here.
 
-The graph's NPMI edges are undirected cooccurrence, even though the index has
-addressable directed keys. The graph diagnostic therefore always reports
-`insufficient_relation_semantics`. The separate explicitly typed synthetic
-path fixture returns only `pending_hypothesis`, `proof=false`, and
-`source_truth_verified=false`. It verifies declared constraints and traceability,
-not source truth, entailment, a derived scientific relation, or private reasoning.
+The numerical diagnostic performs nine matvecs on five copied association edges.
+At unchanged default caps it retains `unknown`, `accepted=false`, reason
+`krylov_or_matvec_limit`. Certified total floating-point error remains unknown;
+NPMI cooccurrence retains `insufficient_relation_semantics`. Neither diagnostic
+enters selection/context or changes base weights. Cooperative work/audit writes
+consume shared turn time and can affect delivery; there is no OS hard deadline.
 
-The active-query ledger includes the initial selector and any summary when
-those stages execute. The unchanged selector can reject long raw history
-before summary; summary execution is tested independently with initial
-selection disabled. No single fixture is claimed to have executed all four
-stages. Stops preserve first cause and usage, unknown generation usage remains
-sticky, terminal ledgers cannot be reopened, and there is no retry or refund.
+Not run: full unittest discovery, remote CI, historical Q1/Q2/Q3 or 20/7 replay,
+gold scoring, real model/API/latency/Discord, real knowledge/PDF version
+acceptance, production switch, push/merge/deploy or remote publication. Existing
+failed quality acceptance remains failed/unresolved. Synthetic plumbing is not
+evidence of real answer-quality improvement or production readiness.
 
-## Reproduce and rollback
+## Reproduce, rollback and current Console
 
-From this isolated checkout, using existing dependencies:
+Use existing `D:\Indeces\.venv\Scripts\python.exe -X utf8 -B` with the commands
+above from the isolated checkout. Smoke also accepts `--package-root` pointing
+to its isolated installation. Build/verifier `--help` shows exact arguments;
+build requires a fresh output root and local wheelhouse, preserving history.
 
-```powershell
-D:\Indeces\.venv\Scripts\python.exe -X utf8 -B verification\run_active_requery_offline.py --phase one
-D:\Indeces\.venv\Scripts\python.exe -X utf8 -B verification\run_active_requery_offline.py --phase two
-D:\Indeces\.venv\Scripts\python.exe -X utf8 -B verification\mock_active_requery.py --communicability
-```
+Keep `active_requery_enabled`, `communicability_enabled` and
+`path_hypotheses_enabled` false to retain the established path. Real query
+admission/prices/cost cap also remain disabled/zero. A clean isolated worktree
+can return to the published base; do not reset original dirty files, delete
+state or replace a running instance. No schema/index/source migration or service
+rollback occurred. Adjacent dev3 zip/patch and `ARTIFACTS_REVISION.json` provide
+CRC/SHA256 and exact-base patch validation. Changed-file secret scanning does
+not substitute for public Git-history audit.
 
-The smoke supports `--package-root <isolated-installed-directory>`. Build and
-package verification scripts expose their exact required arguments through
-`--help`. Builds require a fresh output directory and an explicit local
-setuptools wheelhouse; they refuse to overwrite earlier artifacts.
-
-Leave both flags off to retain the established reply path. In a clean isolated
-worktree, switching to checkpoint one removes the diagnostic layer; switching
-to the published base removes both experiments. Do not reset the original
-dirty checkout, delete existing state, or change a running instance. There is
-no schema migration, production configuration change, or service rollback to
-perform for this offline delivery.
-
-## Current Console and unrun acceptance
-
-Read-only checks find a visible responsive WindowsTerminal titled
-`Indeces Console 0.16.1`, with existing Python PID 61316 still alive. The current
-launcher help exits 0 and its 43 installed Python files match the published
-manifest. This is a process/window check, not a fresh Discord or model-health
-test. The generic launcher uses the installed package's version. The old
-`Indeces-Console-04.cmd` still names an old development package; it was not
-modified here, and no current startup failure was reproduced from the generic
-entry. The exact entry used for the user's failure remains unconfirmed.
-
-Not run: full repository unittest discovery, remote CI, old 20/7-question or
-Q1/Q2/Q3 replay, gold-based relevance/answer scoring, real model calls, real API
-latency, Discord questions, production switch, commit/tag publication, push,
-merge or deployment. Earlier failed quality acceptance has not been reclassified.
-The resulting code is a runnable offline feasibility snapshot, not evidence
-of real answer-quality improvement or production readiness.
+Read-only checks find Python PID 61316/wrapper 64220 alive and responsive
+WindowsTerminal PID 59700 titled `Indeces Console 0.16.1`. This is window/process
+evidence, not fresh Discord/model health. Generic launcher help previously
+exited 0 and its 43 installed files matched the published manifest. Old
+`Indeces-Console-04.cmd` still points to an old development installation and
+is preserved. The user's exact failed entry is unconfirmed; no reproduced
+startup cause or repair is claimed. The isolated dev3 Console banner is verified
+separately above.
