@@ -23,6 +23,8 @@ def _arguments():
     parser.add_argument("--package-root", type=Path,
                         help="Directory containing indeces/; default is this checkout")
     parser.add_argument("--output", type=Path, help="Save compact synthetic JSON receipt")
+    parser.add_argument("--communicability", action="store_true",
+                        help="Also exercise the independent frozen graph and typed synthetic diagnostics")
     return parser.parse_args()
 
 
@@ -36,7 +38,7 @@ def _action(term, original):
         "clarification": "", "stop_reason": ""}
 
 
-async def _smoke(package_root):
+async def _smoke(package_root, communicability=False):
     from indeces import __version__
     import indeces
     from indeces.adapter import OpenAIAdapter
@@ -102,7 +104,8 @@ async def _smoke(package_root):
             config = SimpleNamespace(name="Indeces", state_dir=root / "state",
                 discord=DiscordConfig("10"),
                 runtime=RuntimeConfig(active_requery_enabled=True,
-                    model_selection_enabled=False, retrieval_policy="legacy_v1"),
+                    model_selection_enabled=False, retrieval_policy="legacy_v1",
+                    communicability_enabled=communicability),
                 adapter=AdapterConfig("gpt-6.1-sol", "https://api.openai.com/v1", {
                     stage: Budget(16384, 2048, 15, "medium")
                     for stage in ("label", "summary", "reply")}))
@@ -150,6 +153,38 @@ async def _smoke(package_root):
             if report["issues"] or report["counts"]["complete"] != 1:
                 raise AssertionError("synthetic run-record verification failed")
             ledger = events("requery_budget_event")[-1]["ledger"]
+            diagnostic_fields = {}
+            if communicability:
+                from indeces.communicability import TypedEdge, PathRequirement, validate_path_meeting
+                from indeces.run_records import digest
+                diagnostics = events("communicability_diagnostic")
+                if len(diagnostics) != 1 or diagnostics[0]["evidence_sha256"] != digest(bundle):
+                    raise AssertionError("diagnostic is not bound to the completed bundle")
+                diagnostic = diagnostics[0]["receipt"]
+                numerical = diagnostic.get("numerical", {})
+                if (not diagnostic.get("edges") or numerical.get("matvecs", 0) <= 0
+                        or diagnostic["proof"] is not False
+                        or diagnostic["semantic_status"] != "insufficient_relation_semantics"):
+                    raise AssertionError("association diagnostic contract failed")
+                if diagnostic["status"] == "unknown" and numerical.get("reason") != "krylov_or_matvec_limit":
+                    raise AssertionError("unexpected diagnostic metadata or numeric error")
+                typed = validate_path_meeting(
+                    [TypedEdge("mock-demand", "mock-meeting", "requires", ("synthetic-demand-source",),
+                               time_window=(1.0, 2.0), scope="synthetic-scope")],
+                    [TypedEdge("mock-meeting", "mock-observation", "reports", ("synthetic-data-source",),
+                               time_window=(1.0, 2.0), scope="synthetic-scope")],
+                    requirements=[PathRequirement("mock-demand", "mock-meeting", "requires", time_window=(1.0, 2.0),
+                                     scope="synthetic-scope")])
+                if typed["status"] != "pending_hypothesis" or typed["proof"] is not False:
+                    raise AssertionError("typed synthetic meeting contract failed")
+                diagnostic_fields = {"communicability": {
+                    "status": diagnostic["status"], "edge_count": len(diagnostic["edges"]),
+                    "evidence_kind": diagnostics[0]["evidence_kind"],
+                    "semantic_status": diagnostic["semantic_status"], "proof": False,
+                    "numerical_accepted_observation": diagnostic["numerical"].get("accepted", False),
+                    "matvecs": numerical["matvecs"], "numerical_stop_reason": numerical.get("reason"),
+                    "certified_total_error_bound": diagnostic["numerical"].get("certified_total_error_bound"),
+                    "typed_fixture_status": typed["status"], "typed_source_truth_verified": typed["source_truth_verified"]}}
             return {"schema": "active_requery_mock_smoke_v1", "simulation_only": True,
                 "package_version": __version__, "package_root_verified": True,
                 "package_init_sha256": hashlib.sha256(Path(indeces.__file__).read_bytes()).hexdigest(),
@@ -173,6 +208,7 @@ async def _smoke(package_root):
                 "usage": {key: ledger[key] for key in ("input_tokens", "output_tokens",
                     "estimated_cost_usd", "cost_basis", "usage_complete", "unknown_generation_count")},
                 "ledger_phase": ledger["phase"],
+                **diagnostic_fields,
                 "verify_runs": {"counts": report["counts"], "issues_count": len(report["issues"])},
                 "scratch_envelope_verification": envelope,
                 "semantic_support": "not_evaluated", "real_quality_or_latency": "not_measured"}
@@ -189,7 +225,7 @@ def main():
     if not (package_root / "indeces" / "__init__.py").is_file():
         raise SystemExit("package root must contain indeces/__init__.py")
     sys.path.insert(0, str(package_root))
-    receipt = asyncio.run(_smoke(package_root))
+    receipt = asyncio.run(_smoke(package_root, arguments.communicability))
     text = json.dumps(receipt, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False) + "\n"
     if arguments.output:
         arguments.output.parent.mkdir(parents=True, exist_ok=True)

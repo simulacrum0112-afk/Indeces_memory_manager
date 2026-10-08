@@ -1,0 +1,90 @@
+{
+  "schema": "communicability_failure_history_v1",
+  "simulation_only": true,
+  "original_artifacts_preserved": true,
+  "runs": [
+    {
+      "name": "integration_run1",
+      "receipt": {
+        "kind": "synthetic_offline_integration_test",
+        "command": "D:\\Indeces\\.venv\\Scripts\\python.exe -X utf8 -B -m unittest tests.test_active_communicability -v",
+        "cwd": "D:\\Indeces\\build\\active-requery-feasibility-20261008\\checkout",
+        "tests_run": 10,
+        "passed": 8,
+        "failures": 2,
+        "errors": 0,
+        "elapsed_seconds_reported": 3.561,
+        "exit_code": 1,
+        "full_stdout_saved": false,
+        "failed_tests": [
+          {
+            "name": "test_enabled_two_rounds_diagnose_final_bundle_once_before_reply",
+            "assertion": "receipt.status must differ from unknown",
+            "actual": "unknown",
+            "diagnosis": "At the observed source revision analyze_frozen_graph did not yet accept the actual evidence bundle dictionary. Module agent is implementing that support."
+          },
+          {
+            "name": "test_numerical_budget_stop_keeps_original_selection_and_reply",
+            "assertion": "receipt.status == budget_stop",
+            "actual": "unknown",
+            "diagnosis": "Test incorrectly assumed the matvec/Krylov cap's unknown status was budget_stop. Fixture corrected to a genuine projected Taylor terms budget stop; no implementation change made by this test agent."
+          }
+        ],
+        "scope": "Fresh synthetic fixtures and explicit mocked adapter; network guards present. No production data or real model calls.",
+        "historical_output_note": "Original full stdout was returned in tool history but was not saved to disk. This metadata record preserves the observed result without reconstructing a full historical log."
+      }
+    },
+    {
+      "name": "phase_two_run1",
+      "tests_run": 42,
+      "failures": 1,
+      "errors": 0,
+      "failed_ids": [
+        "tests.test_active_communicability.ActiveCommunicabilityConsoleTests.test_enabled_two_rounds_diagnose_final_bundle_once_before_reply"
+      ],
+      "cause": "Native audit scope and ranking mode occur at audit.scope and selection.ranking_mode; adapter assumed request fields",
+      "fix": "Use native fields, reject missing/conflicting/dynamic modes, add actual Store/MemoryGraph freeze/bundle regression",
+      "artifact_sha256": {
+        ".json": "724143f32d93a76e52e9dabe2481f692098be3aa5ec69572184b309294626948",
+        ".log": "2febb0e501e84598a4d3860716d4a15e337f2bc3739a542de1416da2a186dffc"
+      }
+    },
+    {
+      "name": "comprehensive_mock_run1",
+      "exit_code": 1,
+      "cause": "Native bundle metadata adapter rejected actual graph audit",
+      "full_stdout_saved": false,
+      "fix": "Native field adapter fix covered by final full mock"
+    },
+    {
+      "name": "comprehensive_mock_run2",
+      "exit_code": 1,
+      "cause": "Smoke incorrectly required acceptance for a legitimate conservative Krylov limit unknown result",
+      "full_stderr_saved": true,
+      "stderr_sha256": "53b325c620541f094cad6a2fa91f5c721b9b03017c39cd140317c5ef83e5af28",
+      "fix": "Require actual numeric work and provenance; retain explicit unknown/accepted false at the cap rather than changing numerical parameters"
+    },
+    {
+      "name": "package_record_verification_run1",
+      "exit_code": 1,
+      "cause": "pip --target relocates generated launcher files to bin while RECORD retains ../../bin coordinates",
+      "full_stdout_saved": false,
+      "fix": "Verify only the two known relocated launchers inside installed root, reject any other escaping RECORD path"
+    },
+    {
+      "name": "package_record_verification_run2",
+      "exit_code": 1,
+      "cause": "Synthetic immediate-quit Console scaffold lacked _pending deque; installed application bytes and RECORD already verified before banner test",
+      "full_stderr_saved": true,
+      "stderr_sha256": "d68180f15afe0496129fec3d9fa6a20e617d5ec5f0621d504f45778ea628e431",
+      "fix": "Supply the missing empty deque in the mock lifecycle; do not alter Console production code"
+    }
+  ],
+  "final_phase_two": {
+    "tests_run": 44,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "numerical_unknown_is_not_semantic_proof": true
+}

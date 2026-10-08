@@ -29,6 +29,7 @@ PHASES = {
             "tests.test_run_records", "tests.test_adapter", "tests.test_context",
             "tests.test_remaining_input_records", "tests.test_bot_reply_records",
             "tests.test_local_retrieval_deadline"],
+    "two": ["tests.test_communicability", "tests.test_active_communicability"],
 }
 
 

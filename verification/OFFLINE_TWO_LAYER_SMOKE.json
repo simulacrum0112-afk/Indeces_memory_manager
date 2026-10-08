@@ -1,0 +1,108 @@
+{
+  "communicability": {
+    "certified_total_error_bound": null,
+    "edge_count": 2,
+    "evidence_kind": "bundle",
+    "matvecs": 4,
+    "numerical_accepted_observation": false,
+    "numerical_stop_reason": "krylov_or_matvec_limit",
+    "proof": false,
+    "semantic_status": "insufficient_relation_semantics",
+    "status": "unknown",
+    "typed_fixture_status": "pending_hypothesis",
+    "typed_source_truth_verified": false
+  },
+  "console_factory": "indeces.console.create_runtime",
+  "credentials_loaded": false,
+  "delivery_count": 1,
+  "discord_gateway_started": false,
+  "final_input_evidence_verified": true,
+  "generation_stages": [
+    "query",
+    "query",
+    "query",
+    "reply"
+  ],
+  "initial_model_selector_enabled": false,
+  "ledger_phase": "completed",
+  "material_identities": [
+    {
+      "citation_id": "M1",
+      "evidence_uid": "7bbf308184f2efa12e20df56ba191303ce2362b269379e07611ae263e75681ed",
+      "request_id": "synthetic-requery-smoke:query:1",
+      "round_index": 1,
+      "source_id": "synthetic:amber"
+    },
+    {
+      "citation_id": "M2",
+      "evidence_uid": "f0a42a2e801e4b9ca832711955007c012c69a64d077e076290911b2dc9e6630b",
+      "request_id": "synthetic-requery-smoke:query:2",
+      "round_index": 2,
+      "source_id": "synthetic:cobalt"
+    }
+  ],
+  "mock_transport_requests": 8,
+  "package_init_sha256": "9a440fe426098a1f2a5a31a59df183bd59b9c15720abb8556d40ba1a880b3d89",
+  "package_root_verified": true,
+  "package_version": "0.17.0.dev2",
+  "production_data_read": false,
+  "real_model_calls": 0,
+  "real_network_calls": 0,
+  "real_quality_or_latency": "not_measured",
+  "retrieval_rounds": [
+    {
+      "cumulative_citation_ids": [],
+      "request_id": "synthetic-requery-smoke:initial",
+      "round_index": 0,
+      "selected_count": 0
+    },
+    {
+      "cumulative_citation_ids": [
+        "M1"
+      ],
+      "request_id": "synthetic-requery-smoke:query:1",
+      "round_index": 1,
+      "selected_count": 1
+    },
+    {
+      "cumulative_citation_ids": [
+        "M1",
+        "M2"
+      ],
+      "request_id": "synthetic-requery-smoke:query:2",
+      "round_index": 2,
+      "selected_count": 1
+    }
+  ],
+  "schema": "active_requery_mock_smoke_v1",
+  "scratch_envelope_verification": [
+    [
+      76,
+      "170f4f597b8430582429b8b9d59780a640fe6524464b9afaaf3cf0b725fffe7a"
+    ]
+  ],
+  "semantic_support": "not_evaluated",
+  "service_started": false,
+  "simulation_only": true,
+  "static_weights_unchanged": true,
+  "usage": {
+    "cost_basis": "synthetic_zero",
+    "estimated_cost_usd": "0",
+    "input_tokens": 256,
+    "output_tokens": 128,
+    "unknown_generation_count": 0,
+    "usage_complete": true
+  },
+  "verify_runs": {
+    "counts": {
+      "complete": 1,
+      "failed": 0,
+      "incomplete": 0,
+      "invalid": 0,
+      "legacy": 0,
+      "retention_partial": 0,
+      "skipped": 0
+    },
+    "issues_count": 0
+  }
+}

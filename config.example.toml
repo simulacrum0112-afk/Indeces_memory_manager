@@ -31,6 +31,7 @@ active_requery_allow_real_calls = false
 active_requery_cost_usd = 0.0 # Mock-only until separate authorization and positive configured tariffs/cap.
 active_requery_input_usd_per_million = 0.0
 active_requery_output_usd_per_million = 0.0
+communicability_enabled = false # Independent frozen-neighborhood diagnostic; never changes ranking or evidence.
 
 [knowledge]
 poll_seconds = 0.5

@@ -267,6 +267,23 @@ class Runtime:
                         evidence_link = {"bundle_sha256": digest(bundle)}
                         final_fields = {"final_origin": "bounded_stop" if active.fallback_text else "model",
                                         "simulation": turn_adapter.mock}
+                    if getattr(self.config.runtime, "communicability_enabled", False):
+                        # Independent frozen-data diagnostic. Never feed scores
+                        # into selection, model context, or base graph weights.
+                        from .communicability import CommunicabilityConfig, analyze_frozen_graph
+                        diagnostic_input = bundle if active is not None else retrieval
+                        diagnostic_config = CommunicabilityConfig(enabled=True)
+                        try:
+                            diagnostic = analyze_frozen_graph(diagnostic_input, config=diagnostic_config,
+                                deadline=min(turn_deadline, time.monotonic() + diagnostic_config.max_seconds))
+                        except Exception as diagnostic_error:
+                            diagnostic = {"schema": "communicability_offline_v1", "status": "unknown",
+                                          "reason": "diagnostic_error", "error_type": type(diagnostic_error).__name__,
+                                          "proof": False, "changes_selection": False, "changes_base_weights": False}
+                        self.scratch.write("communicability_diagnostic", trace_id=trace_id,
+                                           evidence_kind="bundle" if active is not None else "retrieval",
+                                           evidence_sha256=digest(diagnostic_input), receipt=diagnostic,
+                                           independent_diagnostic=True)
                     instructions = (prompts.bot_reply_instructions(self.config.name) if message.author_is_bot
                                     else prompts.reply_instructions(self.config.name))
                     schema_fields = {"response_schema": prompts.BOT_REPLY_SCHEMA} if message.author_is_bot else {}
