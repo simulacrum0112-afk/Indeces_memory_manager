@@ -20,7 +20,7 @@ import uuid
 from .config import Budget
 from .adapter import OpenAIAdapter
 from .contracts import GovernedError, validated_token_usage
-from .run_records import digest, freeze_retrieval
+from .run_records import digest, freeze_retrieval, validate_ledger_io_failure
 from .requery_records import (append_retrieval, bundle_model_materials,
                              planning_evidence_reference)
 from .scratch import CanonicalSnapshot
@@ -174,15 +174,37 @@ def query_identity(query):
 
 def _atomic_json(path, value):
     temporary = path.with_name(path.name + ".pending")
+    operation = "open"
     try:
-        with temporary.open("w", encoding="utf-8", newline="\n") as stream:
+        stream = temporary.open("w", encoding="utf-8", newline="\n")
+        try:
             import os
+            operation = "write"
             stream.write(json.dumps(value, sort_keys=True, allow_nan=False) + "\n")
+            operation = "flush"
             stream.flush()
+            operation = "fsync"
             os.fsync(stream.fileno())
+        except BaseException:
+            # Cleanup must not replace the first write/flush/fsync failure.
+            try:
+                stream.close()
+            except BaseException:
+                pass
+            raise
+        operation = "close"
+        stream.close()
+        operation = "replace"
         temporary.replace(path)
-    except OSError:
-        raise GovernedError("requery_ledger_write_failed", remote_usage_unknown=False) from None
+    except OSError as error:
+        failure = GovernedError("requery_ledger_write_failed", remote_usage_unknown=False)
+        failure.ledger_io_failure = {
+            "operation": operation,
+            "errno": error.errno if type(error.errno) is int else None,
+            "winerror": getattr(error, "winerror", None)
+                        if type(getattr(error, "winerror", None)) is int else None,
+        }
+        raise failure from None
 
 
 class TurnBudgetAdapter:
@@ -210,6 +232,7 @@ class TurnBudgetAdapter:
         self.calls, self.input_tokens, self.output_tokens = [], 0, 0
         self.cost = Decimal("0")
         self.halted, self.phase, self.last_call_id = None, "open", None
+        self.ledger_io_failure = None
         self._call_active = False
         self._save()
 
@@ -230,8 +253,34 @@ class TurnBudgetAdapter:
                 "elapsed_seconds": time.monotonic() - self.started, "halted": self.halted,
                 "automatic_retries": 0}
 
-    def _save(self):
-        _atomic_json(self.path, self.snapshot())
+    def _save(self, *, audit_event=None, provider_call_id=None, stage=None):
+        try:
+            _atomic_json(self.path, self.snapshot())
+        except GovernedError as error:
+            failure = getattr(error, "ledger_io_failure", None)
+            try:
+                failure = validate_ledger_io_failure(failure)
+            except ValueError:
+                failure = None
+            if error.code == "requery_ledger_write_failed" and failure is not None:
+                if self.ledger_io_failure is None:
+                    self.ledger_io_failure = deepcopy(failure)
+                # Safe metadata is useful even if the durable ledger failed.
+                # A failed diagnostic sink must never hide the original error.
+                try:
+                    self.scratch.write("requery_ledger_io_failure", trace_id=self.trace_id,
+                        audit_event=audit_event if type(audit_event) is str and audit_event in {
+                            "call_start", "request_intent", "response_headers", "response_received",
+                            "input_gate", "call_end"} else None,
+                        provider_call_id=provider_call_id if type(provider_call_id) is str
+                            and len(provider_call_id) == 32
+                            and all(c in "0123456789abcdef" for c in provider_call_id) else None,
+                        stage=stage if type(stage) is str and stage in {
+                            "label", "selection", "summary", "query", "reply"} else None,
+                        io_failure=deepcopy(failure))
+                except BaseException:
+                    pass
+            raise
 
     def check(self):
         if self.phase != "open":
@@ -323,7 +372,8 @@ class TurnBudgetAdapter:
                 entry["code"] = fields.get("code")
                 if fields.get("remote_usage_unknown") or (entry["generation_started"] and entry["usage"] is None):
                     self.halted = "requery_usage_unknown"
-            self._save()  # Durable before input counting, generation and output validation.
+            # Durable before input counting, generation and output validation.
+            self._save(audit_event=event, provider_call_id=fields.get("call_id"), stage=stage)
             self.scratch.write("requery_budget_event", trace_id=trace_id, provider_call_id=fields.get("call_id"),
                                budget_event=event, ledger=self.snapshot())
             if external_audit is not None:
@@ -407,6 +457,8 @@ class ActiveRequery:
             notice_fields["notice_policy"] = NOTICE_POLICY
             if clarification is not None:
                 notice_fields["notice_clarification"] = clarification
+        if getattr(self.adapter, "ledger_io_failure", None) is not None:
+            notice_fields["ledger_io_failure"] = deepcopy(self.adapter.ledger_io_failure)
         self.runtime.scratch.write("requery_stop", trace_id=self.trace_id, reason=reason,
                                    fallback=fallback, ledger=self.adapter.snapshot(), **notice_fields)
 

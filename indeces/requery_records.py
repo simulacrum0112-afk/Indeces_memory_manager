@@ -405,6 +405,83 @@ def _validate_host_notices(events, start=None, *, partial=False):
                          "active notice template mismatch")
 
 
+def _validate_ledger_io_records(events, calls, report, *, partial=False):
+    """I/O diagnostics explain failure without replacing provider/ledger ends."""
+    from .run_records import _validate_ledger_io_fields
+
+    _validate_ledger_io_fields(events)
+    failures = [(i, fields) for i, (event, fields) in enumerate(events)
+                if event == "requery_ledger_io_failure"]
+    attached = [(i, event, fields) for i, (event, fields) in enumerate(events)
+                if "ledger_io_failure" in fields]
+    if not failures and not attached:
+        return False
+    if partial and failures and not attached:
+        report["warnings"].append("expired_ledger_io_first_failure_binding")
+    ends = [(i, fields) for i, (event, fields) in enumerate(events) if event == "turn_end"]
+    first = failures[0] if failures else None
+    trace_ids = {fields["trace_id"] for _, fields in failures}
+    trace_ids.update(fields["trace_id"] for _, _, fields in attached)
+    trace_ids.update(fields["trace_id"] for _, fields in ends)
+    _require(len(trace_ids) == 1, "ledger I/O trace binding mismatch")
+    for index, fields in failures:
+        identity = fields["provider_call_id"]
+        if identity is not None:
+            provider = calls.get(identity, [])
+            starts = [f for e, f in provider if e == "call_start"]
+            if starts:
+                _require(all(f.get("stage") == fields["stage"] for f in starts),
+                         "ledger I/O provider stage mismatch")
+            else:
+                report["warnings"].append("ledger_io_provider_binding_unavailable")
+        if ends and index > ends[0][0]:
+            _require(fields["audit_event"] is None and identity is None and fields["stage"] is None,
+                     "post-turn ledger I/O event is not cleanup metadata")
+    for index, event, fields in attached:
+        if first is not None and first[0] < index:
+            _require(fields["ledger_io_failure"] == first[1]["io_failure"],
+                     "ledger I/O first failure binding mismatch")
+        elif partial:
+            report["warnings"].append("expired_ledger_io_first_failure_binding")
+        else:
+            # Constructor failure can retain its original exception metadata
+            # even when the best-effort diagnostic sink itself was unavailable.
+            _require(event == "turn_end" and not calls
+                     and not any(e == "requery_stop" for e, _ in events),
+                     "ledger I/O first failure event missing")
+            report["warnings"].append("ledger_io_failure_event_unavailable")
+    if first is not None:
+        for index, (event, fields) in enumerate(events):
+            if index <= first[0]:
+                continue
+            if event == "requery_stop" or (event == "turn_end" and fields.get("code") == "requery_ledger_write_failed"):
+                _require("ledger_io_failure" in fields, "ledger I/O first failure attachment missing")
+    if not partial:
+        for provider in calls.values():
+            _require(any(e in {"call_end", "call_rejected"} for e, _ in provider),
+                     "ledger I/O turn has missing provider end")
+    # A completed ledger claim still needs a real provider end. Failure metadata
+    # cannot fill a missing call_end, including in a retained suffix.
+    for event, fields in events:
+        if event not in {"requery_budget_event", "requery_stop"}:
+            continue
+        for item in fields.get("ledger", {}).get("calls", []):
+            if item.get("status") == "completed":
+                _require(any(e in {"call_end", "call_rejected"}
+                             for e, _ in calls.get(item.get("call_id"), [])),
+                         "ledger I/O completed call has no provider end")
+    last_failure_at = max([i for i, _ in failures] + [i for i, _, _ in attached])
+    closed = any(i > last_failure_at and event == "requery_budget_event"
+                 and fields.get("budget_event") == "turn_end"
+                 and fields.get("provider_call_id") is None
+                 and fields.get("ledger", {}).get("phase") in {"completed", "stopped", "halted"}
+                 for i, (event, fields) in enumerate(events))
+    if not closed:
+        report["warnings"].append("ledger_io_terminal_save_unconfirmed")
+    report["warnings"] = list(dict.fromkeys(report["warnings"]))
+    return not closed
+
+
 def verify_active_turn(events, start=None, report=None, *, partial=False):
     """Check version 3 without accepting single-retrieval assumptions.
 
@@ -448,6 +525,7 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
         if any(e in {"call_end", "call_rejected"} and f.get("status") != "completed"
                for e, f in call_events):
             report["warnings"].append("active_query_or_other_call_failed")
+    ledger_close_unconfirmed = _validate_ledger_io_records(events, calls, report, partial=partial)
 
     if not partial:
         _require(start is not None and type(start.get("run_record_version")) is int
@@ -502,6 +580,7 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
                                    and fields.get("provider_call_id") is None
                                    and fields.get("ledger", {}).get("phase") in {"completed", "stopped", "halted"})
         _require(not terminal or event in {"failure_notice_delivered", "failure_notice_unknown", "failure_notice_skipped"}
+                 or event == "requery_ledger_io_failure"
                  or closing_budget_metadata,
                  "active events after turn end")
         if event in {"requery_budget_event", "requery_stop"}:
@@ -741,4 +820,6 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
     else:
         _require(not delivered, "active failed turn has confirmed answer delivery")
         report["status"] = "failed"
+    if ledger_close_unconfirmed and report["status"] in {"complete", "skipped"}:
+        report["status"] = "incomplete"
     return report

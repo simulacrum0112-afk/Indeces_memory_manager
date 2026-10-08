@@ -226,6 +226,49 @@ def _require(condition, message):
         raise ValueError(message)
 
 
+def validate_ledger_io_failure(value):
+    """Accept numeric OS metadata only; never accept paths or exception text."""
+    _require(type(value) is dict and set(value) == {"operation", "errno", "winerror"},
+             "ledger I/O failure schema mismatch")
+    _require(type(value["operation"]) is str and value["operation"] in {
+        "open", "write", "flush", "fsync", "close", "replace"},
+        "ledger I/O operation invalid")
+    _require(all(value[key] is None or type(value[key]) is int for key in ("errno", "winerror")),
+             "ledger I/O error number invalid")
+    return {key: value[key] for key in ("operation", "errno", "winerror")}
+
+
+def _validate_ledger_io_fields(events):
+    for event, fields in events:
+        if "ledger_io_failure" in fields:
+            _require(event in {"requery_stop", "turn_end"}, "ledger I/O diagnostic event invalid")
+            _require(type(fields.get("trace_id")) is str and bool(fields["trace_id"]),
+                     "ledger I/O diagnostic trace invalid")
+            validate_ledger_io_failure(fields["ledger_io_failure"])
+            if event == "turn_end":
+                _require(fields.get("status") == "failed"
+                         and fields.get("code") == "requery_ledger_write_failed",
+                         "ledger I/O failed turn declaration mismatch")
+        if event == "requery_ledger_io_failure":
+            _require(type(fields) is dict and set(fields) == {
+                "trace_id", "audit_event", "provider_call_id", "stage", "io_failure"},
+                "ledger I/O event schema mismatch")
+            _require(type(fields["trace_id"]) is str and bool(fields["trace_id"]),
+                     "ledger I/O trace invalid")
+            _require(fields["audit_event"] is None or (type(fields["audit_event"]) is str
+                     and fields["audit_event"] in {"call_start", "request_intent", "response_headers",
+                                                    "response_received", "input_gate", "call_end"}),
+                     "ledger I/O audit event invalid")
+            identity = fields["provider_call_id"]
+            _require(identity is None or (type(identity) is str and len(identity) == 32
+                     and all(c in "0123456789abcdef" for c in identity)),
+                     "ledger I/O provider identifier invalid")
+            _require(fields["stage"] is None or (type(fields["stage"]) is str
+                     and fields["stage"] in {"label", "summary", "selection", "query", "reply"}),
+                     "ledger I/O stage invalid")
+            validate_ledger_io_failure(fields["io_failure"])
+
+
 def _has_model_projection(record):
     if "model_projection" not in record:
         return False
@@ -1236,6 +1279,14 @@ def verify_runs(paths: list[Path]):
         for item in read_records(path):
             fields = item["fields"]
             trace = fields.get("trace_id")
+            if item["event"] == "requery_ledger_io_failure" or "ledger_io_failure" in fields:
+                try:
+                    _validate_ledger_io_fields([(item["event"], fields)])
+                except ValueError as error:
+                    issues.append({"trace_id": trace if type(trace) is str else None,
+                                   "reason": str(error)})
+                    if type(trace) is not str or not trace:
+                        continue
             if trace is not None and (not isinstance(trace, str) or not trace):
                 issues.append({"trace_id": None, "reason": "invalid trace identifier"})
                 continue
@@ -1306,7 +1357,8 @@ def verify_runs(paths: list[Path]):
             is_turn = any(e in {"model_selection_input", "model_selection_decision",
                                   "memory_observation", "retrieval_record", "knowledge_retrieved", "reply_context",
                                  "bot_reply_decision", "answer_generated", "delivery_start", "answer_delivered", "turn_end",
-                                 "requery_action", "requery_retrieval", "requery_evidence", "requery_stop"}
+                                 "requery_action", "requery_retrieval", "requery_evidence", "requery_stop",
+                                 "requery_ledger_io_failure"}
                           or f.get("stage") in {"reply", "summary", "selection", "query"} for e, f in events)
             if not is_turn:
                 continue
@@ -1314,8 +1366,10 @@ def verify_runs(paths: list[Path]):
             reports.append(report)
             try:
                 _require(trace in partial_traces, "turn start missing without retention evidence")
+                _validate_ledger_io_fields(events)
                 _validate_failure_notices(events, report, partial=True)
-                if any(e in {"requery_action", "requery_retrieval", "requery_evidence", "requery_stop"}
+                if any(e in {"requery_action", "requery_retrieval", "requery_evidence", "requery_stop",
+                             "requery_ledger_io_failure"}
                        or f.get("stage") == "query" or "bundle_sha256" in f for e, f in events):
                     from .requery_records import verify_active_turn
                     verify_active_turn(events, report=report, partial=True)
@@ -1333,6 +1387,7 @@ def verify_runs(paths: list[Path]):
             try:
                 from .requery_records import verify_active_turn
                 _require(len(starts) == 1, "duplicate active turn start")
+                _validate_ledger_io_fields(events)
                 _validate_failure_notices(events, report, partial=trace in partial_traces)
                 verify_active_turn(events, starts[0], report, partial=trace in partial_traces)
                 _require(not any(c["status"] == "invalid" for c in call_reports if c["trace_id"] == trace),
@@ -1346,6 +1401,7 @@ def verify_runs(paths: list[Path]):
         report["status"] = "incomplete"
         try:
             _require(len(starts) == 1, "duplicate turn start")
+            _validate_ledger_io_fields(events)
             _validate_failure_notices(events, report, partial=trace in partial_traces)
             if trace in partial_traces and (starts[0].get("model_selection_policy") is not None
                     or any(e in {"model_selection_input", "model_selection_decision"}

@@ -12,7 +12,7 @@ from .adapter import reservation
 from .context import compaction_prefix, encode, groups, history_cost, history_data, raw_capacity, reply_messages
 from .contracts import FailureNotice, GovernedError
 from .memory import MemoryGraph
-from .run_records import answer_record, digest, freeze_retrieval
+from .run_records import answer_record, digest, freeze_retrieval, validate_ledger_io_failure
 from .scratch import CanonicalSnapshot
 from .selection_policy import policy_identity
 from .user_notices import NOTICE_POLICY, user_notice
@@ -367,6 +367,16 @@ class Runtime:
                 self.store.fail(message.message_id, code)
                 diagnostic = error.__cause__ if isinstance(error.__cause__, sqlite3.OperationalError) else error
                 failure_fields = {"error_type": type(diagnostic).__name__}
+                if isinstance(error, GovernedError) and error.code == "requery_ledger_write_failed":
+                    failure = (getattr(turn_adapter, "ledger_io_failure", None)
+                               if turn_adapter is not None else None)
+                    if failure is None:
+                        failure = getattr(error, "ledger_io_failure", None)
+                    if failure is not None:
+                        try:
+                            failure_fields["ledger_io_failure"] = validate_ledger_io_failure(failure)
+                        except ValueError:
+                            pass
                 if isinstance(diagnostic, sqlite3.Error):
                     sqlite_code = getattr(diagnostic, "sqlite_errorcode", None)
                     sqlite_name = getattr(diagnostic, "sqlite_errorname", None)
