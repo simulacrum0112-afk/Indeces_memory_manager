@@ -249,9 +249,12 @@ def _validate_ledger_io_fields(events):
                 _require(fields.get("status") == "failed"
                          and fields.get("code") == "requery_ledger_write_failed",
                          "ledger I/O failed turn declaration mismatch")
-        if event == "requery_ledger_io_failure":
-            _require(type(fields) is dict and set(fields) == {
-                "trace_id", "audit_event", "provider_call_id", "stage", "io_failure"},
+        if event in {"requery_ledger_io_failure", "requery_ledger_io_recovered"}:
+            recovered = event == "requery_ledger_io_recovered"
+            expected_fields = {"trace_id", "audit_event", "provider_call_id", "stage"}
+            expected_fields.update({"first_failure", "replace_attempts", "intentional_wait_seconds"}
+                                   if recovered else {"io_failure"})
+            _require(type(fields) is dict and set(fields) == expected_fields,
                 "ledger I/O event schema mismatch")
             _require(type(fields["trace_id"]) is str and bool(fields["trace_id"]),
                      "ledger I/O trace invalid")
@@ -266,7 +269,21 @@ def _validate_ledger_io_fields(events):
             _require(fields["stage"] is None or (type(fields["stage"]) is str
                      and fields["stage"] in {"label", "summary", "selection", "query", "reply"}),
                      "ledger I/O stage invalid")
-            validate_ledger_io_failure(fields["io_failure"])
+            failure = validate_ledger_io_failure(fields["first_failure" if recovered else "io_failure"])
+            if recovered:
+                _require(failure == {"operation": "replace", "errno": 13, "winerror": 5},
+                         "ledger I/O recovery cause invalid")
+                attempts = fields["replace_attempts"]
+                _require(type(attempts) is int and attempts in (2, 3),
+                         "ledger I/O recovery attempts invalid")
+                wait = fields["intentional_wait_seconds"]
+                _require(type(wait) in (int, float) and 0 <= wait <= 0.03 and math.isfinite(wait)
+                         and wait == (0.01 if attempts == 2 else 0.03),
+                         "ledger I/O recovery intentional wait invalid")
+                context = (fields["audit_event"], identity, fields["stage"])
+                _require(all(value is None for value in context)
+                         or all(value is not None for value in context),
+                         "ledger I/O recovery context incomplete")
 
 
 def _has_model_projection(record):
@@ -1279,7 +1296,7 @@ def verify_runs(paths: list[Path]):
         for item in read_records(path):
             fields = item["fields"]
             trace = fields.get("trace_id")
-            if item["event"] == "requery_ledger_io_failure" or "ledger_io_failure" in fields:
+            if item["event"] in {"requery_ledger_io_failure", "requery_ledger_io_recovered"} or "ledger_io_failure" in fields:
                 try:
                     _validate_ledger_io_fields([(item["event"], fields)])
                 except ValueError as error:
@@ -1358,7 +1375,7 @@ def verify_runs(paths: list[Path]):
                                   "memory_observation", "retrieval_record", "knowledge_retrieved", "reply_context",
                                  "bot_reply_decision", "answer_generated", "delivery_start", "answer_delivered", "turn_end",
                                  "requery_action", "requery_retrieval", "requery_evidence", "requery_stop",
-                                 "requery_ledger_io_failure"}
+                                 "requery_ledger_io_failure", "requery_ledger_io_recovered"}
                           or f.get("stage") in {"reply", "summary", "selection", "query"} for e, f in events)
             if not is_turn:
                 continue
@@ -1369,7 +1386,7 @@ def verify_runs(paths: list[Path]):
                 _validate_ledger_io_fields(events)
                 _validate_failure_notices(events, report, partial=True)
                 if any(e in {"requery_action", "requery_retrieval", "requery_evidence", "requery_stop",
-                             "requery_ledger_io_failure"}
+                             "requery_ledger_io_failure", "requery_ledger_io_recovered"}
                        or f.get("stage") == "query" or "bundle_sha256" in f for e, f in events):
                     from .requery_records import verify_active_turn
                     verify_active_turn(events, report=report, partial=True)
@@ -1383,6 +1400,11 @@ def verify_runs(paths: list[Path]):
             continue
         report = {"trace_id": trace, "status": "legacy", "warnings": []}
         reports.append(report)
+        if (any(event == "requery_ledger_io_recovered" for event, _ in events)
+                and starts[0].get("run_record_version") != 3):
+            report["status"] = "invalid"
+            issues.append({"trace_id": trace, "reason": "ledger I/O recovery active turn declaration missing"})
+            continue
         if starts[0].get("run_record_version") == 3:
             try:
                 from .requery_records import verify_active_turn

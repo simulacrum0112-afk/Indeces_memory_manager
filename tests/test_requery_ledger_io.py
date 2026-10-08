@@ -79,7 +79,8 @@ class AtomicLedgerIOTests(unittest.TestCase):
             opened, replacements = [], []
 
             def open_stream(path, *args, **kwargs):
-                if path != pending:
+                mode = args[0] if args else kwargs.get("mode", "r")
+                if not path.name.endswith(".pending") or mode not in ("w", "x"):
                     return original_open(path, *args, **kwargs)
                 if operation == "open":
                     raise error
@@ -117,10 +118,11 @@ class AtomicLedgerIOTests(unittest.TestCase):
             self.assertTrue(all(stream.stream.closed and stream.close_count == 1 for stream in opened))
             self.assertNotIn("synthetic-sensitive", json.dumps(failure.ledger_io_failure))
             self.assertNotIn("Synthetic detail", json.dumps(failure.ledger_io_failure))
+            failed_snapshots = {path: path.read_bytes() for path in target.parent.glob("*.pending")}
             # After the injected fault is removed, a fresh explicit write works.
             _atomic_json(target, {"replacement": True})
             self.assertEqual(json.loads(target.read_text(encoding="utf-8")), {"replacement": True})
-            self.assertFalse(pending.exists())
+            self.assertEqual({path: path.read_bytes() for path in target.parent.glob("*.pending")}, failed_snapshots)
 
     def test_open_failure_preserves_previous_json(self):
         self.check_fault("open")
@@ -161,7 +163,8 @@ class AtomicLedgerIOTests(unittest.TestCase):
 
             def track_open(path, *args, **kwargs):
                 stream = original_open(path, *args, **kwargs)
-                if path.name.endswith(".pending"):
+                mode = args[0] if args else kwargs.get("mode", "r")
+                if path.name.endswith(".pending") and mode in ("w", "x"):
                     opened.append(stream)
                 return stream
 
@@ -220,7 +223,7 @@ class BudgetLedgerIOTests(unittest.IsolatedAsyncioTestCase):
         old_documents, failures = [], []
 
         def replace_once(path, destination):
-            if path == self.adapter.path.with_name(self.adapter.path.name + ".pending"):
+            if destination == self.adapter.path and path.name.endswith(".pending"):
                 # Both reads release their handles before the replacement.
                 document = json.loads(path.read_text(encoding="utf-8"))
                 if document["calls"] and document["calls"][-1]["status"] == "completed" and not failures:
@@ -271,11 +274,12 @@ class BudgetLedgerIOTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stop["ledger"]["halted"], "requery_ledger_audit_failed")
         self.assertEqual(stop["ledger_io_failure"], recorded[0]["io_failure"])
         self.assertNotIn("requery_ledger", active.fallback_text)
+        failed_snapshots = {path: path.read_bytes() for path in self.adapter.path.parent.glob("*.pending")}
         self.adapter.finish()
         persisted = json.loads(self.adapter.path.read_text(encoding="utf-8"))
         self.assertEqual(persisted["phase"], "halted")
         self.assertEqual(persisted["calls"][-1]["usage"], {"input_tokens": 64, "output_tokens": 32})
-        self.assertFalse(self.adapter.path.with_name(self.adapter.path.name + ".pending").exists())
+        self.assertEqual({path: path.read_bytes() for path in self.adapter.path.parent.glob("*.pending")}, failed_snapshots)
 
     async def test_first_io_failure_is_preserved_while_each_fault_gets_safe_metadata(self):
         first, second = governed_fault("write", 5, 6), governed_fault("replace", 13, 32)

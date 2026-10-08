@@ -405,22 +405,115 @@ def _validate_host_notices(events, start=None, *, partial=False):
                          "active notice template mismatch")
 
 
+def _validate_ledger_io_recoveries(events, calls, report, *, partial=False):
+    """A local replace receipt needs independent provider and budget evidence."""
+    recoveries = [(i, fields) for i, (event, fields) in enumerate(events)
+                  if event == "requery_ledger_io_recovered"]
+    if not recoveries:
+        return False
+    trace_ids = {fields["trace_id"] for _, fields in recoveries}
+    trace_ids.update(fields["trace_id"] for event, fields in events
+                     if event in {"turn_start", "turn_end", "requery_ledger_io_failure"}
+                     or "ledger_io_failure" in fields)
+    _require(len(trace_ids) == 1, "ledger I/O recovery trace binding mismatch")
+    ends = [i for i, (event, _) in enumerate(events) if event == "turn_end"]
+    bound_budget_events = set()
+    close_unconfirmed = False
+    for index, fields in recoveries:
+        _require(not any(event == "requery_ledger_io_failure" or "ledger_io_failure" in value
+                         for event, value in events[:index]),
+                 "ledger I/O recovery after permanent failure")
+        identity = fields["provider_call_id"]
+        if ends and index > ends[0]:
+            _require(fields["audit_event"] is None and identity is None and fields["stage"] is None,
+                     "post-turn ledger I/O recovery is not cleanup metadata")
+        if identity is not None:
+            _require(not any(event in {"requery_budget_event", "requery_stop"}
+                             and value.get("ledger", {}).get("phase") in {"completed", "stopped", "halted"}
+                             for event, value in events[:index]),
+                     "ledger I/O recovery provider context after budget closure")
+            provider = calls.get(identity, [])
+            starts = [value for event, value in provider if event == "call_start"]
+            if starts:
+                _require(all(value.get("stage") == fields["stage"]
+                             and value.get("trace_id") == fields["trace_id"] for value in starts),
+                         "ledger I/O recovery provider stage/trace mismatch")
+            elif partial and fields["audit_event"] != "call_start":
+                report["warnings"].append("expired_ledger_io_recovery_provider_binding")
+            else:
+                raise ValueError("ledger I/O recovery provider start missing")
+            provider_ends = [(i, value) for i, (event, value) in enumerate(events)
+                             if event in {"call_end", "call_rejected"}
+                             and value.get("call_id") == identity]
+            _require(len(provider_ends) == 1, "ledger I/O recovery provider end missing")
+            following = next(((i, value) for i, (event, value) in enumerate(events)
+                              if i > index and event == "requery_budget_event"), None)
+            _require(following is not None, "ledger I/O recovery budget binding missing")
+            if following is not None:
+                budget_at, budget = following
+                _require(budget_at not in bound_budget_events
+                         and budget.get("trace_id") == fields["trace_id"]
+                         and budget.get("provider_call_id") == identity
+                         and budget.get("budget_event") == fields["audit_event"],
+                         "ledger I/O recovery budget binding mismatch")
+                entries = [item for item in budget.get("ledger", {}).get("calls", [])
+                           if item.get("call_id") == identity]
+                _require(len(entries) == 1 and entries[0].get("stage") == fields["stage"],
+                         "ledger I/O recovery budget stage binding mismatch")
+                _require(provider_ends[0][0] > budget_at,
+                         "ledger I/O recovery provider end ordering mismatch")
+                if fields["audit_event"] == "call_start":
+                    _require(any(i > budget_at and event == "call_start"
+                                 and value.get("call_id") == identity
+                                 for i, (event, value) in enumerate(events)),
+                             "ledger I/O recovery provider start ordering mismatch")
+                if fields["audit_event"] == "call_end":
+                    end = provider_ends[0][1]
+                    _require(entries[0].get("status") == end.get("status", "failed")
+                             and entries[0].get("status") in {"completed", "failed", "cancelled"}
+                             and entries[0].get("usage") == end.get("known_usage"),
+                             "ledger I/O recovery terminal usage/provider mismatch")
+                else:
+                    _require(entries[0].get("status") == "admitted",
+                             "ledger I/O recovery preterminal status mismatch")
+                bound_budget_events.add(budget_at)
+        else:
+            closing = next(((i, value) for i, (event, value) in enumerate(events)
+                            if i > index and event == "requery_budget_event"
+                            and value.get("trace_id") == fields["trace_id"]
+                            and value.get("budget_event") == "turn_end"
+                            and value.get("provider_call_id") is None
+                            and value.get("ledger", {}).get("phase") in {"completed", "stopped", "halted"}), None)
+            if closing is None:
+                close_unconfirmed = True
+                report["warnings"].append("ledger_io_recovery_terminal_save_unconfirmed")
+            elif ends and index > ends[0]:
+                _require(closing[0] not in bound_budget_events,
+                         "ledger I/O recovery cleanup budget binding reused")
+                bound_budget_events.add(closing[0])
+    return close_unconfirmed
+
+
 def _validate_ledger_io_records(events, calls, report, *, partial=False):
     """I/O diagnostics explain failure without replacing provider/ledger ends."""
     from .run_records import _validate_ledger_io_fields
 
     _validate_ledger_io_fields(events)
+    recovery_close_unconfirmed = _validate_ledger_io_recoveries(events, calls, report, partial=partial)
+    recovered = any(event == "requery_ledger_io_recovered" for event, _ in events)
     failures = [(i, fields) for i, (event, fields) in enumerate(events)
                 if event == "requery_ledger_io_failure"]
     attached = [(i, event, fields) for i, (event, fields) in enumerate(events)
                 if "ledger_io_failure" in fields]
-    if not failures and not attached:
+    if not failures and not attached and not recovered:
         return False
     if partial and failures and not attached:
         report["warnings"].append("expired_ledger_io_first_failure_binding")
     ends = [(i, fields) for i, (event, fields) in enumerate(events) if event == "turn_end"]
     first = failures[0] if failures else None
     trace_ids = {fields["trace_id"] for _, fields in failures}
+    trace_ids.update(fields["trace_id"] for event, fields in events
+                     if event == "requery_ledger_io_recovered")
     trace_ids.update(fields["trace_id"] for _, _, fields in attached)
     trace_ids.update(fields["trace_id"] for _, fields in ends)
     _require(len(trace_ids) == 1, "ledger I/O trace binding mismatch")
@@ -470,6 +563,9 @@ def _validate_ledger_io_records(events, calls, report, *, partial=False):
                 _require(any(e in {"call_end", "call_rejected"}
                              for e, _ in calls.get(item.get("call_id"), [])),
                          "ledger I/O completed call has no provider end")
+    if not failures and not attached:
+        report["warnings"] = list(dict.fromkeys(report["warnings"]))
+        return recovery_close_unconfirmed
     last_failure_at = max([i for i, _ in failures] + [i for i, _, _ in attached])
     closed = any(i > last_failure_at and event == "requery_budget_event"
                  and fields.get("budget_event") == "turn_end"
@@ -479,7 +575,7 @@ def _validate_ledger_io_records(events, calls, report, *, partial=False):
     if not closed:
         report["warnings"].append("ledger_io_terminal_save_unconfirmed")
     report["warnings"] = list(dict.fromkeys(report["warnings"]))
-    return not closed
+    return not closed or recovery_close_unconfirmed
 
 
 def verify_active_turn(events, start=None, report=None, *, partial=False):
@@ -580,7 +676,7 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
                                    and fields.get("provider_call_id") is None
                                    and fields.get("ledger", {}).get("phase") in {"completed", "stopped", "halted"})
         _require(not terminal or event in {"failure_notice_delivered", "failure_notice_unknown", "failure_notice_skipped"}
-                 or event == "requery_ledger_io_failure"
+                 or event in {"requery_ledger_io_failure", "requery_ledger_io_recovered"}
                  or closing_budget_metadata,
                  "active events after turn end")
         if event in {"requery_budget_event", "requery_stop"}:

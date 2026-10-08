@@ -20,6 +20,7 @@ import uuid
 from .config import Budget
 from .adapter import OpenAIAdapter
 from .contracts import GovernedError, validated_token_usage
+from .ledger_io import atomic_json
 from .run_records import digest, freeze_retrieval, validate_ledger_io_failure
 from .requery_records import (append_retrieval, bundle_model_materials,
                              planning_evidence_reference)
@@ -172,39 +173,8 @@ def query_identity(query):
     return digest(value)
 
 
-def _atomic_json(path, value):
-    temporary = path.with_name(path.name + ".pending")
-    operation = "open"
-    try:
-        stream = temporary.open("w", encoding="utf-8", newline="\n")
-        try:
-            import os
-            operation = "write"
-            stream.write(json.dumps(value, sort_keys=True, allow_nan=False) + "\n")
-            operation = "flush"
-            stream.flush()
-            operation = "fsync"
-            os.fsync(stream.fileno())
-        except BaseException:
-            # Cleanup must not replace the first write/flush/fsync failure.
-            try:
-                stream.close()
-            except BaseException:
-                pass
-            raise
-        operation = "close"
-        stream.close()
-        operation = "replace"
-        temporary.replace(path)
-    except OSError as error:
-        failure = GovernedError("requery_ledger_write_failed", remote_usage_unknown=False)
-        failure.ledger_io_failure = {
-            "operation": operation,
-            "errno": error.errno if type(error.errno) is int else None,
-            "winerror": getattr(error, "winerror", None)
-                        if type(getattr(error, "winerror", None)) is int else None,
-        }
-        raise failure from None
+def _atomic_json(path, value, *, allow_recovery=True, **kwargs):
+    return atomic_json(path, value, allow_recovery=allow_recovery, **kwargs)
 
 
 class TurnBudgetAdapter:
@@ -233,6 +203,8 @@ class TurnBudgetAdapter:
         self.cost = Decimal("0")
         self.halted, self.phase, self.last_call_id = None, "open", None
         self.ledger_io_failure = None
+        self._ledger_ownership_error = None
+        self._ledger_expected_digest = None
         self._call_active = False
         self._save()
 
@@ -254,9 +226,15 @@ class TurnBudgetAdapter:
                 "automatic_retries": 0}
 
     def _save(self, *, audit_event=None, provider_call_id=None, stage=None):
+        if self._ledger_ownership_error is not None:
+            raise self._ledger_ownership_error
+        snapshot = self.snapshot()
         try:
-            _atomic_json(self.path, self.snapshot())
+            recovered = _atomic_json(self.path, snapshot, allow_recovery=self.ledger_io_failure is None,
+                                     expected_digest=self._ledger_expected_digest)
         except GovernedError as error:
+            if getattr(error, "ledger_ownership_lost", False) is True:
+                self._ledger_ownership_error = error
             failure = getattr(error, "ledger_io_failure", None)
             try:
                 failure = validate_ledger_io_failure(failure)
@@ -281,6 +259,32 @@ class TurnBudgetAdapter:
                 except BaseException:
                     pass
             raise
+        self._ledger_expected_digest = hashlib.sha256((json.dumps(
+            snapshot, sort_keys=True, allow_nan=False) + "\n").encode("utf-8")).hexdigest()
+        if recovered is not None:
+            try:
+                if type(recovered) is not dict or set(recovered) != {
+                        "first_failure", "replace_attempts", "intentional_wait_seconds"}:
+                    return
+                first_failure = validate_ledger_io_failure(recovered["first_failure"])
+                attempts = recovered["replace_attempts"]
+                wait = recovered["intentional_wait_seconds"]
+                if (first_failure != {"operation": "replace", "errno": 13, "winerror": 5}
+                        or type(attempts) is not int or attempts not in {2, 3}
+                        or type(wait) not in {int, float} or wait != {2: 0.01, 3: 0.03}[attempts]):
+                    return
+                self.scratch.write("requery_ledger_io_recovered", trace_id=self.trace_id,
+                    audit_event=audit_event if type(audit_event) is str and audit_event in {
+                        "call_start", "request_intent", "response_headers", "response_received",
+                        "input_gate", "call_end"} else None,
+                    provider_call_id=provider_call_id if type(provider_call_id) is str
+                        and len(provider_call_id) == 32
+                        and all(c in "0123456789abcdef" for c in provider_call_id) else None,
+                    stage=stage if type(stage) is str and stage in {
+                        "label", "selection", "summary", "query", "reply"} else None,
+                    first_failure=first_failure, replace_attempts=attempts, intentional_wait_seconds=wait)
+            except BaseException:
+                pass
 
     def check(self):
         if self.phase != "open":
