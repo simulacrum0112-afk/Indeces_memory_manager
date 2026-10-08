@@ -19,6 +19,7 @@ from indeces.discord_bridge import DiscordBridge
 from indeces.run_records import verify_runs
 from indeces.runtime import Runtime
 from indeces.scratch import ScratchLog, verify
+from indeces.user_notices import NOTICE_POLICY, user_notice
 from tests.test_bot_bridge import Message
 from tests.test_run_records import RecordFixture
 
@@ -51,7 +52,8 @@ class BotFailureNoticeTests(RecordFixture, unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         self.teardown_fixture()
 
-    def make_bridge(self, *, action="reply", answer="A synthetic answer [M1].", model_error=None):
+    def make_bridge(self, *, action="reply", answer="A synthetic answer [M1].", model_error=None,
+                    counted_input=10):
         self.log_number += 1
         log = ScratchLog(self.root / "notices" / str(self.log_number))
         requests = []
@@ -59,7 +61,7 @@ class BotFailureNoticeTests(RecordFixture, unittest.IsolatedAsyncioTestCase):
         async def request(path, payload):
             requests.append((path, deepcopy(payload)))
             if path == "/responses/input_tokens":
-                return {"input_tokens": 10}
+                return {"input_tokens": counted_input}
             if model_error is not None:
                 raise model_error
             output = json.dumps({"action": action, "text": "" if action == "skip" else answer})
@@ -90,9 +92,11 @@ class BotFailureNoticeTests(RecordFixture, unittest.IsolatedAsyncioTestCase):
     def assert_notice(self, source, code):
         self.assertEqual(len(source.sent), 1)
         text, options = source.sent[0]
-        self.assertIn("本轮未完成", text)
-        self.assertIn(code, text)
-        self.assertIn("审计编号", text)
+        self.assertEqual(text, user_notice(code))
+        self.assertNotIn(code, text)
+        self.assertNotIn("审计编号", text)
+        self.assertNotIn("trace", text)
+        self.assertNotIn("unknown", text)
         self.assertNotIn("<@", text)
         self.assertNotIn("@everyone", text)
         self.assertFalse(options["mention_author"])
@@ -118,6 +122,8 @@ class BotFailureNoticeTests(RecordFixture, unittest.IsolatedAsyncioTestCase):
         self.assertEqual([row["role"] for row in self.store.history("10:20")], ["user"])
         entries = self.entries(log)
         delivered = self.event(entries, "failure_notice_delivered")
+        self.assertEqual(delivered["notice_policy"], NOTICE_POLICY)
+        self.assertEqual(delivered["reason"], "local_memory_timeout")
         self.assertEqual(delivered["receipt"], {"ids": ["1001"], "text": notice})
         self.assertEqual(self.event(entries, "turn_end")["status"], "failed")
         started = self.event(entries, "discord_delivery_started")
@@ -312,12 +318,49 @@ class BotFailureNoticeTests(RecordFixture, unittest.IsolatedAsyncioTestCase):
             await runtime.process(message, deliver)
         self.assertEqual(normal, [])
         self.assertEqual(len(notices), 1)
-        self.assertIn("local_memory_timeout", notices[0])
+        self.assertEqual(notices[0], user_notice("local_memory_timeout"))
+        self.assertNotIn("local_memory_timeout", notices[0])
         self.assertNotIn("<@", notices[0])
         self.assertEqual(requests, [])
         entries = self.entries(log)
         self.assertEqual(self.event(entries, "failure_notice_delivered")["receipt"],
                          {"ids": ["synthetic-notice"], "text": notices[0]})
+
+    async def test_capacity_timeout_and_service_notices_keep_internal_codes_and_call_counts(self):
+        cases = (
+            ("input_token_limit", None, self.config.adapter.budgets["reply"].input_tokens + 1,
+             ["/responses/input_tokens"]),
+            ("stage_timeout", GovernedError("stage_timeout"), 10,
+             ["/responses/input_tokens", "/responses"]),
+            ("provider_http_503", GovernedError("provider_http_503"), 10,
+             ["/responses/input_tokens", "/responses"]),
+        )
+        texts = []
+        for identity, (code, error, count, expected_paths) in enumerate(cases, 1):
+            with self.subTest(code=code):
+                bridge, _, requests, log = self.make_bridge(model_error=error, counted_input=count)
+                source = ErrorMessage(identity, text="<@99> alpha topic")
+                with redirect_stdout(io.StringIO()):
+                    self.assertTrue(bridge.enqueue(source, "99"))
+                    await self.settle(bridge)
+                texts.append(self.assert_notice(source, code))
+                self.assertEqual([path for path, _ in requests], expected_paths)
+                entries = self.entries(log)
+                start = self.event(entries, "turn_start")
+                self.assertEqual(start["notice_policy"], NOTICE_POLICY)
+                self.assertNotIn(start["trace_id"], texts[-1])
+                self.assertNotIn(start["trace_id"][:12], texts[-1])
+                self.assertEqual(self.event(entries, "turn_end")["code"], code)
+                notice = self.event(entries, "failure_notice_delivered")
+                self.assertEqual(notice["reason"], code)
+                self.assertEqual(notice["notice_policy"], NOTICE_POLICY)
+                self.assertEqual(len([e for e in entries if e["event"] == "call_start"]), 1)
+                self.assertFalse(any(e["event"] in {"answer_generated", "answer_delivered"}
+                                     for e in entries))
+                report = verify_runs([log.path])
+                self.assertEqual(report["counts"]["failed"], 1, report)
+                self.assertEqual(report["issues"], [])
+        self.assertEqual(len(set(texts)), len(cases))
 
 
 if __name__ == "__main__":

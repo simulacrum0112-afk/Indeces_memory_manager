@@ -336,6 +336,75 @@ def _validate_budget_history(events, calls, report, *, partial=False):
                          "active provider unknown usage was not halted")
 
 
+def _validate_host_notices(events, start=None, *, partial=False):
+    """New notices bind a preserved stop cause; unmarked historical turns keep v3."""
+    from .user_notices import NOTICE_POLICY, user_notice
+
+    recorded_starts = [fields for event, fields in events if event == "turn_start"]
+    starts = recorded_starts + ([start] if start is not None else [])
+    markers = [fields["notice_policy"] for fields in starts if "notice_policy" in fields]
+    declared = bool(markers)
+    if declared:
+        _require(all(marker == NOTICE_POLICY for marker in markers), "active notice policy invalid")
+    for event, stop in events:
+        if event != "requery_stop":
+            continue
+        marked = "notice_policy" in stop
+        if not declared and not marked:
+            continue
+        if marked and not partial:
+            _require(start is not None and start.get("notice_policy") == NOTICE_POLICY
+                     and len(recorded_starts) == 1
+                     and recorded_starts[0].get("notice_policy") == NOTICE_POLICY,
+                     "active notice turn policy missing or downgraded")
+        if stop.get("fallback") is False:
+            _require(not marked and "notice_clarification" not in stop,
+                     "active answer stop has notice policy")
+            continue
+        _require(stop.get("fallback") is True and stop.get("notice_policy") == NOTICE_POLICY,
+                 "active notice policy missing or invalid")
+        reason = stop.get("reason")
+        ledger = stop.get("ledger")
+        _require(type(reason) is str and bool(reason) and type(ledger) is dict
+                 and type(ledger.get("halted")) is str and bool(ledger["halted"]),
+                 "active notice lost stop reason or halt")
+        _require(ledger["halted"] == reason or ledger["halted"] in {
+                     "requery_usage_unknown", "requery_ledger_audit_failed", "requery_provider_budget_breach"},
+                 "active notice stop reason/ledger mismatch")
+        if not partial and ledger["halted"] != reason:
+            failures = [fields for name, fields in events if name in {"call_end", "call_rejected"}
+                        and fields.get("status") != "completed"]
+            if failures:
+                _require(reason == failures[-1].get("code") or
+                         (reason == "cancelled" and failures[-1].get("status") == "cancelled"),
+                         "active notice stop reason/provider failure mismatch")
+        clarification = stop.get("notice_clarification")
+        if reason == "ambiguity" or "notice_clarification" in stop:
+            _require(reason == "ambiguity" and type(clarification) is str
+                     and bool(clarification.strip()) and len(clarification) <= 240,
+                     "active notice clarification invalid")
+        if not partial and reason in {"ambiguity", "model_stop"}:
+            actions = [fields["action"] for name, fields in events if name == "requery_action"]
+            expected_action = "clarify" if reason == "ambiguity" else "stop"
+            _require(bool(actions) and actions[-1]["action"] == expected_action,
+                     "active notice stop action mismatch")
+            if reason == "ambiguity":
+                _require(clarification == actions[-1]["clarification"],
+                         "active notice clarification binding mismatch")
+        expected = user_notice(reason, clarification=clarification)
+        _require(not any(name == "call_start" and fields.get("stage") == "reply"
+                         for name, fields in events), "active notice has provider reply call")
+        for name, fields in events:
+            if name in {"answer_generated", "answer_delivered"}:
+                _require(fields.get("record", {}).get("text") == expected,
+                         "active notice template mismatch")
+            elif name == "delivery_start":
+                _require(fields.get("text") == expected, "active notice template mismatch")
+            elif name == "turn_end" and fields.get("status") == "delivered":
+                _require(fields.get("receipt", {}).get("text") == expected,
+                         "active notice template mismatch")
+
+
 def verify_active_turn(events, start=None, report=None, *, partial=False):
     """Check version 3 without accepting single-retrieval assumptions.
 
@@ -345,9 +414,12 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
     """
     from .run_records import (_validate_bot_decision, _validate_call,
                               _validate_model_selection, _validate_partial_call,
-                              _validate_reply_request)
+                              _validate_reply_request, _validate_failure_notices)
 
     report = report if report is not None else {"status": "incomplete", "warnings": []}
+    _validate_failure_notices(events, report, partial=partial)
+    report["warnings"] = list(dict.fromkeys(report["warnings"]))
+    _validate_host_notices(events, start, partial=partial)
     ends = [f for e, f in events if e == "turn_end"]
     contexts = [f for e, f in events if e == "reply_context"]
     generated = [f for e, f in events if e == "answer_generated"]

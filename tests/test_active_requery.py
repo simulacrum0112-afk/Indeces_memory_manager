@@ -17,10 +17,12 @@ from indeces.config import AdapterConfig, Budget, DiscordConfig, RuntimeConfig
 from indeces.console import create_runtime
 from indeces.contracts import DeliveryReceipt, FailureNotice, GovernedError, IncomingMessage
 from indeces.memory import MemoryGraph
-from indeces.requery_records import bundle_model_materials, validate_bundle
+from indeces.requery_records import (answer_record_bundle, bundle_model_materials,
+                                    validate_bundle, verify_active_turn)
 from indeces.run_records import digest, verify_runs
 from indeces.scratch import ScratchLog
 from indeces.store import Store
+from indeces.user_notices import NOTICE_POLICY, user_notice
 
 
 def action(term="amber", original="mystery"):
@@ -498,6 +500,7 @@ class ActiveConsoleTests(unittest.IsolatedAsyncioTestCase):
         stop = self.event("requery_stop")[0]
         self.assertEqual(stop["reason"], "model_stop")
         self.assertTrue(stop["fallback"])
+        self.assertEqual(stop["notice_policy"], NOTICE_POLICY)
         ledger = self.event("requery_budget_event")[-1]["ledger"]
         self.assertEqual((ledger["phase"], ledger["halted"]), ("stopped", "model_stop"))
         self.assertTrue(ledger["usage_complete"])
@@ -508,6 +511,8 @@ class ActiveConsoleTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(generated["model_result"])
         self.assertEqual(len(self.deliveries), 1)
         self.assertNotIn(missing, self.deliveries[0])
+        self.assertEqual(self.deliveries[0], "我目前还不能依据现有材料可靠确认这个问题。")
+        self.assertNotIn("model_stop", self.deliveries[0])
         self.assertEqual(self.event("turn_end")[0]["status"], "delivered")
         self.assertEqual(verify_runs([self.entries()[0]])["issues"], [])
 
@@ -530,6 +535,59 @@ class ActiveConsoleTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(ledger["halted"])
         self.assertEqual(ledger["unknown_generation_count"], 0)
         self.assertEqual(ledger["automatic_retries"], 0)
+
+    async def test_input_capacity_notice_keeps_real_stop_cause_without_final_generation(self):
+        native = self.transport
+        async def input_too_large(path, payload):
+            response = await native(path, payload)
+            if path == "/responses/input_tokens":
+                return {"input_tokens": 4097}
+            return response
+        self.adapter._request_override = input_too_large
+        await self.run_turn()
+        stop = self.event("requery_stop")[0]
+        self.assertEqual(stop["reason"], "input_token_limit")
+        self.assertEqual(stop["notice_policy"], NOTICE_POLICY)
+        self.assertEqual(self.deliveries, [user_notice("input_token_limit")])
+        self.assertNotEqual(self.deliveries[0], user_notice("model_stop"))
+        self.assertNotIn("input_token_limit", self.deliveries[0])
+        self.assertFalse(any(path == "/responses" for path, _, _ in self.requests))
+        ledger = self.event("requery_budget_event")[-1]["ledger"]
+        self.assertEqual(ledger["halted"], "input_token_limit")
+        self.assertEqual(ledger["unknown_generation_count"], 0)
+        self.assertEqual(ledger["automatic_retries"], 0)
+        self.assertEqual(verify_runs([self.entries()[0]])["issues"], [])
+
+    async def test_time_notice_is_distinct_from_missing_evidence_and_adds_no_call(self):
+        with patch("indeces.active_requery.TurnBudgetAdapter.check",
+                   side_effect=GovernedError("requery_time_budget", remote_usage_unknown=False)):
+            await self.run_turn()
+        stop = self.event("requery_stop")[0]
+        self.assertEqual(stop["reason"], "requery_time_budget")
+        self.assertEqual(stop["notice_policy"], NOTICE_POLICY)
+        self.assertEqual(self.deliveries, [user_notice("requery_time_budget")])
+        self.assertNotEqual(self.deliveries[0], user_notice("model_stop"))
+        self.assertNotEqual(self.deliveries[0], user_notice("input_token_limit"))
+        self.assertEqual(self.requests, [])
+        self.assertEqual(verify_runs([self.entries()[0]])["issues"], [])
+
+    async def test_natural_clarification_preserves_question_and_audited_binding(self):
+        question = "Which synthetic sensor?"
+        self.outputs = [dict(done(), action="clarify", clarification=question, stop_reason="ambiguity")]
+        await self.run_turn()
+        stop = self.event("requery_stop")[0]
+        self.assertEqual(stop["reason"], "ambiguity")
+        self.assertEqual(stop["notice_clarification"], question)
+        self.assertEqual(self.deliveries, ["想确认一下：" + question])
+        self.assertFalse(any(stage == "reply" for _, stage, _ in self.requests))
+        self.assertEqual(verify_runs([self.entries()[0]])["issues"], [])
+        events = [(entry["event"], deepcopy(entry["fields"])) for entry in self.entries()[1]
+                  if entry["fields"].get("trace_id") == self.event("turn_start")[0]["trace_id"]]
+        changed = next(fields for event, fields in events if event == "requery_stop")
+        changed["notice_clarification"] = "A different synthetic question?"
+        start = next(fields for event, fields in events if event == "turn_start")
+        with self.assertRaisesRegex(ValueError, "notice clarification binding mismatch"):
+            verify_active_turn(events, start)
 
     async def test_duplicate_query_stops_before_second_graph_execution(self):
         self.outputs = [action(), action()]
@@ -574,6 +632,10 @@ class ActiveConsoleTests(unittest.IsolatedAsyncioTestCase):
         await self.run_turn()
         self.assertEqual(len(self.requests), 2)
         self.assertEqual(self.event("requery_stop")[0]["ledger"]["halted"], "requery_usage_unknown")
+        self.assertEqual(self.event("requery_stop")[0]["notice_policy"], NOTICE_POLICY)
+        self.assertEqual(self.deliveries, [user_notice("synthetic_network_loss")])
+        self.assertNotEqual(self.deliveries[0], user_notice("model_stop"))
+        self.assertNotIn("synthetic_network_loss", self.deliveries[0])
         ledger = json.loads(next((self.root / "state/active_requery_ledger").glob("*.json")).read_text())
         self.assertEqual(ledger["phase"], "halted")
         self.assertIsNone(ledger["calls"][0]["usage"])
@@ -581,6 +643,27 @@ class ActiveConsoleTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(GovernedError, "already_recorded"):
             TurnBudgetAdapter(self.adapter, self.config, self.scratch, "new-trace", self.message.message_id, self.message.scope)
         self.assertEqual(len(self.requests), 2)
+
+    async def test_unknown_usage_cannot_be_relabelled_as_capacity_by_a_forged_notice(self):
+        self.query_error = GovernedError("synthetic_network_loss")
+        await self.run_turn()
+        self.assertEqual(verify_runs([self.entries()[0]])["issues"], [])
+        trace = self.event("turn_start")[0]["trace_id"]
+        events = [(entry["event"], deepcopy(entry["fields"])) for entry in self.entries()[1]
+                  if entry["fields"].get("trace_id") == trace]
+        bundle = next(fields["bundle"] for event, fields in events if event == "requery_evidence")
+        for event, fields in events:
+            if event == "requery_stop":
+                fields["reason"] = "input_token_limit"
+            elif event in {"answer_generated", "answer_delivered"}:
+                fields["record"] = answer_record_bundle(user_notice("input_token_limit"), bundle)
+            elif event == "delivery_start":
+                fields["text"] = user_notice("input_token_limit")
+            elif event == "turn_end":
+                fields["receipt"]["text"] = user_notice("input_token_limit")
+        start = next(fields for event, fields in events if event == "turn_start")
+        with self.assertRaisesRegex(ValueError, "notice stop reason/provider failure mismatch"):
+            verify_active_turn(events, start)
 
     async def test_invalid_action_and_local_graph_exception_do_not_retry_or_leak(self):
         self.outputs = ["invalid-json"]

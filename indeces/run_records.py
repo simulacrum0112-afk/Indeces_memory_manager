@@ -1169,6 +1169,56 @@ def _validate_partial_turn(events, report, *, start=None):
                 _validate_reply_request(context, request["payload"], bot=bot_data is not None, partial=True)
 
 
+def _validate_failure_notices(events, report=None, *, partial=False):
+    """Bind the versioned public notice to the internal failed-turn reason.
+
+    Unmarked historical receipts keep their original contract. A retained
+    suffix checks available text and explicitly declines a missing end binding.
+    """
+    from .user_notices import NOTICE_POLICY, user_notice
+
+    starts = [f for e, f in events if e == "turn_start"]
+    notices = [(e, f) for e, f in events if e in {
+        "failure_notice_delivered", "failure_notice_unknown", "failure_notice_skipped"}]
+    markers = [f["notice_policy"] for e, f in events
+               if e in {"turn_start", "failure_notice_delivered"} and "notice_policy" in f]
+    if not markers:
+        return
+    _require(all(marker == NOTICE_POLICY for marker in markers), "unknown failure notice policy")
+    _require(all(start.get("notice_policy") == NOTICE_POLICY for start in starts),
+             "failure notice turn policy missing or downgraded")
+    _require(len(notices) <= 1, "duplicate failure notice outcome")
+    if not notices:
+        return
+    ends = [f for e, f in events if e == "turn_end"]
+    _require(len(ends) <= 1, "duplicate failure notice turn end")
+    if ends:
+        _require(ends[0].get("status") == "failed", "failure notice without failed turn")
+        end_at = next(i for i, (e, _) in enumerate(events) if e == "turn_end")
+        notice_at = next(i for i, (e, _) in enumerate(events) if e == notices[0][0])
+        _require(end_at < notice_at, "failure notice precedes failed turn end")
+    else:
+        _require(partial, "failure notice failed turn end missing")
+        if report is not None:
+            report.setdefault("warnings", []).append("expired_failure_notice_binding")
+    event, notice = notices[0]
+    if event != "failure_notice_delivered":
+        return
+    _require(notice.get("notice_policy") == NOTICE_POLICY,
+             "failure notice policy missing or downgraded")
+    reason = notice.get("reason")
+    _require(isinstance(reason, str) and bool(reason), "failure notice reason missing")
+    if ends:
+        _require(reason == ends[0].get("code"), "failure notice reason mismatch")
+    receipt = notice.get("receipt")
+    _require(isinstance(receipt, dict) and set(receipt) == {"ids", "text"},
+             "failure notice receipt schema mismatch")
+    _require(isinstance(receipt["ids"], (list, tuple)) and bool(receipt["ids"])
+             and all(isinstance(identity, str) and bool(identity) for identity in receipt["ids"]),
+             "failure notice receipt identifiers invalid")
+    _require(receipt["text"] == user_notice(reason), "failure notice text mismatch")
+
+
 def verify_runs(paths: list[Path]):
     """Verify new record contracts across files; report legacy/incomplete turns.
 
@@ -1264,6 +1314,7 @@ def verify_runs(paths: list[Path]):
             reports.append(report)
             try:
                 _require(trace in partial_traces, "turn start missing without retention evidence")
+                _validate_failure_notices(events, report, partial=True)
                 if any(e in {"requery_action", "requery_retrieval", "requery_evidence", "requery_stop"}
                        or f.get("stage") == "query" or "bundle_sha256" in f for e, f in events):
                     from .requery_records import verify_active_turn
@@ -1282,6 +1333,7 @@ def verify_runs(paths: list[Path]):
             try:
                 from .requery_records import verify_active_turn
                 _require(len(starts) == 1, "duplicate active turn start")
+                _validate_failure_notices(events, report, partial=trace in partial_traces)
                 verify_active_turn(events, starts[0], report, partial=trace in partial_traces)
                 _require(not any(c["status"] == "invalid" for c in call_reports if c["trace_id"] == trace),
                          "active turn has invalid call evidence")
@@ -1294,6 +1346,7 @@ def verify_runs(paths: list[Path]):
         report["status"] = "incomplete"
         try:
             _require(len(starts) == 1, "duplicate turn start")
+            _validate_failure_notices(events, report, partial=trace in partial_traces)
             if trace in partial_traces and (starts[0].get("model_selection_policy") is not None
                     or any(e in {"model_selection_input", "model_selection_decision"}
                            or f.get("stage") == "selection" for e, f in events)):

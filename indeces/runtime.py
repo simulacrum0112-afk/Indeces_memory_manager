@@ -15,6 +15,7 @@ from .memory import MemoryGraph
 from .run_records import answer_record, digest, freeze_retrieval
 from .scratch import CanonicalSnapshot
 from .selection_policy import policy_identity
+from .user_notices import NOTICE_POLICY, user_notice
 from . import prompts
 
 
@@ -154,6 +155,7 @@ class Runtime:
             self.scratch.write("turn_start", trace_id=trace_id, message_id=message.message_id, scope=message.scope,
                                input=input_record,
                                deadline_seconds=turn_seconds,
+                               notice_policy=NOTICE_POLICY,
                                run_record_version=3 if getattr(self.config.runtime, "active_requery_enabled", False) else 1,
                                knowledge_scope=self.knowledge_scope,
                                **({"model_selection_policy": policy_identity(self.model_selector)}
@@ -384,10 +386,12 @@ class Runtime:
                         if remaining <= 0:
                             self.scratch.write("failure_notice_skipped", trace_id=trace_id, reason="turn_time_exhausted")
                             return
-                        notice = f"本轮未完成（{code}）。审计编号：{trace_id[:12]}"
+                        notice = user_notice(code)
                         async with asyncio.timeout(min(self.config.discord.delivery_seconds, remaining)):
                             receipt = await deliver(FailureNotice(notice) if message.author_is_bot else notice)
-                        self.scratch.write("failure_notice_delivered", trace_id=trace_id, receipt={"ids": receipt.message_ids, "text": receipt.text})
+                        self.scratch.write("failure_notice_delivered", trace_id=trace_id,
+                                           notice_policy=NOTICE_POLICY, reason=code,
+                                           receipt={"ids": receipt.message_ids, "text": receipt.text})
                     except Exception as error:
                         self.scratch.write("failure_notice_unknown", trace_id=trace_id, error_type=type(error).__name__)
             finally:

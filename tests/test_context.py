@@ -15,6 +15,7 @@ from indeces.context import compaction_prefix, encode, groups, history_cost, his
 from indeces.contracts import DeliveryReceipt, GovernedError, IncomingMessage, ModelResult
 from indeces.runtime import Runtime
 from indeces.store import Store
+from indeces.user_notices import user_notice
 from indeces import prompts
 
 
@@ -308,7 +309,8 @@ class RuntimeConversationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([call["stage"] for call in adapter.calls], ["reply"])
         self.assertEqual([row["role"] for row in self.store.history(current.scope)], ["user"])
         self.assertEqual(len(self.deliveries), 1)
-        self.assertIn("stage_timeout", self.deliveries[0])
+        self.assertEqual(self.deliveries[0], user_notice("stage_timeout"))
+        self.assertNotIn("stage_timeout", self.deliveries[0])
         self.assertEqual(self.store.db.execute("SELECT status FROM turns WHERE message_id=?", (current.message_id,)).fetchone()[0], "stage_timeout")
 
 

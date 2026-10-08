@@ -20,6 +20,7 @@ from indeces.requery_records import (answer_record_bundle, append_retrieval,
 from indeces.run_records import answer_record, digest, freeze_retrieval, validate_answer, verify_runs
 from indeces.scratch import ScratchLog
 from indeces.store import Store
+from indeces.user_notices import NOTICE_POLICY, user_notice
 
 
 class Scratch:
@@ -223,12 +224,14 @@ class ActiveTurnVerificationTests(SyntheticFixture):
                 "halted": "requery_usage_unknown" if any(c["generation_started"] and c["usage"] is None for c in calls) else None,
                 "automatic_retries": 0}
 
-    def start(self, scratch, *, bot=False):
+    def start(self, scratch, *, bot=False, notice_policy=None):
         fields = {"trace_id": "synthetic-trace", "message_id": "synthetic-message",
                   "run_record_version": 3, "knowledge_scope": self.scope,
                   "input": {"text": "amber sensor", "author_id": "synthetic-author"}}
         if bot:
             fields["input"]["author_is_bot"] = True
+        if notice_policy is not None:
+            fields["notice_policy"] = notice_policy
         scratch.write("turn_start", **fields)
         return fields
 
@@ -249,13 +252,21 @@ class ActiveTurnVerificationTests(SyntheticFixture):
         return [{"role": "user", "content": "Historical context data:\n" + encode({
             "memory_citations": bundle_model_materials(bundle)})}]
 
-    def host_finish(self, scratch, bundle, *, reason="query_budget", bot=False, ledger=None):
+    def host_finish(self, scratch, bundle, *, reason="query_budget", bot=False, ledger=None,
+                    notice_policy=None):
+        stop_ledger = self.synthetic_ledger(scratch) if ledger is None else ledger
+        notice_fields = {}
+        if notice_policy is not None:
+            stop_ledger = deepcopy(stop_ledger)
+            if stop_ledger["halted"] is None:
+                stop_ledger["halted"] = reason
+            notice_fields = {"fallback": True, "notice_policy": notice_policy}
         scratch.write("requery_stop", trace_id="synthetic-trace", reason=reason,
-                      ledger=self.synthetic_ledger(scratch) if ledger is None else ledger)
+                      ledger=stop_ledger, **notice_fields)
         scratch.write("reply_context", trace_id="synthetic-trace", bundle_sha256=digest(bundle),
                       instructions="Synthetic instruction", messages=self.context(bundle),
                       no_provider_reply=True, final_origin="bounded_stop")
-        answer = "Synthetic bounded stop. [M1]"
+        answer = user_notice(reason) if notice_policy is not None else "Synthetic bounded stop. [M1]"
         record = answer_record_bundle(answer, bundle)
         scratch.write("answer_generated", trace_id="synthetic-trace", bundle_sha256=digest(bundle),
                       record=record, model_result=None, final_origin="bounded_stop")
@@ -394,6 +405,91 @@ class ActiveTurnVerificationTests(SyntheticFixture):
             report = verify_active_turn(scratch.events, start)
             self.assertEqual(report["status"], "complete")
             self.assertFalse(any(f.get("stage") == "reply" for _, f in scratch.events))
+
+    def test_natural_notice_and_unmarked_historical_host_receipts_both_verify(self):
+        for policy in (None, NOTICE_POLICY):
+            with self.subTest(policy=policy):
+                scratch = Scratch()
+                start = self.start(scratch, notice_policy=policy)
+                bundle = self.initial_events(scratch)
+                self.host_finish(scratch, bundle, reason="input_token_limit", notice_policy=policy)
+                self.assertEqual(verify_active_turn(scratch.events, start)["status"], "complete")
+                stop = next(f for e, f in scratch.events if e == "requery_stop")
+                self.assertEqual(stop["reason"], "input_token_limit")
+                self.assertEqual("notice_policy" in stop, policy is not None)
+
+    def test_natural_notice_policy_cannot_be_changed_or_removed_from_new_turn(self):
+        scratch = Scratch()
+        start = self.start(scratch, notice_policy=NOTICE_POLICY)
+        bundle = self.initial_events(scratch)
+        self.host_finish(scratch, bundle, reason="input_token_limit", notice_policy=NOTICE_POLICY)
+        for value in (None, "unknown_policy", True, "removed"):
+            with self.subTest(policy=value):
+                damaged = deepcopy(scratch.events)
+                stop = next(f for e, f in damaged if e == "requery_stop")
+                if value == "removed":
+                    del stop["notice_policy"]
+                else:
+                    stop["notice_policy"] = value
+                with self.assertRaisesRegex(ValueError, "notice policy"):
+                    verify_active_turn(damaged, start)
+                with self.assertRaisesRegex(ValueError, "notice policy"):
+                    verify_active_turn(damaged, partial=True)
+
+    def test_new_host_policy_binds_the_recorded_start_and_retained_suffix_is_allowed(self):
+        scratch = Scratch()
+        start = self.start(scratch, notice_policy=NOTICE_POLICY)
+        bundle = self.initial_events(scratch)
+        self.host_finish(scratch, bundle, reason="input_token_limit", notice_policy=NOTICE_POLICY)
+        for supplied_start_changed in (False, True):
+            with self.subTest(supplied_start_changed=supplied_start_changed):
+                damaged = deepcopy(scratch.events)
+                del next(f for e, f in damaged if e == "turn_start")["notice_policy"]
+                supplied = deepcopy(start)
+                if supplied_start_changed:
+                    del supplied["notice_policy"]
+                with self.assertRaisesRegex(ValueError, "notice turn policy missing or downgraded"):
+                    verify_active_turn(damaged, supplied)
+        suffix = [(event, fields) for event, fields in scratch.events if event != "turn_start"]
+        self.assertEqual(verify_active_turn(suffix, partial=True)["status"], "retention_partial")
+
+    def test_self_consistent_forged_notice_and_missing_stop_cause_are_rejected(self):
+        scratch = Scratch()
+        start = self.start(scratch, notice_policy=NOTICE_POLICY)
+        bundle = self.initial_events(scratch)
+        self.host_finish(scratch, bundle, reason="input_token_limit", notice_policy=NOTICE_POLICY)
+        forged = deepcopy(scratch.events)
+        for event, fields in forged:
+            if event in {"answer_generated", "answer_delivered"}:
+                fields["record"] = answer_record_bundle("Synthetic unsupported answer.", bundle)
+            elif event == "delivery_start":
+                fields["text"] = "Synthetic unsupported answer."
+            elif event == "turn_end":
+                fields["receipt"]["text"] = "Synthetic unsupported answer."
+        with self.assertRaisesRegex(ValueError, "notice template mismatch"):
+            verify_active_turn(forged, start)
+        for changed in ("reason", "halt"):
+            with self.subTest(cause=changed):
+                damaged = deepcopy(scratch.events)
+                stop = next(f for e, f in damaged if e == "requery_stop")
+                if changed == "reason":
+                    del stop["reason"]
+                else:
+                    stop["ledger"]["halted"] = None
+                with self.assertRaisesRegex(ValueError, "notice lost stop reason or halt"):
+                    verify_active_turn(damaged, start)
+
+    def test_retained_natural_notice_checks_template_without_full_prefix(self):
+        scratch = Scratch()
+        start = self.start(scratch, notice_policy=NOTICE_POLICY)
+        bundle = self.initial_events(scratch)
+        self.host_finish(scratch, bundle, reason="input_token_limit", notice_policy=NOTICE_POLICY)
+        suffix = [(e, f) for e, f in scratch.events if e != "turn_start"]
+        self.assertEqual(verify_active_turn(suffix, partial=True)["status"], "retention_partial")
+        damaged = deepcopy(suffix)
+        next(f for e, f in damaged if e == "answer_generated")["record"]["text"] = "Synthetic forgery"
+        with self.assertRaisesRegex(ValueError, "notice template mismatch"):
+            verify_active_turn(damaged, partial=True)
 
     def test_two_rounds_and_real_mock_transport_reply_verify_through_public_reader(self):
         scratch = Scratch()

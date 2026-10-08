@@ -24,6 +24,7 @@ from .run_records import digest, freeze_retrieval
 from .requery_records import (append_retrieval, bundle_model_materials,
                              planning_evidence_reference)
 from .scratch import CanonicalSnapshot
+from .user_notices import NOTICE_POLICY, user_notice
 
 
 INSTRUCTIONS = """Identify missing evidence before answering. Return only the
@@ -397,14 +398,17 @@ class ActiveRequery:
 
     def stop(self, reason, *, fallback=True, clarification=None):
         self.stop_reason = reason
+        notice_fields = {}
         if fallback:
             if self.adapter.halted is None:
                 self.adapter.halted = reason
             self.adapter._save()
-            self.fallback_text = ("请先澄清：" + clarification if clarification else
-                                  f"本轮证据检查已停止（{reason}）；未据此生成未经核验的结论。")
+            self.fallback_text = user_notice(reason, clarification=clarification)
+            notice_fields["notice_policy"] = NOTICE_POLICY
+            if clarification is not None:
+                notice_fields["notice_clarification"] = clarification
         self.runtime.scratch.write("requery_stop", trace_id=self.trace_id, reason=reason,
-                                   fallback=fallback, ledger=self.adapter.snapshot())
+                                   fallback=fallback, ledger=self.adapter.snapshot(), **notice_fields)
 
     async def gather(self, messages):
         while True:
