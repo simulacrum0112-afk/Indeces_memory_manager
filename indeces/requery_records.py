@@ -16,6 +16,7 @@ from .run_records import (answer_record, digest, text_digest, validate_graph_aud
 
 
 BUNDLE_SCHEMA = "active_requery_evidence_v1"
+PLANNING_EVIDENCE_REF_SCHEMA = "active_requery_planning_evidence_ref_v1"
 
 
 def _require(condition, message):
@@ -122,6 +123,12 @@ def bundle_model_materials(bundle):
                        retrieval_sha256=item["retrieval_sha256"])
         result.append(payload)
     return result
+
+
+def planning_evidence_reference(materials):
+    """Bind planning history to the complete, single outer evidence value."""
+    return {"schema": PLANNING_EVIDENCE_REF_SCHEMA, "version": 1,
+            "field": "evidence", "sha256": digest(materials)}
 
 
 def answer_record_bundle(text, bundle):
@@ -490,9 +497,27 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
             _require(declared_query_rounds is None or declared_query_rounds == total_query_rounds,
                      "active query round budget changed")
             declared_query_rounds = total_query_rounds
-            history = _json(payload["history_context"][0]["content"].split("\n", 1)[1])
-            _require(history["memory_citations"] == bundle_model_materials(bundle),
-                     "active planning history evidence mismatch")
+            history_context = payload["history_context"]
+            _require(type(history_context) is list and bool(history_context)
+                     and type(history_context[0]) is dict
+                     and history_context[0].get("role") == "user"
+                     and type(history_context[0].get("content")) is str
+                     and history_context[0]["content"].startswith("Historical context data:\n"),
+                     "active planning history context mismatch")
+            history = _json(history_context[0]["content"].split("\n", 1)[1])
+            _require(type(history) is dict, "active planning history context mismatch")
+            if "memory_citations_ref" in history:
+                reference = history["memory_citations_ref"]
+                _require("memory_citations" not in history
+                         and type(reference) is dict
+                         and type(reference.get("version")) is int
+                         and reference == planning_evidence_reference(payload["evidence"]),
+                         "active planning history evidence mismatch")
+            else:
+                # Existing receipts used two complete copies. Preserve their
+                # byte binding while new planning requests carry one copy.
+                _require(history.get("memory_citations") == payload["evidence"],
+                         "active planning history evidence mismatch")
             _require(all(i < position for i, (_, f) in enumerate(events)
                          if f.get("call_id") == call_id), "active planning output ordering mismatch")
             pending_action = fields

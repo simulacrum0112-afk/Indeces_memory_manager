@@ -62,6 +62,34 @@ class SyntheticFixture(unittest.TestCase):
 
 
 class EvidenceBundleTests(SyntheticFixture):
+    def test_planning_context_references_complete_materials_preserving_history_and_question(self):
+        from indeces.active_requery import context_with_bundle
+        bundle = self.initial()
+        materials = bundle_model_materials(bundle)
+        historical = {"continuity_summary": "Synthetic preceding summary.",
+                      "recent_messages": [{"role": "user", "content": "Synthetic previous question."}],
+                      "memory_citations": [{"quote": "Synthetic stale context material."}]}
+        messages = [{"role": "user", "content": "Historical context data:\n" + encode(historical)},
+                    {"role": "user", "content": "Synthetic immutable current question."}]
+        before = deepcopy(messages)
+        planning = context_with_bundle(messages, bundle, evidence_ref=True)
+        context = json.loads(planning[0]["content"].split("\n", 1)[1])
+        self.assertEqual(context, {
+            "continuity_summary": historical["continuity_summary"],
+            "recent_messages": historical["recent_messages"],
+            "memory_citations_ref": {"schema": "active_requery_planning_evidence_ref_v1",
+                "version": 1, "field": "evidence", "sha256": digest(materials)}})
+        self.assertEqual(planning[1:], messages[1:])
+        self.assertEqual(messages, before)
+        body = json.dumps({"evidence": materials, "history_context": planning}, ensure_ascii=False)
+        for material in materials:
+            self.assertEqual(body.count('"quote": ' + json.dumps(material["quote"], ensure_ascii=False)), 1)
+        reply = context_with_bundle(messages, bundle)
+        final_context = json.loads(reply[0]["content"].split("\n", 1)[1])
+        self.assertEqual(final_context, {**historical, "memory_citations": materials})
+        self.assertNotIn("memory_citations_ref", final_context)
+        self.assertEqual(reply[1:], before[1:])
+
     def test_two_rounds_keep_complete_quotes_and_stable_global_citations(self):
         initial = self.initial()
         before = deepcopy(initial)
@@ -257,15 +285,16 @@ class ActiveTurnVerificationTests(SyntheticFixture):
         finally:
             await adapter.close()
 
-    def query_round(self, scratch, bundle):
+    def query_round(self, scratch, bundle, *, planning_context=None, planning_materials=None):
         action = {"action": "query", "query": {
             "entities": [{"id": "e1", "surface": "amber", "canonical": "violet", "span": [0, 5]}],
             "relations": [], "negations": [], "time": None, "scope": None,
             "canonical_terms": ["violet", "valve"], "ambiguities": []},
             "missing_evidence": ["Synthetic follow-up evidence"], "clarification": "", "stop_reason": ""}
         payload = {"original_text": "amber sensor", "round_index": 0,
-                   "evidence": bundle_model_materials(bundle), "remaining_query_rounds": 2,
-                   "history_context": self.context(bundle)}
+                   "evidence": bundle_model_materials(bundle) if planning_materials is None else planning_materials,
+                   "remaining_query_rounds": 2,
+                   "history_context": self.context(bundle) if planning_context is None else planning_context}
         asyncio.run(self.model_call(scratch, "query", json.dumps(action), [
             {"role": "user", "content": json.dumps(payload)}]))
         call_id = next(f["call_id"] for e, f in reversed(scratch.events) if e == "call_end")
@@ -280,6 +309,81 @@ class ActiveTurnVerificationTests(SyntheticFixture):
                       record=native, record_sha256=digest(native), parent_evidence_sha256=digest(bundle))
         scratch.write("requery_evidence", trace_id="synthetic-trace", bundle=extended, bundle_sha256=digest(extended))
         return extended
+
+    def planning_reference_context(self, bundle):
+        data = {"memory_citations_ref": {
+            "schema": "active_requery_planning_evidence_ref_v1", "version": 1,
+            "field": "evidence", "sha256": digest(bundle_model_materials(bundle))},
+            "continuity_summary": "Synthetic continuity is preserved.",
+            "recent_messages": [{"role": "user", "content": "Synthetic earlier turn."}]}
+        return [{"role": "user", "content": "Historical context data:\n" + encode(data)},
+                {"role": "user", "content": "Synthetic original question remains present."}]
+
+    def test_reference_planning_chain_and_legacy_duplicate_chain_both_verify(self):
+        for reference in (False, True):
+            with self.subTest(reference=reference):
+                scratch = Scratch()
+                start = self.start(scratch)
+                initial = self.initial_events(scratch)
+                context = self.planning_reference_context(initial) if reference else self.context(initial)
+                bundle = self.query_round(scratch, initial, planning_context=context)
+                self.host_finish(scratch, bundle)
+                self.assertEqual(verify_active_turn(scratch.events, start)["status"], "complete")
+                request = next(f["payload"] for e, f in scratch.events
+                               if e == "http_request" and f["path"] == "/responses")
+                data = json.loads(request["input"][0]["content"])
+                self.assertEqual(data["original_text"], start["input"]["text"])
+                self.assertEqual(data["history_context"], context)
+                self.assertEqual(data["evidence"], bundle_model_materials(initial))
+
+    def test_planning_reference_missing_wrong_or_mixed_bindings_are_rejected(self):
+        for change in ("missing", "digest", "schema", "version", "bool-version", "field",
+                       "extra-key", "mixed", "wrong-type", "wrong-history-type", "wrong-history-role"):
+            with self.subTest(change=change):
+                scratch = Scratch()
+                start = self.start(scratch)
+                initial = self.initial_events(scratch)
+                context = self.planning_reference_context(initial)
+                data = json.loads(context[0]["content"].split("\n", 1)[1])
+                ref = data["memory_citations_ref"]
+                if change == "missing":
+                    del data["memory_citations_ref"]
+                elif change == "mixed":
+                    data["memory_citations"] = bundle_model_materials(initial)
+                elif change == "wrong-type":
+                    data["memory_citations_ref"] = []
+                elif change == "extra-key":
+                    ref["unbound"] = "Synthetic field"
+                elif change == "bool-version":
+                    ref["version"] = True
+                elif change not in {"wrong-history-type", "wrong-history-role"}:
+                    ref[change] = "0" * 64 if change == "digest" else "synthetic invalid"
+                    if change == "digest":
+                        ref["sha256"] = ref.pop("digest")
+                context[0]["content"] = "Historical context data:\n" + encode(data)
+                if change == "wrong-history-type":
+                    context = {}
+                elif change == "wrong-history-role":
+                    context[0]["role"] = "assistant"
+                bundle = self.query_round(scratch, initial, planning_context=context)
+                self.host_finish(scratch, bundle)
+                with self.assertRaisesRegex(ValueError, "active planning history (evidence|context) mismatch"):
+                    verify_active_turn(scratch.events, start)
+
+    def test_planning_reference_cannot_rebind_a_replaced_quote(self):
+        scratch = Scratch()
+        start = self.start(scratch)
+        initial = self.initial_events(scratch)
+        materials = bundle_model_materials(initial)
+        materials[0]["quote"] = "Synthetic replacement must not supersede the frozen quote."
+        context = self.planning_reference_context(initial)
+        data = json.loads(context[0]["content"].split("\n", 1)[1])
+        data["memory_citations_ref"]["sha256"] = digest(materials)
+        context[0]["content"] = "Historical context data:\n" + encode(data)
+        bundle = self.query_round(scratch, initial, planning_context=context, planning_materials=materials)
+        self.host_finish(scratch, bundle)
+        with self.assertRaisesRegex(ValueError, "active planning question/round/evidence binding mismatch"):
+            verify_active_turn(scratch.events, start)
 
     def test_budget_stop_host_delivery_is_not_misclassified_as_model_reply(self):
         for bot in (False, True):

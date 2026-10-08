@@ -1,6 +1,14 @@
 # Independent offline feasibility delivery and hotfix
 
-Current isolated version is `0.17.0.dev4`. The finite follow-up fixes decoded
+Current isolated version is `0.17.0.dev5`. The planning smoke fix removes the
+second copy of complete evidence from planning history while preserving reply
+materials, budgets and old audit receipts. See
+[PLANNING_EVIDENCE_PROJECTION.md](PLANNING_EVIDENCE_PROJECTION.md) and the separate
+private smoke/source/package receipts. Prior validations below are historical.
+
+## Preserved dev4 delivery
+
+The isolated version was `0.17.0.dev4`. The finite follow-up fixes decoded
 surrogates in typed facts and complete global citation validation; see
 [PATH_HYPOTHESES_HOTFIX.md](PATH_HYPOTHESES_HOTFIX.md). The new selected group has
 52 passing tests on its exact source, with a newly verified installed wheel and

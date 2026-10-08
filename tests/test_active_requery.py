@@ -215,6 +215,16 @@ class ActiveConsoleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(query_inputs[0]["evidence"], [])
         self.assertEqual(query_inputs[1]["evidence"], material[:1])
         self.assertEqual(query_inputs[2]["evidence"], material)
+        for query_input in query_inputs:
+            history = json.loads(query_input["history_context"][0]["content"].split("\n", 1)[1])
+            self.assertNotIn("memory_citations", history)
+            self.assertEqual(history["memory_citations_ref"], {
+                "schema": "active_requery_planning_evidence_ref_v1", "version": 1,
+                "field": "evidence", "sha256": digest(query_input["evidence"])})
+            self.assertEqual(query_input["original_text"], self.message.text)
+            body = json.dumps(query_input, ensure_ascii=False)
+            for item in query_input["evidence"]:
+                self.assertEqual(body.count('"quote": ' + json.dumps(item["quote"], ensure_ascii=False)), 1)
         reply = next(p for path, stage, p in self.requests if path == "/responses" and stage == "reply")
         final_context = json.loads(reply["input"][0]["content"].split("\n", 1)[1])
         self.assertEqual(final_context["memory_citations"], material)
@@ -223,6 +233,54 @@ class ActiveConsoleTests(unittest.IsolatedAsyncioTestCase):
         report = verify_runs([self.entries()[0]])
         self.assertEqual(report["issues"], [])
         self.assertEqual(report["counts"]["complete"], 1)
+
+    async def test_three_flags_share_complete_planning_evidence_and_diagnostics(self):
+        self.config.runtime = RuntimeConfig(active_requery_enabled=True,
+            communicability_enabled=True, path_hypotheses_enabled=True,
+            turn_seconds=30, summary_max_bytes=256)
+        self.message = replace(self.message, text="amber")
+        self.outputs = [action("cobalt", "amber"), done()]
+        self.runtime = create_runtime(self.config, self.store, self.adapter, self.scratch)
+        weights = {table: list(self.store.db.execute(f"SELECT * FROM {table}"))
+                   for table in ("memory_static", "memory_dynamic")}
+        await self.run_turn()
+        bundle = self.event("requery_evidence")[0]["bundle"]
+        validate_bundle(bundle)
+        self.assertEqual([round_["round_index"] for round_ in bundle["rounds"]], [0, 1])
+        materials = bundle_model_materials(bundle)
+        self.assertEqual([item["source_id"] for item in materials], ["synthetic:amber", "synthetic:cobalt"])
+        queries = [json.loads(payload["input"][0]["content"])
+                   for path, stage, payload in self.requests if path == "/responses" and stage == "query"]
+        self.assertEqual([query["evidence"] for query in queries], [materials[:1], materials])
+        for query in queries:
+            history = json.loads(query["history_context"][0]["content"].split("\n", 1)[1])
+            self.assertNotIn("memory_citations", history)
+            self.assertEqual(history["memory_citations_ref"]["sha256"], digest(query["evidence"]))
+        for name in ("communicability_diagnostic", "path_hypotheses_diagnostic"):
+            diagnostic, = self.event(name)
+            self.assertEqual(diagnostic["evidence_kind"], "bundle")
+            self.assertEqual(diagnostic["evidence_sha256"], digest(bundle))
+            self.assertIs(diagnostic["independent_diagnostic"], True)
+            self.assertIs(diagnostic["receipt"]["proof"], False)
+            self.assertIs(diagnostic["receipt"]["changes_selection"], False)
+        path, = self.event("path_hypotheses_diagnostic")
+        self.assertEqual(path["receipt"]["status"], "unknown")
+        reply = self.event("reply_context")[0]
+        final_history = json.loads(reply["messages"][0]["content"].split("\n", 1)[1])
+        self.assertEqual(final_history["memory_citations"], materials)
+        self.assertNotIn("memory_citations_ref", final_history)
+        self.assertEqual([stage for path, stage, _ in self.requests if path == "/responses"],
+                         ["selection", "query", "query", "reply"])
+        ledger = self.saved_ledger()
+        self.assertEqual((ledger["phase"], ledger["automatic_retries"], ledger["unknown_generation_count"]),
+                         ("completed", 0, 0))
+        self.assertTrue(ledger["usage_complete"])
+        self.assertEqual({table: list(self.store.db.execute(f"SELECT * FROM {table}")) for table in weights}, weights)
+        report = verify_runs([self.entries()[0]])
+        self.assertEqual(report["issues"], [])
+        self.assertEqual(report["counts"]["complete"], 1)
+        self.assertEqual(self.event("answer_generated")[0]["record"]["unresolved_markers"], [])
+        self.assertEqual(len(self.deliveries), 1)
 
     async def test_default_concept_selection_summary_query_reply_share_one_budget_and_citations(self):
         # A 1.2KB synthetic prior turn is small enough for the unchanged 4096

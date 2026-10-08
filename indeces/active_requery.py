@@ -21,7 +21,8 @@ from .config import Budget
 from .adapter import OpenAIAdapter
 from .contracts import GovernedError, validated_token_usage
 from .run_records import digest, freeze_retrieval
-from .requery_records import append_retrieval, bundle_model_materials
+from .requery_records import (append_retrieval, bundle_model_materials,
+                             planning_evidence_reference)
 from .scratch import CanonicalSnapshot
 
 
@@ -352,13 +353,20 @@ class TurnBudgetAdapter:
             self._call_active = False
 
 
-def context_with_bundle(messages, bundle, *, limitation=None):
+def context_with_bundle(messages, bundle, *, limitation=None, evidence_ref=False):
+    """Keep full reply evidence; planning can refer to its outer evidence."""
     result = deepcopy(messages)
     prefix = "Historical context data:\n"
     if len(result) < 2 or not result[0]["content"].startswith(prefix):
         raise GovernedError("requery_context_contract", remote_usage_unknown=False)
     data = json.loads(result[0]["content"][len(prefix):])
-    data["memory_citations"] = bundle_model_materials(bundle)
+    materials = bundle_model_materials(bundle)
+    if evidence_ref:
+        data.pop("memory_citations", None)
+        data["memory_citations_ref"] = planning_evidence_reference(materials)
+    else:
+        data.pop("memory_citations_ref", None)
+        data["memory_citations"] = materials
     if limitation:
         data["context_limitation"] = limitation
     result[0]["content"] = prefix + json.dumps(data, ensure_ascii=False, separators=(",", ":"))
@@ -405,7 +413,7 @@ class ActiveRequery:
                 payload = {"original_text": self.message.text, "round_index": self.rounds,
                            "evidence": bundle_model_materials(self.bundle),
                            "remaining_query_rounds": self.runtime.config.runtime.active_requery_max_rounds - self.rounds,
-                           "history_context": context_with_bundle(messages, self.bundle)}
+                           "history_context": context_with_bundle(messages, self.bundle, evidence_ref=True)}
                 result = await self.adapter.call("query", INSTRUCTIONS,
                     [{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}], self.trace_id, ACTION_SCHEMA)
                 action = parse_action(result.text, self.message.text)
