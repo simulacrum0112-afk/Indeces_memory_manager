@@ -15,6 +15,7 @@ import re
 
 from .scratch import CanonicalSnapshot, canonical, read_records, retention_checkpoint
 from .contracts import validated_token_usage
+from .npmi_telemetry import validate_receipt as validate_npmi_telemetry
 
 
 MAX_PDF_METADATA_BYTES = 512 * 1024
@@ -1145,6 +1146,79 @@ def _validate_unbound_answer(record):
              "retained answer claims unevaluated support")
 
 
+def _validate_npmi_execution(events, report, *, start=None, partial=False):
+    """Validate the initial retrieval once, before version/retention dispatch.
+
+    Later native requery rounds have their own frozen receipts and must not be
+    accumulated into the counters bound to this initial graph. A retained
+    suffix can lose the declaration, but cannot contradict an available one.
+    """
+    telemetry_events = [f for e, f in events if e == "npmi_retrieval"]
+    declaration = start.get("npmi_telemetry_version") if start is not None else None
+    declared = start is not None and "npmi_telemetry_version" in start
+    if not telemetry_events and not declared:
+        return
+    _require(sum(e == "turn_start" for e, _ in events) <= 1, "duplicate NPMI turn start")
+    _require(len(telemetry_events) <= 1, "duplicate NPMI telemetry")
+    if start is not None:
+        _require(type(declaration) is int and declaration == 1, "NPMI telemetry declaration invalid")
+        # While a turn is still inside its initial lookup/selection, the
+        # finally receipt has not yet been written. Any initial result or
+        # terminal event requires it, including a retained start.
+        downstream = {"memory_observation", "retrieval_record", "knowledge_retrieved", "reply_context",
+                      "bot_reply_decision", "answer_generated", "delivery_start", "answer_delivered", "turn_end",
+                      "requery_action", "requery_retrieval", "requery_evidence", "requery_stop"}
+        if any(e in downstream or f.get("stage") in {"reply", "summary", "query"} for e, f in events):
+            _require(len(telemetry_events) == 1, "NPMI telemetry missing")
+    else:
+        _require(partial, "NPMI telemetry declaration missing")
+        report["warnings"].append("expired_npmi_declaration")
+    if not telemetry_events:
+        return
+    fields = telemetry_events[0]
+    _require(type(fields.get("trace_id")) is str and fields["trace_id"]
+             and fields["trace_id"] == report["trace_id"], "NPMI telemetry trace mismatch")
+    event_id = fields.get("event_id")
+    _require(type(event_id) is str and event_id, "NPMI telemetry event invalid")
+    if start is not None:
+        _require(event_id == start["message_id"], "NPMI telemetry event mismatch")
+    stages = {"turn_start": -2, "model_selection_input": -1, "model_selection_decision": 0,
+              "npmi_retrieval": 0.5, "memory_observation": 1, "retrieval_record": 2,
+              "reply_context": 3, "bot_reply_decision": 4, "answer_generated": 5,
+              "delivery_start": 6, "answer_delivered": 7, "turn_end": 8}
+    present = [stages[e] for e, _ in events if e in stages]
+    _require(present == sorted(present), "NPMI telemetry stage ordering mismatch")
+    graphs = [f["audit"] for e, f in events if e == "memory_observation"]
+    graphs.extend(f["record"]["graph_audit"] for e, f in events if e == "retrieval_record")
+    # A retained active bundle contains the frozen initial round even when
+    # its observation/retrieval events are no longer in the retention window.
+    graphs.extend(f["bundle"]["rounds"][0]["record"]["graph_audit"]
+                  for e, f in events if e == "requery_evidence")
+    graph = graphs[0] if graphs else None
+    if graph is not None:
+        _require(all(g == graph for g in graphs), "NPMI initial graph mismatch")
+        _require(event_id == graph["event_id"], "NPMI telemetry graph event mismatch")
+        validate_graph_audit(graph)
+    else:
+        _require(not any(e == "turn_end" and f.get("status") in {"delivered", "skipped"}
+                         for e, f in events) or partial, "NPMI telemetry initial graph missing")
+        if start is None:
+            report["warnings"].append("expired_npmi_event_binding")
+    telemetry = fields["telemetry"]
+    validate_npmi_telemetry(telemetry, graph=graph)
+    _require(telemetry["retrieval_calls"] <= 1, "NPMI initial retrieval count mismatch")
+    if telemetry["path"] == "not_entered":
+        _require(telemetry["retrieval_calls"] == 0 and not any(telemetry["counters"].values())
+                 and all(not any(item.values()) for item in telemetry["stages"].values()),
+                 "NPMI not-entered counters mismatch")
+    else:
+        _require(telemetry["retrieval_calls"] == 1, "NPMI retrieval path count mismatch")
+    _require((telemetry["status"] == "completed" and telemetry["error_type"] is None)
+             or (telemetry["status"] == "failed" and type(telemetry["error_type"]) is str
+                 and telemetry["error_type"].isidentifier()),
+             "NPMI telemetry error declaration mismatch")
+
+
 def _validate_partial_turn(events, report, *, start=None):
     stages = {"model_selection_input": -1, "model_selection_decision": 0,
               "memory_observation": 1, "retrieval_record": 2, "reply_context": 3,
@@ -1296,6 +1370,9 @@ def verify_runs(paths: list[Path]):
         for item in read_records(path):
             fields = item["fields"]
             trace = fields.get("trace_id")
+            if item["event"] == "npmi_retrieval" and (type(trace) is not str or not trace):
+                issues.append({"trace_id": None, "reason": "NPMI telemetry trace missing"})
+                continue
             if item["event"] in {"requery_ledger_io_failure", "requery_ledger_io_recovered"} or "ledger_io_failure" in fields:
                 try:
                     _validate_ledger_io_fields([(item["event"], fields)])
@@ -1371,7 +1448,7 @@ def verify_runs(paths: list[Path]):
                     issues.append({'trace_id': trace, 'reason': str(error) if type(error) is ValueError else 'diagnostic schema invalid'})
                 continue
             # Passive label traces do not have conversation stages.
-            is_turn = any(e in {"model_selection_input", "model_selection_decision",
+            is_turn = any(e in {"npmi_retrieval", "model_selection_input", "model_selection_decision",
                                   "memory_observation", "retrieval_record", "knowledge_retrieved", "reply_context",
                                  "bot_reply_decision", "answer_generated", "delivery_start", "answer_delivered", "turn_end",
                                  "requery_action", "requery_retrieval", "requery_evidence", "requery_stop",
@@ -1383,6 +1460,7 @@ def verify_runs(paths: list[Path]):
             reports.append(report)
             try:
                 _require(trace in partial_traces, "turn start missing without retention evidence")
+                _validate_npmi_execution(events, report, partial=True)
                 _validate_ledger_io_fields(events)
                 _validate_failure_notices(events, report, partial=True)
                 if any(e in {"requery_action", "requery_retrieval", "requery_evidence", "requery_stop",
@@ -1400,6 +1478,12 @@ def verify_runs(paths: list[Path]):
             continue
         report = {"trace_id": trace, "status": "legacy", "warnings": []}
         reports.append(report)
+        try:
+            _validate_npmi_execution(events, report, start=starts[0], partial=trace in partial_traces)
+        except (ValueError, KeyError, TypeError, IndexError, AttributeError, OverflowError, ZeroDivisionError) as error:
+            report["status"] = "invalid"
+            issues.append({"trace_id": trace, "reason": str(error) if type(error) is ValueError else "NPMI record schema invalid"})
+            continue
         if (any(event == "requery_ledger_io_recovered" for event, _ in events)
                 and starts[0].get("run_record_version") != 3):
             report["status"] = "invalid"

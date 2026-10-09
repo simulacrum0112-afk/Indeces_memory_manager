@@ -396,6 +396,34 @@ class RuntimeRecordTests(RecordFixture, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(delivered["citations"][0]["source_id"], SOURCE_A)
         self.assertNotIn("Authorization", path.read_text(encoding="utf-8"))
 
+    async def test_npmi_execution_telemetry_is_required_and_bound_to_graph_for_new_turns(self):
+        self.seed()
+        path, entries = await self.run_turn()
+        self.assertEqual(verify_runs([path])["counts"]["complete"], 1)
+        telemetry = self.events(entries, "npmi_retrieval")[0]["telemetry"]
+        self.assertTrue(telemetry["precomputed_npmi_used"])
+        self.assertFalse(telemetry["formula_recomputed"])
+        missing = self.rewritten(entries, "npmi-missing", omit=("npmi_retrieval",))
+        self.assertEqual(verify_runs([missing])["counts"]["invalid"], 1)
+
+        def changed(event, fields):
+            if event == "npmi_retrieval":
+                fields["telemetry"]["counters"]["candidate_edge_weight_uses"] += 1
+
+        corrupted = self.rewritten(entries, "npmi-counter-mismatch", edit=changed)
+        self.assertEqual(verify_runs([corrupted])["counts"]["invalid"], 1)
+
+    async def test_old_turn_without_npmi_declaration_retains_its_original_validation_contract(self):
+        self.seed()
+        _, entries = await self.run_turn()
+
+        def old_format(event, fields):
+            if event == "turn_start":
+                fields.pop("npmi_telemetry_version")
+
+        legacy = self.rewritten(entries, "pre-npmi-telemetry", edit=old_format, omit=("npmi_retrieval",))
+        self.assertEqual(verify_runs([legacy])["counts"]["complete"], 1)
+
     async def test_hash_valid_wrong_or_missing_verbosity_binding_is_invalid(self):
         self.seed()
         _, entries = await self.run_turn()

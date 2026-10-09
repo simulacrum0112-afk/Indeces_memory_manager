@@ -1,5 +1,15 @@
 # 可核验运行记录
 
+新加载的 Runtime 在 `turn_start` 声明 `npmi_telemetry_version=1`，每轮首次检索新增独立 `npmi_retrieval` 事件，以 `trace_id/event_id` 关联本轮。`telemetry` 记录实际执行路径、完成/失败状态，以及静态边读取、一跳邻居排序、候选评分和静态重建各阶段的调用数、完成数和耗时。`precomputed_npmi_used` 表示实际读取/使用了已存 NPMI 权重；`formula_recomputed` 与公式尝试/完成次数分别记录是否在该次检索中重新计算公式，不能把静态权重使用说成公式重算。没有命中边时明确记录零；异常保留已发生的步骤，仅记录异常类型，不记录异常原文。
+
+计数来自执行位置，而非事后把 `weight_basis=static_npmi` 翻译成调用标记。候选计数、候选边证据使用次数和相关边数量与本轮图审计交叉校验。阶段计时为包含子调用的协作式实测时间，不能相加当作互斥耗时，也不证明操作系统级抢占。该事件仅覆盖当前静态检索；显式低层 legacy/dynamic 路径标为 `legacy_outside_coverage`，使用状态为未知，不伪写未使用。维护发布及离线公式核验不属于本轮检索计数。
+
+0.17.0.dev11+realentry2 将该合同接入 `prepare_retrieval → await choose → finish_retrieval`。模型选择等待期间暂停遥测并恢复外层 ContextVar；本地检索总耗时排除该等待，后续重查询不串入初始计数。初始图审计是交叉校验的唯一计数依据。预算或账本初始化在检索前失败时，记录一次 `failed/not_entered`、零阶段、零计数和零耗时；选择失败或取消保留实际已执行步骤。
+
+声明版本的 v1、v3 和截断记录均检查事件唯一性、身份、状态、阶段及计数绑定。仍在等待初次选择的有效前缀可以是 partial；保留本轮起点并已出现后续检索、上下文或回答证据时，缺失遥测不能借 partial 跳过校验。起点已过期的旧截断片段不补造声明。早期失败的诊断写入再失败时继续原有预算停机和失败收尾，不重试；缺失事件仍明确校验失败。正常检索事件写入失败会中止回答流程。
+
+该扩展不改变 NPMI 公式、图参数、候选/排序、模型额度、配置、不可变图审计或数据库 schema；旧无声明日志继续按旧合同检查，不补造历史执行标记。事件遵循 scratch 原有 UTC/hash 链及滚动 24 小时保留。源码变更需要新的 Console/Runtime 加载才会生效，现有运行实例不会由本次代码编辑自动更新。
+
 0.13.2 的显式维护任务使用追加式独立账本，详见 [BOUNDED_REINGEST.md](BOUNDED_REINGEST.md)。每次 HTTP 请求在发送前持久保存独立 `X-Client-Request-Id`；供应商 Request ID 在正文读取前记录，Response ID 与实测 usage 在 scratch/输出校验前落盘。scratch 增加这些定位元数据，原 payload 与滚动 24 小时合同不变。维护账本不另建原文输出档案；额度预留、已确认实际 usage、未知 usage 和崩溃后的保守占时分列，不能相互替代。旧未知调用按 operator 的明确决定关闭为未量化损失，保留原失败与计量，不伪写零 usage；新未知调用仍停止整批且不得自动重放。45 秒等覆盖设置仅属该维护任务，全局参数与普通调用保持。
 
 0.12.4 的检索记录仍为 `version=1`，新增 `model_projection="citation_material_v1"`，声明实际送给模型的固定字段视图。每条保留 `id/source_id/scope`、完整 `quote`、原110字符预览及截断声明、`marks/direct_marks/expanded_marks`、排序模式/依据/三个分数、`citation_id/citation_marker` 和可选 PDF 物理页码。完整支持记录 ID、图 context、权重转换和排序证据继续在 `graph_audit`；完整来源版本目录、原文和物理页位置继续冻结在材料与来源目录，不复制进模型请求。
@@ -73,6 +83,7 @@ UTC 时间须非递减；相等时间允许。时钟回拨、未来原记录、�
 | 事件 | 记录与关联 |
 |---|---|
 | `turn_start` | `trace_id`、Discord message ID、聊天 scope、knowledge scope、原始/规范化输入与本轮预算 |
+| `npmi_retrieval` | 实际静态 NPMI 权重使用/公式重算标记、路径、各阶段调用/完成次数、相关边与候选证据使用次数、耗时及失败类型 |
 | `memory_observation` | 图事务提交后立即记录 audit 与 audit hash；v2 明确记录 shadow 关闭及邻域选择，历史 v1 保存当时实际已提交的权重转换 |
 | `retrieval_record` | 在检索后、任何 await 前冻结的查询、event ID、完整材料和来源目录、图审计及记录 hash |
 | `knowledge_retrieved` | 提供给后续上下文的材料与同一个检索记录 hash、检索耗时 |

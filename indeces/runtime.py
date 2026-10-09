@@ -12,6 +12,7 @@ from .adapter import reservation
 from .context import compaction_prefix, encode, groups, history_cost, history_data, raw_capacity, reply_messages
 from .contracts import FailureNotice, GovernedError
 from .memory import MemoryGraph
+from .npmi_telemetry import NPMIRetrievalTelemetry
 from .run_records import answer_record, digest, freeze_retrieval, validate_ledger_io_failure
 from .scratch import CanonicalSnapshot
 from .selection_policy import policy_identity
@@ -168,6 +169,7 @@ class Runtime:
                                notice_policy=NOTICE_POLICY,
                                run_record_version=3 if getattr(self.config.runtime, "active_requery_enabled", False) else 1,
                                knowledge_scope=self.knowledge_scope,
+                                npmi_telemetry_version=1,
                                **({"requery_final_policy": FINALIZATION_POLICY} if active_enabled else {}),
                                 **path_provider_fields,
                                **({"model_selection_policy": policy_identity(self.model_selector)}
@@ -177,6 +179,29 @@ class Runtime:
             local_phase = None
             active = None
             turn_adapter = None
+            npmi_telemetry = NPMIRetrievalTelemetry()
+            npmi_recorded = False
+
+            def record_initial_npmi(error=None):
+                nonlocal npmi_recorded
+                if npmi_recorded:
+                    return
+                if npmi_telemetry.status == "not_started":
+                    # Ledger/provider preparation can fail before any local
+                    # retrieval begins. Preserve that absence without timing it.
+                    npmi_telemetry.status = "failed"
+                    npmi_telemetry.error_type = type(error).__name__
+                npmi_recorded = True
+                try:
+                    self.scratch.write("npmi_retrieval", trace_id=trace_id, event_id=message.message_id,
+                                       telemetry=npmi_telemetry.receipt())
+                except Exception as telemetry_error:
+                    if error is None:
+                        raise
+                    # Secondary diagnostic I/O cannot bypass the original
+                    # failure/unknown-usage handling. Do not retry the write.
+                    print(f"[{self.config.name}] initial retrieval telemetry recording failed: {type(telemetry_error).__name__}; trace={trace_id}", flush=True)
+
             def final_state_fields(status):
                 return active.final_fields(status) if active is not None and active.stop_reason else {}
 
@@ -207,33 +232,38 @@ class Runtime:
                     try:
                         local_phase = "retrieval"
                         graph_audit = {}
-                        previous = self.store.db.execute("SELECT content FROM messages WHERE scope=? AND role='user' AND turn_id!=? ORDER BY seq DESC LIMIT 1", (message.scope, message.message_id)).fetchone()
-                        if self.model_selector is None:
-                            records = self.graph.retrieve(self.knowledge_scope, [], message.text, time.time(),
-                                                          event_id=message.message_id, audit=graph_audit,
-                                                          ranking_mode="static", context_query=previous[0] if previous else '')
-                        else:
-                            prepared = self.graph.prepare_retrieval(self.knowledge_scope, [], message.text,
-                                time.time(), event_id=message.message_id,
-                                context_query=previous[0] if previous else '')
-                            if time.monotonic() - started > self.config.runtime.local_seconds:
-                                raise GovernedError("local_memory_timeout")
-                            # No SQLite transaction or local SQL deadline crosses
-                            # the separately bounded, serial model selection call.
-                            self.store.db.set_progress_handler(None, 0)
-                            local_phase = "model_selection"
-                            selection_started = time.monotonic()
-                            try:
-                                if active is None:
-                                    decision = await self.model_selector.choose(prepared.request, trace_id)
+                        try:
+                            with npmi_telemetry:
+                                previous = self.store.db.execute("SELECT content FROM messages WHERE scope=? AND role='user' AND turn_id!=? ORDER BY seq DESC LIMIT 1", (message.scope, message.message_id)).fetchone()
+                                if self.model_selector is None:
+                                    records = self.graph.retrieve(self.knowledge_scope, [], message.text, time.time(),
+                                                                  event_id=message.message_id, audit=graph_audit,
+                                                                  ranking_mode="static", context_query=previous[0] if previous else '')
                                 else:
-                                    decision = await self.model_selector.choose(prepared.request, trace_id,
-                                                                               adapter_override=turn_adapter)
-                            finally:
-                                started += time.monotonic() - selection_started
-                                self.store.db.set_progress_handler(local_progress, 1000)
-                            local_phase = "selection_commit"
-                            records = self.graph.finish_retrieval(prepared, decision, audit=graph_audit)
+                                    prepared = self.graph.prepare_retrieval(self.knowledge_scope, [], message.text,
+                                        time.time(), event_id=message.message_id,
+                                        context_query=previous[0] if previous else '')
+                                    if time.monotonic() - started > self.config.runtime.local_seconds:
+                                        raise GovernedError("local_memory_timeout")
+                                    # No SQLite transaction or local SQL deadline crosses
+                                    # the separately bounded, serial model selection call.
+                                    self.store.db.set_progress_handler(None, 0)
+                                    local_phase = "model_selection"
+                                    selection_started = time.monotonic()
+                                    try:
+                                        with npmi_telemetry.suspended():
+                                            if active is None:
+                                                decision = await self.model_selector.choose(prepared.request, trace_id)
+                                            else:
+                                                decision = await self.model_selector.choose(prepared.request, trace_id,
+                                                                                           adapter_override=turn_adapter)
+                                    finally:
+                                        started += time.monotonic() - selection_started
+                                        self.store.db.set_progress_handler(local_progress, 1000)
+                                    local_phase = "selection_commit"
+                                    records = self.graph.finish_retrieval(prepared, decision, audit=graph_audit)
+                        finally:
+                            record_initial_npmi()
                         local_phase = "memory_observation"
                         # One immutable JSON snapshot binds the committed graph
                         # receipt to both scratch and the recalled materials.
@@ -364,7 +394,8 @@ class Runtime:
                     self.scratch.write("turn_end", trace_id=trace_id, status="delivered", receipt={"ids": receipt.message_ids, "text": receipt.text},
                                        **final_state_fields("host_notice_delivered" if active and active.fallback_text else "model_reply_delivered"))
                     return
-            except asyncio.CancelledError:
+            except asyncio.CancelledError as error:
+                record_initial_npmi(error)
                 halt_budget("post_delivery_record_cancelled" if confirmed else "delivery_unknown" if delivered else "cancelled")
                 if confirmed:
                     print(f"[{self.config.name}] Discord delivery confirmed; post-delivery recording interrupted; trace={trace_id}", flush=True)
@@ -374,6 +405,7 @@ class Runtime:
                 self.scratch.write("turn_end", trace_id=trace_id, status=code, **final_state_fields(code))
                 raise
             except Exception as error:
+                record_initial_npmi(error)
                 if confirmed:
                     halt_budget("post_delivery_record_failed")
                     # A local audit failure cannot erase a confirmed Discord

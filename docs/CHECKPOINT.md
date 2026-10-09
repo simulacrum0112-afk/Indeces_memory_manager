@@ -1,3 +1,33 @@
+# NPMI telemetry integration and main-source sync 0.17.0.dev11+realentry2
+
+The prepared source and package declare `0.17.0.dev11+realentry2`, directly
+following published `da68ecda717aabb063b07d8c18d7cfb31e2e4c9e` (realentry1).
+Local user telemetry changes are integrated into asynchronous initial retrieval
+and common v1/v3/partial validation; candidate ordering, provider gates and all
+budgets remain unchanged. Selection wait and later requery are excluded from
+initial execution counts. Path loop remains default OFF.
+
+Final full-source verification ran 1578 methods: 1557 passed, 21 skipped,
+0 failures and 0 errors. The isolated installed subset passed 88 methods,
+including the 18 new integration methods. These overlapping subsets are not
+added to the complete-suite total. All 55 application files match source, wheel
+and installed target exactly. Two synthetic OFF fixtures matched the exact
+parent across all nine compared fields. Original unsuccessful harness runs
+remain preserved, and no application change was made to hide fixture failures.
+
+The authorized physical update preserves Git main and its HEAD, configuration,
+credentials, knowledge, state, scratch and original experiments. The local
+Console must verify and import the same physical source, including its version;
+the preserved offline experimental module is accounted for separately. The
+final local receipt identifies the exact new experimental publication and
+completed synchronization; this prepared document does not assert a completed
+push, merge or process switch. See [MAIN_SOURCE_SYNC.md](MAIN_SOURCE_SYNC.md) for
+the guarded backup/rollback protocol and interpretation limits.
+
+No paid model/API request, production migration, ingestion or service restart
+was performed. Real answer quality, actual cost/latency, Discord acceptance and
+the preceding four partial behavior contracts remain incomplete.
+
 # Guarded real transport experimental release 0.17.0.dev11+realentry1
 
 The prepared DEV11 package and Console declare `0.17.0.dev11+realentry1`.

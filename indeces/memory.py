@@ -43,6 +43,7 @@ from typing import Any
 from .identity import AGENT_NAME, SELF_NAME_ALIASES
 from .contracts import GovernedError
 from .memory_index import KeyedMemoryIndex
+from .npmi_telemetry import count as npmi_count, retrieval_path as npmi_retrieval_path, stage as npmi_stage
 from .selection_policy import (SelectionCandidate, SelectionLimits, SelectionPolicy, SelectionRequest,
                                checked_decision, digest, policy_identity, validate_decision)
 
@@ -200,6 +201,7 @@ class _RetrievalIndex:
                 self.incident.setdefault(mark, []).append(pair)
         self.static_neighbors = None
 
+    @npmi_stage("neighbor_ordering")
     def index_static_neighbors(self):
         self.static_live_edge_count = sum(edge["static_score"] > 0 for edge in self.edges.values())
         self.static_neighbors = {}
@@ -208,6 +210,7 @@ class _RetrievalIndex:
                 (pair for pair in pairs if self.edges[pair]["static_score"] > 0),
                 key=lambda pair: (-self.edges[pair]["static_score"],
                                   pair[1] if pair[0] == mark else pair[0])))
+            npmi_count("neighbor_ordering_weight_uses", len(self.static_neighbors[mark]))
 
 
 class _NeighborhoodRecords(_IndexedRecords):
@@ -639,6 +642,7 @@ class MemoryGraph:
                 self._rebuild_static(scope, updated_at=archived_at)
         return count
 
+    @npmi_stage("static_rebuild")
     def _rebuild_static(self, scope: str, *, updated_at=None) -> None:
         records = self._records(scope)
         n = len(records)
@@ -661,9 +665,11 @@ class MemoryGraph:
                 (scope, a, b, _json(sorted(contexts[(a, b)])),
                  _json(evidence[(a, b)]), count))
             p_ab = count / n
+            npmi_count("formula_evaluation_attempts")
             npmi = (1.0 if p_ab == 1.0 else
                     math.log(p_ab / ((frequencies[a] / n) * (frequencies[b] / n)))
                     / -math.log(p_ab))
+            npmi_count("formula_evaluations")
             if npmi > 0:
                 self.connection.execute(
                     "INSERT INTO memory_static VALUES(?,?,?,?,?,?,?)",
@@ -911,6 +917,7 @@ class MemoryGraph:
         Explicit dynamic retains the historical low-level implementation; the
         product has no configuration or Console switch that enables it.
         """
+        npmi_retrieval_path(ranking_mode)
         if ranking_mode != "static":
             return self._retrieve_legacy(scope, marks, query, now, event_id=event_id,
                                          audit=audit, ranking_mode=ranking_mode)
@@ -919,6 +926,7 @@ class MemoryGraph:
     def prepare_retrieval(self, scope: str, marks: list[str], query: str, now: float,
                           *, event_id: str | None = None, context_query: str = '') -> PreparedRetrieval:
         """Read static candidates once and leave no transaction or success audit."""
+        npmi_retrieval_path("static")
         if self.selector is None:
             raise GovernedError("selection_policy_required")
         if self.connection.in_transaction:
@@ -1038,8 +1046,10 @@ class MemoryGraph:
             raise GovernedError("selection_event_mismatch")
         return receipt
 
+    @npmi_stage("precomputed_lookup")
     def _neighborhood_edges(self, scope, hits, meta):
         edges, ordinals = self.query_index.incident_edges(scope, hits)
+        npmi_count("precomputed_edges_loaded", len(edges))
         for pair, edge in edges.items():
             row = self.connection.execute(
                 "SELECT weight,last_event_id FROM main.memory_dynamic WHERE scope=? AND a=? AND b=?",
@@ -1047,6 +1057,7 @@ class MemoryGraph:
             edge.update(dynamic_score=row[0] if row else 0.0,
                         dynamic_last_event_id=row[1] if row else None,
                         effective_score=edge["static_score"])
+            npmi_count("precomputed_weight_reads")
         local = _RetrievalIndex([], self.self_marks)
         local.index_edges(edges)
         local.index_static_neighbors()
@@ -1302,6 +1313,7 @@ class MemoryGraph:
             audit.update(payload)
         return result
 
+    @npmi_stage("candidate_scoring")
     def _selection(self, records, hits, edges, query, event_id, *, concept=None,
                    scope=None, context_query='', ranking_mode='static', selector_original=None,
                    _prepare_state=None):
@@ -1431,6 +1443,7 @@ class MemoryGraph:
             for entry in expanded:
                 if entry["mark"] in present:
                     evidence.append(entry)
+            npmi_count("candidate_edge_weight_uses", len(evidence))
             static = sum(item["static_score"] for item in evidence)
             dynamic = sum(item["dynamic_score"] for item in evidence)
             effective = sum(item["effective_score"] for item in evidence)
@@ -1446,6 +1459,7 @@ class MemoryGraph:
                     concept['term_weights'], self.coverage_index.hint(records._scope, record['source_id']), concept['query_plan'])
                 result.update(ranking_score=rank_value, relevance_inputs=inputs)
             ranked.append((rank_value, effective, static, record["id"], result))
+            npmi_count("scored_candidates")
         ranked.sort(key=lambda item: (-item[0], -item[1], -item[2], -item[3]))
         for rank, (direct_count, effective, static, record_id, record) in enumerate(ranked, 1):
             selection["ranked_candidates"].append({"rank": rank, "record_id": record_id,
