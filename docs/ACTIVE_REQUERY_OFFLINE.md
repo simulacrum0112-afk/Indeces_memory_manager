@@ -13,7 +13,10 @@ The ordinary Console Runtime can optionally ask the existing single model for a
 bounded structured action before answering. A `query` action executes the
 existing local static `MemoryGraph.retrieve` path, freezes its selected source
 material, and returns the cumulative evidence to the next action call. An
-`answer` action permits the ordinary final reply. `clarify` and `stop` produce a
+`answer` action permits the ordinary final reply. Starting in the prepared dev10
+policy, a nonempty `no_new_evidence` stop can also attempt one final reply through
+the original gates; see [NO_NEW_EVIDENCE_FINAL.md](NO_NEW_EVIDENCE_FINAL.md).
+`clarify` and `stop` produce a
 bounded host response. This planner is a separate `query` stage; it is not the
 post-retrieval `ModelNPMILabelSelector`, and its native graph-query rounds do not
 call that selector. If initial model selection is enabled, its existing call is
@@ -98,7 +101,9 @@ and literal bindings, not relevance, semantic entailment, or truth.
 
 Empty retrievals, repeated structured queries, queries adding no new evidence,
 round/call/token/time/cost limits, invalid actions, and local errors stop the
-bounded loop. Earlier frozen evidence is retained. Budget/error stops use a
+bounded loop. Earlier frozen evidence is retained. The dev10 exception permits
+one final attempt after nonempty evidence stagnation with an open known-usage
+ledger; it does not add another query or guarantee a final answer. Budget/error stops use a
 fixed host notice without an additional generation; clarification uses the
 bounded structured question. Bot host notices retain the existing failure-notice
 delivery contract and do not create a model-driven continuation.

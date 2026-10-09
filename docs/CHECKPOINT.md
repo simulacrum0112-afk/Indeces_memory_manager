@@ -1,3 +1,26 @@
+# Prepared nonempty evidence-stagnation final reply 0.17.0.dev10
+
+Based on `15912cfbda6e986123efce7995ac1ef6fffb3ad5`, this isolated experimental
+change permits at most one final reply attempt after `no_new_evidence` only when
+the saved evidence is nonempty and the ledger remains open with known usage.
+Original stop reasons, frozen citations, existing budget gates and hard stops
+remain recorded. It adds no retry or budget increase. The prepared package and
+Console version are `0.17.0.dev10`; the active process is not switched by this
+source update. Behavior, audit, limits, validation and coordinated rollback are
+documented in [NO_NEW_EVIDENCE_FINAL.md](NO_NEW_EVIDENCE_FINAL.md). Exact final
+verification and source hashes belong to the accompanying review receipt.
+
+The 24 new targeted methods and 38 existing related methods passed. The full
+Windows suite covered 1461 methods with 21 skips; its final full run retained one
+launcher-environment failure, which passed a final single-case recheck after
+preparing the isolated worktree's interpreter. All 1440 non-skipped methods are
+verified after rechecks, with no unresolved failure; this is not a claim that one
+fresh complete run exited with zero failures. Earlier driver/environment failures
+remain recorded in [RESULTS.json](../verification/no-new-evidence-final/RESULTS.json).
+The standard wheel and isolated target passed all 58 RECORD entries and exact
+byte checks for 52 application source/resource files; package/Console version and
+offline CLI check agree on dev10. No real model or production activation was run.
+
 # Optional model-selection control 0.16.1
 
 This local change is based on `f209fc3006f5a1f3116ffe1f10dfecce486c01b3`.

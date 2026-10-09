@@ -16,6 +16,7 @@ from .run_records import answer_record, digest, freeze_retrieval, validate_ledge
 from .scratch import CanonicalSnapshot
 from .selection_policy import policy_identity
 from .user_notices import NOTICE_POLICY, user_notice
+from .requery_records import FINALIZATION_POLICY, REPLY_LIMITATION, FINAL_REPLY_INSTRUCTIONS
 from . import prompts
 
 
@@ -158,6 +159,7 @@ class Runtime:
                                notice_policy=NOTICE_POLICY,
                                run_record_version=3 if getattr(self.config.runtime, "active_requery_enabled", False) else 1,
                                knowledge_scope=self.knowledge_scope,
+                               **({"requery_final_policy": FINALIZATION_POLICY} if active_enabled else {}),
                                **({"model_selection_policy": policy_identity(self.model_selector)}
                                   if self.model_selector is not None else {}))
             delivered = False
@@ -165,6 +167,9 @@ class Runtime:
             local_phase = None
             active = None
             turn_adapter = None
+            def final_state_fields(status):
+                return active.final_fields(status) if active is not None and active.stop_reason else {}
+
             def halt_budget(code):
                 if turn_adapter is not None:
                     try:
@@ -265,11 +270,12 @@ class Runtime:
                         active.append(retrieval, f"{message.message_id}:initial")
                         messages = await self._summary(message, knowledge, trace_id, adapter_override=turn_adapter)
                         bundle = await active.gather(messages)
-                        messages = context_with_bundle(messages, bundle)
+                        messages = context_with_bundle(messages, bundle,
+                            limitation=REPLY_LIMITATION if active.final_reply_mode == "no_new_evidence_consolidation" else None)
                         record_answer = lambda text: answer_record_bundle(text, bundle)
                         evidence_link = {"bundle_sha256": digest(bundle)}
                         final_fields = {"final_origin": "bounded_stop" if active.fallback_text else "model",
-                                        "simulation": turn_adapter.mock}
+                                        "simulation": turn_adapter.mock, **active.final_fields()}
                     if getattr(self.config.runtime, "communicability_enabled", False):
                         # Independent frozen-data diagnostic. Never feed scores
                         # into selection, model context, or base graph weights.
@@ -307,6 +313,8 @@ class Runtime:
                             independent_diagnostic=True)
                     instructions = (prompts.bot_reply_instructions(self.config.name) if message.author_is_bot
                                     else prompts.reply_instructions(self.config.name))
+                    if active is not None and active.final_reply_mode == "no_new_evidence_consolidation":
+                        instructions += FINAL_REPLY_INSTRUCTIONS
                     schema_fields = {"response_schema": prompts.BOT_REPLY_SCHEMA} if message.author_is_bot else {}
                     self.scratch.write("reply_context", trace_id=trace_id, **evidence_link,
                                        instructions=instructions, messages=messages, **schema_fields, **final_fields,
@@ -322,7 +330,8 @@ class Runtime:
                                            **decision, model_result=asdict(result))
                         if decision["action"] == "skip":
                             self.store.fail(message.message_id, "skipped")
-                            self.scratch.write("turn_end", trace_id=trace_id, status="skipped", reason="bot_reply_skipped")
+                            self.scratch.write("turn_end", trace_id=trace_id, status="skipped", reason="bot_reply_skipped",
+                                               **final_state_fields("model_skip"))
                             return
                         answer = decision["text"]
                     else:
@@ -342,7 +351,8 @@ class Runtime:
                     self.store.finish(message, receipt)
                     self.scratch.write("answer_delivered", trace_id=trace_id, **evidence_link, **final_fields,
                                        record=record_answer(receipt.text), receipt_ids=receipt.message_ids)
-                    self.scratch.write("turn_end", trace_id=trace_id, status="delivered", receipt={"ids": receipt.message_ids, "text": receipt.text})
+                    self.scratch.write("turn_end", trace_id=trace_id, status="delivered", receipt={"ids": receipt.message_ids, "text": receipt.text},
+                                       **final_state_fields("host_notice_delivered" if active and active.fallback_text else "model_reply_delivered"))
                     return
             except asyncio.CancelledError:
                 halt_budget("post_delivery_record_cancelled" if confirmed else "delivery_unknown" if delivered else "cancelled")
@@ -351,7 +361,7 @@ class Runtime:
                     raise
                 code = "delivery_unknown" if delivered else "cancelled"
                 self.store.fail(message.message_id, code)
-                self.scratch.write("turn_end", trace_id=trace_id, status=code)
+                self.scratch.write("turn_end", trace_id=trace_id, status=code, **final_state_fields(code))
                 raise
             except Exception as error:
                 if confirmed:
@@ -386,7 +396,8 @@ class Runtime:
                         failure_fields["sqlite_errorname"] = sqlite_name
                 if local_phase is not None:
                     failure_fields.update(phase=local_phase, local_seconds=self.config.runtime.local_seconds)
-                self.scratch.write("turn_end", trace_id=trace_id, status="failed", code=code, **failure_fields)
+                self.scratch.write("turn_end", trace_id=trace_id, status="failed", code=code,
+                                   **final_state_fields("delivery_unknown" if delivered else "failed"), **failure_fields)
                 print(f"[{self.config.name}] turn failed: {code}; trace={trace_id}", flush=True)
                 if not delivered:
                     # A fixed failure receipt adds no model request. It is traced

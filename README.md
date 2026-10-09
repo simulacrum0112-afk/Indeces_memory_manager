@@ -1,5 +1,11 @@
 # Indeces_memory_manager
 
+Prepared experimental `0.17.0.dev10` allows a nonempty `no_new_evidence` stop to
+attempt one final reply through existing budget gates, preserving frozen
+citations and stating evidence gaps. It does not guarantee an answer, retry old
+runs or change other stop branches. See
+[the policy and activation boundary](docs/NO_NEW_EVIDENCE_FINAL.md).
+
 0.16.1 makes the existing model selector optional. `[runtime]`
 `model_selection_enabled = true` preserves 0.16.0 behavior; explicit `false`
 uses the existing deterministic path and configured `retrieval_policy` without

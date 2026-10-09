@@ -1,0 +1,103 @@
+{
+  "schema": "no_new_evidence_final_offline_results_v1",
+  "version": "0.17.0.dev10",
+  "utc": "2026-10-09T02:37:17.941583+00:00",
+  "targeted": {
+    "command": "python -m unittest tests.test_no_new_evidence_final -v",
+    "tests": 24,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "elapsed_seconds": 17.38
+  },
+  "existing_related": {
+    "command": "python -m unittest discover -s tests -p test_active_requery.py -v",
+    "tests": 38,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "elapsed_seconds": 18.037
+  },
+  "full_suite": {
+    "command": "python -I -B -X utf8 run_offline_review.py (standard unittest discover; loopback-only network guard)",
+    "tests_run": 1461,
+    "failures": 1,
+    "errors": 0,
+    "skipped": 21,
+    "elapsed_seconds": 463.2969999999914,
+    "failure_test_ids": [
+      "test_console_process.ConsoleProcessTests.test_windows_cmd_launchers_route_same_owner_and_forward_config_argument"
+    ],
+    "source_and_tests_unchanged": true,
+    "network_guard": {
+      "external_attempts_blocked": 0,
+      "loopback_connects": 673
+    }
+  },
+  "final_failed_case_recheck": {
+    "command": "python -m unittest tests.test_console_process.ConsoleProcessTests.test_windows_cmd_launchers_route_same_owner_and_forward_config_argument -v",
+    "tests": 1,
+    "exit_code": 0,
+    "elapsed_seconds": 3.3440000000118744,
+    "application_or_test_source_changed": false
+  },
+  "validation_after_rechecks": {
+    "distinct_methods_covered": 1461,
+    "non_skipped_methods_verified": 1440,
+    "skipped_methods_not_verified": 21,
+    "unresolved_failures": 0,
+    "one_fresh_zero_failure_full_suite_claimed": false
+  },
+  "preserved_failed_attempts": [
+    {
+      "stage": "initial discovery driver",
+      "tests_executed": 0,
+      "error": "explicit top_level_dir rejected namespace test directory",
+      "application_changed": false
+    },
+    {
+      "stage": "full suite run2",
+      "tests": 1461,
+      "failures": 2,
+      "errors": 0,
+      "skips": 21,
+      "causes": [
+        "missing venv in isolated worktree for unchanged .cmd launcher",
+        "missing spawn-safe driver main guard"
+      ],
+      "failed_cases_rechecked_successfully": 2,
+      "application_changed": false
+    },
+    {
+      "stage": "isolated import check",
+      "error": "driver expected module-level console_session version; actual Console imports version locally in run",
+      "application_changed": false
+    }
+  ],
+  "package": {
+    "wheel_sha256": "7cd844822cbf93d66d2d56f3fc971c80aef4fd9df4ab0613d92067efc29d51b3",
+    "record_entries_verified": 58,
+    "application_source_resource_files_verified": 52,
+    "isolated_installed_bytes_match": true,
+    "metadata_package_and_console_version": "0.17.0.dev10",
+    "cli_check_exit_code": 0,
+    "visible_console_started": false,
+    "dependency_downloads": 0
+  },
+  "review": "code_review_passed; independent manifest verification passed",
+  "budget_values_changed": false,
+  "reply_reserve_changed": false,
+  "scope": "only nonempty no_new_evidence with open unhalted known-usage ledger permits one ordinary final attempt",
+  "unknown_query_or_final_usage": "strict stop and zero further provider calls; not eligible for exception",
+  "paid_calls_or_real_retests": 0,
+  "production_activation_performed": false,
+  "main_changed": false,
+  "git_commit_push_merge_deploy": false,
+  "not_run": [
+    "real API latency/answer quality",
+    "new Discord question",
+    "Linux/off-machine CI",
+    "production startup/load validation for dev10"
+  ],
+  "private_question_answer_gold_or_production_runtime_data_in_public_artifacts": false
+}

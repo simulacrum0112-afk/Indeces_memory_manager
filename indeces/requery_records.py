@@ -17,6 +17,18 @@ from .run_records import (answer_record, digest, text_digest, validate_graph_aud
 
 BUNDLE_SCHEMA = "active_requery_evidence_v1"
 PLANNING_EVIDENCE_REF_SCHEMA = "active_requery_planning_evidence_ref_v1"
+FINALIZATION_POLICY = "no_new_evidence_final_v1"
+REPLY_LIMITATION = (
+    "Local retrieval stopped because it added no new evidence. The saved materials "
+    "are retained, but their sufficiency and semantic support are not established."
+)
+FINAL_REPLY_INSTRUCTIONS = (
+    "\nLocal retrieval has stopped without adding evidence. Attempt one final reply "
+    "using the frozen materials, preserving their citation IDs. State clearly when "
+    "those materials are insufficient to answer, identify the remaining gaps, and "
+    "do not infer that a failed search proves absence. Do not invent supporting "
+    "facts or claim that the retrieval stop established evidence sufficiency."
+)
 
 
 def _require(condition, message):
@@ -336,6 +348,94 @@ def _validate_budget_history(events, calls, report, *, partial=False):
                          "active provider unknown usage was not halted")
 
 
+def _validate_finalization_policy(events, start=None, *, partial=False):
+    """A retrieval stop permits a reply only under an explicit, bound policy."""
+    relevant = {"turn_start", "requery_stop", "reply_context", "answer_generated",
+                "answer_delivered", "turn_end"}
+    starts = [f for e, f in events if e == "turn_start"]
+    markers = [f["requery_final_policy"] for e, f in events
+               if e in relevant and "requery_final_policy" in f]
+    if start is not None and "requery_final_policy" in start:
+        markers.append(start["requery_final_policy"])
+    has_final_metadata = any(e in relevant and any(key in f for key in (
+        "final_reply_mode", "retrieval_stop_reason", "final_status")) for e, f in events)
+    _require(not has_final_metadata or bool(markers), "active finalization policy missing")
+    _require(all(value == FINALIZATION_POLICY for value in markers), "active finalization policy invalid")
+    declared = bool(markers)
+    if declared and starts:
+        _require(len(starts) == 1 and starts[0].get("requery_final_policy") == FINALIZATION_POLICY,
+                 "active finalization turn policy missing or downgraded")
+    if declared and not partial:
+        _require(start is not None and start.get("requery_final_policy") == FINALIZATION_POLICY
+                 and len(starts) == 1 and starts[0].get("requery_final_policy") == FINALIZATION_POLICY,
+                 "active finalization turn policy missing or downgraded")
+    stops = [f for e, f in events if e == "requery_stop"]
+    for stop in stops:
+        if not declared:
+            _require(stop.get("fallback") is not False or stop.get("reason") == "evidence_sufficient",
+                     "active unmarked finalization stop invalid")
+            continue
+        _require(stop.get("requery_final_policy") == FINALIZATION_POLICY,
+                 "active finalization stop policy missing")
+        fallback = stop.get("fallback")
+        expected = ("host_notice" if fallback is True else
+                    "no_new_evidence_consolidation" if stop.get("reason") == "no_new_evidence" else
+                    "ordinary_answer" if stop.get("reason") == "evidence_sufficient" else None)
+        _require(type(fallback) is bool and expected is not None
+                 and stop.get("final_reply_mode") == expected, "active finalization stop mode invalid")
+        if expected == "no_new_evidence_consolidation":
+            ledger = stop.get("ledger", {})
+            _require(ledger.get("phase") == "open" and ledger.get("halted") is None
+                     and ledger.get("usage_complete") is True and ledger.get("unknown_generation_count") == 0
+                     and all(c.get("status") == "completed" and c.get("usage") is not None
+                             for c in ledger.get("calls", []))
+                     and "ledger_io_failure" not in stop,
+                     "active finalization ledger not eligible")
+    if declared:
+        _require(len(stops) <= 1, "duplicate active finalization stop")
+        _require(sum(e == "call_start" and f.get("stage") == "reply" for e, f in events) <= 1,
+                 "active finalization attempted more than once")
+        # A retained suffix can lose its stop receipt. Its remaining policy,
+        # modes and terminal states must still be mutually consistent, while
+        # the absent trigger proof remains explicitly retention_partial.
+        binding = (stops[0]["final_reply_mode"], stops[0]["reason"]) if stops else None
+        for event, fields in events:
+            if event not in {"reply_context", "answer_generated", "answer_delivered", "turn_end"}:
+                continue
+            if not stops and event == "turn_end" and not any(key in fields for key in (
+                    "requery_final_policy", "final_reply_mode", "retrieval_stop_reason")) and binding is None:
+                continue  # Failure before a retrieval stop/final reply existed.
+            mode, reason = fields.get("final_reply_mode"), fields.get("retrieval_stop_reason")
+            _require(fields.get("requery_final_policy") == FINALIZATION_POLICY
+                     and type(reason) is str and bool(reason)
+                     and (mode == "host_notice" or
+                          mode == "ordinary_answer" and reason == "evidence_sufficient" or
+                          mode == "no_new_evidence_consolidation" and reason == "no_new_evidence"),
+                     "active retained finalization mode invalid")
+            current = (mode, reason)
+            _require(binding is None or binding == current, "active retained finalization binding mismatch")
+            binding = current
+            if event == "reply_context":
+                _require(fields.get("no_provider_reply") is (mode == "host_notice"),
+                         "active finalization provider mode mismatch")
+                if mode == "no_new_evidence_consolidation":
+                    context = _json(fields["messages"][0]["content"].split("\n", 1)[1])
+                    _require(type(context.get("context_limitation")) is str
+                             and context["context_limitation"].endswith(REPLY_LIMITATION)
+                             and fields.get("instructions", "").endswith(FINAL_REPLY_INSTRUCTIONS),
+                             "active finalization limitation missing")
+            elif event == "turn_end":
+                status = fields.get("status")
+                _require(status in {"delivered", "skipped", "failed", "cancelled", "delivery_unknown"}
+                         and fields.get("final_status") in {"model_reply_delivered", "host_notice_delivered",
+                             "model_skip", "failed", "cancelled", "delivery_unknown"},
+                         "active finalization final status invalid")
+                expected = ("host_notice_delivered" if mode == "host_notice" else "model_reply_delivered") if status == "delivered" else (
+                    "model_skip" if status == "skipped" else
+                    "delivery_unknown" if status == "failed" and str(fields.get("code", "")).startswith("delivery_unknown:") else status)
+                _require(fields.get("final_status") == expected, "active finalization final status mismatch")
+
+
 def _validate_host_notices(events, start=None, *, partial=False):
     """New notices bind a preserved stop cause; unmarked historical turns keep v3."""
     from .user_notices import NOTICE_POLICY, user_notice
@@ -593,6 +693,7 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
     _validate_failure_notices(events, report, partial=partial)
     report["warnings"] = list(dict.fromkeys(report["warnings"]))
     _validate_host_notices(events, start, partial=partial)
+    _validate_finalization_policy(events, start, partial=partial)
     ends = [f for e, f in events if e == "turn_end"]
     contexts = [f for e, f in events if e == "reply_context"]
     generated = [f for e, f in events if e == "answer_generated"]
@@ -671,6 +772,7 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
     initial_observed = False
     initial_recorded = False
     terminal = False
+    last_retrieval_added = None
     for position, (event, fields) in enumerate(events):
         closing_budget_metadata = (event == "requery_budget_event" and fields.get("budget_event") == "turn_end"
                                    and fields.get("provider_call_id") is None
@@ -800,8 +902,10 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
                 _require(fields["request_id"] == f'{start["message_id"]}:query:{round_index}',
                          "active retrieval request identity mismatch")
             _require(retrieval["scope"] == start["knowledge_scope"], "active knowledge scope mismatch")
+            previous_count = len(bundle["materials"]) if bundle else 0
             bundle = append_retrieval(bundle, retrieval, round_index=round_index,
                                       request_id=fields["request_id"], planning_call_id=fields["planning_call_id"])
+            last_retrieval_added = len(bundle["materials"]) - previous_count
             pending_retrieval = True
             pending_action = None
         elif event == "requery_evidence":
@@ -812,6 +916,18 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
             _require(not final_started and type(fields["reason"]) is str
                      and bool(fields["reason"]) and type(fields["ledger"]) is dict,
                      "active stop receipt invalid")
+            if fields.get("fallback") is False:
+                if fields.get("reason") == "no_new_evidence":
+                    _require(fields.get("requery_final_policy") == FINALIZATION_POLICY
+                             and bundle is not None and bool(bundle["materials"])
+                             and len(bundle["rounds"]) > 1
+                             and bool(bundle["rounds"][-1]["record"]["materials"])
+                             and last_retrieval_added == 0,
+                             "active finalization evidence not eligible")
+                else:
+                    _require(fields["reason"] == "evidence_sufficient" and pending_action is not None
+                             and pending_action["action"].get("action") == "answer",
+                             "active ordinary answer stop missing action")
             stopped = True
         elif event == "reply_context":
             _require(bundle is not None and not pending_retrieval and stopped,

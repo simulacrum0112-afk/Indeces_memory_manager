@@ -1,7 +1,8 @@
 """Opt-in bounded action planning and real local static-graph retrieval.
 
 The provider returns actions, never a private reasoning transcript. All evidence
-is frozen immediately; stopped runs use a fixed host notice, not another call.
+is frozen immediately. Nonempty evidence stagnation permits one final reply
+attempt through the unchanged gates; other stops retain a fixed host notice.
 """
 from __future__ import annotations
 
@@ -23,7 +24,7 @@ from .contracts import GovernedError, validated_token_usage
 from .ledger_io import atomic_json
 from .run_records import digest, freeze_retrieval, validate_ledger_io_failure
 from .requery_records import (append_retrieval, bundle_model_materials,
-                             planning_evidence_reference)
+                             planning_evidence_reference, FINALIZATION_POLICY)
 from .scratch import CanonicalSnapshot
 from .user_notices import NOTICE_POLICY, user_notice
 
@@ -423,7 +424,8 @@ def context_with_bundle(messages, bundle, *, limitation=None, evidence_ref=False
         data.pop("memory_citations_ref", None)
         data["memory_citations"] = materials
     if limitation:
-        data["context_limitation"] = limitation
+        prior = data.get("context_limitation")
+        data["context_limitation"] = prior + "\n" + limitation if prior else limitation
     result[0]["content"] = prefix + json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     return result
 
@@ -437,6 +439,7 @@ class ActiveRequery:
         self.rounds = 0
         self.stop_reason = None
         self.fallback_text = None
+        self.final_reply_mode = "host_notice"
         # An independent view selects the native ranked graph results. The
         # initial model selector remains unchanged and is never called here.
         self.query_graph = copy(runtime.graph)
@@ -451,7 +454,15 @@ class ActiveRequery:
                                    record=retrieval, record_sha256=digest(retrieval), parent_evidence_sha256=parent)
 
     def stop(self, reason, *, fallback=True, clarification=None):
+        if self.adapter.phase != "open":
+            raise GovernedError("active_requery_run_closed",
+                                remote_usage_unknown=self.adapter.halted == "requery_usage_unknown")
+        if reason == "no_new_evidence" and not fallback and not self.allow_stagnation_reply():
+            raise GovernedError("requery_finalization_not_eligible", remote_usage_unknown=False)
         self.stop_reason = reason
+        self.final_reply_mode = ("host_notice" if fallback else
+                                "no_new_evidence_consolidation" if reason == "no_new_evidence"
+                                else "ordinary_answer")
         notice_fields = {}
         if fallback:
             if self.adapter.halted is None:
@@ -464,7 +475,34 @@ class ActiveRequery:
         if getattr(self.adapter, "ledger_io_failure", None) is not None:
             notice_fields["ledger_io_failure"] = deepcopy(self.adapter.ledger_io_failure)
         self.runtime.scratch.write("requery_stop", trace_id=self.trace_id, reason=reason,
-                                   fallback=fallback, ledger=self.adapter.snapshot(), **notice_fields)
+                                   fallback=fallback, ledger=self.adapter.snapshot(),
+                                   requery_final_policy=FINALIZATION_POLICY,
+                                   final_reply_mode=self.final_reply_mode, **notice_fields)
+
+    def final_fields(self, status=None):
+        fields = {"requery_final_policy": FINALIZATION_POLICY,
+                  "retrieval_stop_reason": self.stop_reason,
+                  "final_reply_mode": self.final_reply_mode}
+        if status is not None:
+            fields["final_status"] = status
+        return fields
+
+    def allow_stagnation_reply(self):
+        """Admission only; never undo an earlier halt or reserve more budget."""
+        self.adapter.check()
+        if self.adapter._ledger_ownership_error is not None:
+            raise self.adapter._ledger_ownership_error
+        if self.adapter.ledger_io_failure is not None:
+            raise GovernedError("requery_ledger_write_failed", remote_usage_unknown=False)
+        if self.adapter._call_active:
+            raise GovernedError("active_requery_call_in_progress", remote_usage_unknown=False)
+        ledger = self.adapter.snapshot()
+        if not ledger["usage_complete"] or ledger["unknown_generation_count"]:
+            raise GovernedError("requery_usage_unknown", remote_usage_unknown=True)
+        materials = bundle_model_materials(self.bundle)
+        last = self.bundle["rounds"][-1]
+        return bool(materials) and last["round_index"] > 0 and bool(last["record"]["materials"]) and all(
+            item["round_index"] < last["round_index"] for item in self.bundle["materials"])
 
     async def gather(self, messages):
         while True:
@@ -525,7 +563,9 @@ class ActiveRequery:
                     "action_sha256": digest(action), "anchors_validated": True})
                 after = len(bundle_model_materials(self.bundle))
                 if not records or after == before:
-                    self.stop("empty_results" if not records else "no_new_evidence")
+                    reason = "empty_results" if not records else "no_new_evidence"
+                    final_reply = bool(records) and after == before and after > 0
+                    self.stop(reason, fallback=not final_reply)
                     break
             except asyncio.CancelledError:
                 self.stop("cancelled")

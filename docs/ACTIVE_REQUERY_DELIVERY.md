@@ -1,8 +1,8 @@
 # Independent offline feasibility delivery and hotfix
 
-Current isolated version is `0.17.0.dev6`, an offline path-preflight fix. The
-existing live Console remains `0.17.0.dev5`; no additional real call or service
-switch accompanied this diagnosis. See
+This preserved checkpoint prepared `0.17.0.dev6`, an offline path-preflight fix.
+At that checkpoint the live Console remained `0.17.0.dev5`; no additional real
+call or service switch accompanied that diagnosis. See
 [PATH_PREFLIGHT_SMOKE_FIX.md](PATH_PREFLIGHT_SMOKE_FIX.md).
 
 ## Preserved dev5 delivery
