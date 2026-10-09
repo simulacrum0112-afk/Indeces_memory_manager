@@ -1,0 +1,4481 @@
+{
+  "schema": "dev11_c9_frozen_native_v1",
+  "synthetic_only": true,
+  "cases": [
+    {
+      "name": "first_source_only_frontier",
+      "frozen": {
+        "schema": "active_requery_evidence_v1",
+        "version": 1,
+        "scope": "10:knowledge",
+        "rounds": [
+          {
+            "round_index": 0,
+            "request_id": "synthetic-message:initial",
+            "planning_call_id": null,
+            "parent_evidence_sha256": null,
+            "record": {
+              "event_id": "synthetic-message",
+              "graph_audit": {
+                "audit_scope": "direct_hit_neighborhood_v1",
+                "durable_payload_sha256": "c00125465394ae363db5e07b826f27279bf9b337cff6d6c64ae9ddcfe725ca70",
+                "event_id": "synthetic-message",
+                "match": {
+                  "direct_hits": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "direct_limit": 4,
+                  "discarded_direct_matches": [],
+                  "excluded_self_marks": [
+                    "indeces",
+                    "indices"
+                  ],
+                  "known_marks_count": 18,
+                  "literal_matches": [
+                    "alpha",
+                    "gamma"
+                  ]
+                },
+                "observation": {
+                  "applied": false,
+                  "changed_edges": [],
+                  "dynamic_shadow_enabled": false,
+                  "original_changes_known": true,
+                  "reason": "static_shadow_disabled",
+                  "seeded_after": false,
+                  "seeded_before": false,
+                  "seeded_edges": 0,
+                  "status": "disabled"
+                },
+                "replay": false,
+                "request": {
+                  "observed_at": 1720000000.0,
+                  "query": "alpha links gamma",
+                  "requested_marks": []
+                },
+                "schema_version": 2,
+                "scope": "10:knowledge",
+                "selection": {
+                  "active_record_count": 20,
+                  "edge_statistics": [
+                    {
+                      "a": "alpha",
+                      "active_source_support": true,
+                      "b": "beta",
+                      "co_count": 1,
+                      "context": [],
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.3059,
+                      "source_record_ids": [
+                        4
+                      ],
+                      "static_score": 0.3059
+                    },
+                    {
+                      "a": "alpha",
+                      "active_source_support": true,
+                      "b": "gamma",
+                      "co_count": 2,
+                      "context": [],
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.5229,
+                      "source_record_ids": [
+                        5,
+                        6
+                      ],
+                      "static_score": 0.5229
+                    },
+                    {
+                      "a": "beta",
+                      "active_source_support": true,
+                      "b": "gamma",
+                      "co_count": 1,
+                      "context": [],
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.4019,
+                      "source_record_ids": [
+                        3
+                      ],
+                      "static_score": 0.4019
+                    }
+                  ],
+                  "edge_statistics_scope": "direct_hit_incident_v1",
+                  "excluded_record_count": 15,
+                  "expanded_marks": [
+                    "beta"
+                  ],
+                  "expansion_candidates": [
+                    {
+                      "co_count": 1,
+                      "considered": true,
+                      "context": [],
+                      "context_passed": true,
+                      "deduplication_winner": false,
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.3059,
+                      "from_mark": "alpha",
+                      "mark": "beta",
+                      "neighbor_rank": 1,
+                      "selected_for_expansion": false,
+                      "source_record_ids": [
+                        4
+                      ],
+                      "static_score": 0.3059,
+                      "within_neighbor_limit": true
+                    },
+                    {
+                      "co_count": 1,
+                      "considered": true,
+                      "context": [],
+                      "context_passed": true,
+                      "deduplication_winner": true,
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.4019,
+                      "from_mark": "gamma",
+                      "mark": "beta",
+                      "neighbor_rank": 1,
+                      "selected_for_expansion": true,
+                      "source_record_ids": [
+                        3
+                      ],
+                      "static_score": 0.4019,
+                      "within_neighbor_limit": true
+                    }
+                  ],
+                  "limits": {
+                    "direct_marks": 4,
+                    "entry_text_characters": 110,
+                    "expanded_marks": 2,
+                    "neighbors_per_hit": 5,
+                    "references": 3,
+                    "total_text_characters": 400
+                  },
+                  "live_edge_count": 3,
+                  "mark_frequencies": {
+                    "alpha": 4,
+                    "beta": 2,
+                    "gamma": 3
+                  },
+                  "mark_frequencies_scope": "edge_endpoints_v1",
+                  "ranked_candidates": [
+                    {
+                      "direct_marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "direct_match_count": 2,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.5229,
+                      "evidence": [
+                        {
+                          "co_count": 2,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.5229,
+                          "from_mark": "alpha",
+                          "mark": "gamma",
+                          "source_record_ids": [
+                            5,
+                            6
+                          ],
+                          "static_score": 0.5229
+                        }
+                      ],
+                      "expanded_marks": [],
+                      "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+                      "marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "quote_characters": 57,
+                      "quote_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                      "rank": 1,
+                      "ranking_score": 0.5229,
+                      "record_id": 6,
+                      "scope": "10:knowledge",
+                      "source_id": "synthetic:c9-entry-two",
+                      "static_score": 0.5229,
+                      "text_characters": 57,
+                      "text_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f"
+                    },
+                    {
+                      "direct_marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "direct_match_count": 2,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.5229,
+                      "evidence": [
+                        {
+                          "co_count": 2,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.5229,
+                          "from_mark": "alpha",
+                          "mark": "gamma",
+                          "source_record_ids": [
+                            5,
+                            6
+                          ],
+                          "static_score": 0.5229
+                        }
+                      ],
+                      "expanded_marks": [],
+                      "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+                      "marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "quote_characters": 57,
+                      "quote_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                      "rank": 2,
+                      "ranking_score": 0.5229,
+                      "record_id": 5,
+                      "scope": "10:knowledge",
+                      "source_id": "synthetic:c9-entry-one",
+                      "static_score": 0.5229,
+                      "text_characters": 57,
+                      "text_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d"
+                    },
+                    {
+                      "direct_marks": [
+                        "alpha"
+                      ],
+                      "direct_match_count": 1,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.4019,
+                      "evidence": [
+                        {
+                          "co_count": 1,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.4019,
+                          "from_mark": "gamma",
+                          "mark": "beta",
+                          "source_record_ids": [
+                            3
+                          ],
+                          "static_score": 0.4019
+                        }
+                      ],
+                      "expanded_marks": [
+                        "beta"
+                      ],
+                      "fingerprint": "967cdd23243d815667027f5aaaaa934547cc5079643d8b63f181180561c40476",
+                      "marks": [
+                        "alpha",
+                        "beta"
+                      ],
+                      "quote_characters": 104,
+                      "quote_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                      "rank": 3,
+                      "ranking_score": 0.4019,
+                      "record_id": 4,
+                      "scope": "10:knowledge",
+                      "source_id": "synthetic:c9-source-A",
+                      "static_score": 0.4019,
+                      "text_characters": 104,
+                      "text_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18"
+                    },
+                    {
+                      "direct_marks": [
+                        "gamma"
+                      ],
+                      "direct_match_count": 1,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.4019,
+                      "evidence": [
+                        {
+                          "co_count": 1,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.4019,
+                          "from_mark": "gamma",
+                          "mark": "beta",
+                          "source_record_ids": [
+                            3
+                          ],
+                          "static_score": 0.4019
+                        }
+                      ],
+                      "expanded_marks": [
+                        "beta"
+                      ],
+                      "fingerprint": "4c7d4bd7d3973b845518fbf60e2893c34179757dd1dd8e3e0ad819dcf98b4c1c",
+                      "marks": [
+                        "beta",
+                        "gamma"
+                      ],
+                      "quote_characters": 104,
+                      "quote_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae",
+                      "rank": 4,
+                      "ranking_score": 0.4019,
+                      "record_id": 3,
+                      "scope": "10:knowledge",
+                      "source_id": "synthetic:c9-source-B",
+                      "static_score": 0.4019,
+                      "text_characters": 104,
+                      "text_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae"
+                    },
+                    {
+                      "direct_marks": [
+                        "alpha"
+                      ],
+                      "direct_match_count": 1,
+                      "dynamic_score": 0,
+                      "effective_score": 0,
+                      "evidence": [],
+                      "expanded_marks": [],
+                      "fingerprint": "99d81390ad5a218f152e952c752590df15291bdd55a6a61849b334a62acd8982",
+                      "marks": [
+                        "alpha"
+                      ],
+                      "quote_characters": 37,
+                      "quote_sha256": "b722d3cab75fe37a13add52b8061e3a64d99074a9cf482806f8f771c3d36d5fb",
+                      "rank": 5,
+                      "ranking_score": 0,
+                      "record_id": 7,
+                      "scope": "10:knowledge",
+                      "source_id": "synthetic:c9-alpha-only",
+                      "static_score": 0,
+                      "text_characters": 37,
+                      "text_sha256": "b722d3cab75fe37a13add52b8061e3a64d99074a9cf482806f8f771c3d36d5fb"
+                    }
+                  ],
+                  "ranking_mode": "static",
+                  "ranking_order": [
+                    "direct_match_count descending",
+                    "effective_score descending",
+                    "static_score descending",
+                    "record_id descending"
+                  ],
+                  "selected": [
+                    {
+                      "preview_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                      "rank": 1,
+                      "record_id": 6,
+                      "source_id": "synthetic:c9-entry-two",
+                      "text_characters": 57,
+                      "text_truncated": false
+                    },
+                    {
+                      "preview_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                      "rank": 2,
+                      "record_id": 5,
+                      "source_id": "synthetic:c9-entry-one",
+                      "text_characters": 57,
+                      "text_truncated": false
+                    },
+                    {
+                      "preview_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                      "rank": 3,
+                      "record_id": 4,
+                      "source_id": "synthetic:c9-source-A",
+                      "text_characters": 104,
+                      "text_truncated": false
+                    }
+                  ],
+                  "selected_record_ids": [
+                    6,
+                    5,
+                    4
+                  ],
+                  "selector_contract": "selector_receipt_v1",
+                  "selector_receipt": {
+                    "candidate_set": {
+                      "count": 5,
+                      "inventory": [
+                        {
+                          "direct_marks": [
+                            "alpha",
+                            "gamma"
+                          ],
+                          "direct_match_count": 2,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.5229,
+                          "expanded_marks": [],
+                          "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+                          "marks": [
+                            "alpha",
+                            "gamma"
+                          ],
+                          "quote_characters": 57,
+                          "quote_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                          "rank": 1,
+                          "ranking_score": 0.5229,
+                          "record_id": 6,
+                          "scope": "10:knowledge",
+                          "source_id": "synthetic:c9-entry-two",
+                          "static_score": 0.5229,
+                          "text_characters": 57,
+                          "text_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f"
+                        },
+                        {
+                          "direct_marks": [
+                            "alpha",
+                            "gamma"
+                          ],
+                          "direct_match_count": 2,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.5229,
+                          "expanded_marks": [],
+                          "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+                          "marks": [
+                            "alpha",
+                            "gamma"
+                          ],
+                          "quote_characters": 57,
+                          "quote_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                          "rank": 2,
+                          "ranking_score": 0.5229,
+                          "record_id": 5,
+                          "scope": "10:knowledge",
+                          "source_id": "synthetic:c9-entry-one",
+                          "static_score": 0.5229,
+                          "text_characters": 57,
+                          "text_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d"
+                        },
+                        {
+                          "direct_marks": [
+                            "alpha"
+                          ],
+                          "direct_match_count": 1,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.4019,
+                          "expanded_marks": [
+                            "beta"
+                          ],
+                          "fingerprint": "967cdd23243d815667027f5aaaaa934547cc5079643d8b63f181180561c40476",
+                          "marks": [
+                            "alpha",
+                            "beta"
+                          ],
+                          "quote_characters": 104,
+                          "quote_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                          "rank": 3,
+                          "ranking_score": 0.4019,
+                          "record_id": 4,
+                          "scope": "10:knowledge",
+                          "source_id": "synthetic:c9-source-A",
+                          "static_score": 0.4019,
+                          "text_characters": 104,
+                          "text_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18"
+                        },
+                        {
+                          "direct_marks": [
+                            "gamma"
+                          ],
+                          "direct_match_count": 1,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.4019,
+                          "expanded_marks": [
+                            "beta"
+                          ],
+                          "fingerprint": "4c7d4bd7d3973b845518fbf60e2893c34179757dd1dd8e3e0ad819dcf98b4c1c",
+                          "marks": [
+                            "beta",
+                            "gamma"
+                          ],
+                          "quote_characters": 104,
+                          "quote_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae",
+                          "rank": 4,
+                          "ranking_score": 0.4019,
+                          "record_id": 3,
+                          "scope": "10:knowledge",
+                          "source_id": "synthetic:c9-source-B",
+                          "static_score": 0.4019,
+                          "text_characters": 104,
+                          "text_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae"
+                        },
+                        {
+                          "direct_marks": [
+                            "alpha"
+                          ],
+                          "direct_match_count": 1,
+                          "dynamic_score": 0,
+                          "effective_score": 0,
+                          "expanded_marks": [],
+                          "fingerprint": "99d81390ad5a218f152e952c752590df15291bdd55a6a61849b334a62acd8982",
+                          "marks": [
+                            "alpha"
+                          ],
+                          "quote_characters": 37,
+                          "quote_sha256": "b722d3cab75fe37a13add52b8061e3a64d99074a9cf482806f8f771c3d36d5fb",
+                          "rank": 5,
+                          "ranking_score": 0,
+                          "record_id": 7,
+                          "scope": "10:knowledge",
+                          "source_id": "synthetic:c9-alpha-only",
+                          "static_score": 0,
+                          "text_characters": 37,
+                          "text_sha256": "b722d3cab75fe37a13add52b8061e3a64d99074a9cf482806f8f771c3d36d5fb"
+                        }
+                      ],
+                      "scope": "eligible_ranked_candidates_v1",
+                      "sha256": "01d2a917762d9655e994f349d0768191d03f80d6a0b6725c20aa19d45cdc3fdc"
+                    },
+                    "exclusions": [
+                      {
+                        "reason": "model_not_selected",
+                        "record_id": 3
+                      },
+                      {
+                        "reason": "model_not_selected",
+                        "record_id": 7
+                      }
+                    ],
+                    "input": {
+                      "context_query": "",
+                      "context_query_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "event_id": "synthetic-message",
+                      "query_sha256": "a840d26d49b221e4d25228f49944000ab22d20f429300f838158b298ee47fab6",
+                      "ranking_mode": "static",
+                      "retrieval_policy": "legacy_v1",
+                      "scope": "10:knowledge"
+                    },
+                    "input_sha256": "ad6ebfb9db3df8b4f5fb9d9c06b9ebd7d061423804b3283cfe256047ac0bf679",
+                    "policy": {
+                      "id": "model_npmi_labels",
+                      "version": "v1"
+                    },
+                    "result_bindings": [
+                      {
+                        "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+                        "preview_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                        "quote_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                        "record_id": 6,
+                        "scope": "10:knowledge",
+                        "source_id": "synthetic:c9-entry-two",
+                        "text_characters": 57,
+                        "text_truncated": false
+                      },
+                      {
+                        "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+                        "preview_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                        "quote_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                        "record_id": 5,
+                        "scope": "10:knowledge",
+                        "source_id": "synthetic:c9-entry-one",
+                        "text_characters": 57,
+                        "text_truncated": false
+                      },
+                      {
+                        "fingerprint": "967cdd23243d815667027f5aaaaa934547cc5079643d8b63f181180561c40476",
+                        "preview_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                        "quote_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                        "record_id": 4,
+                        "scope": "10:knowledge",
+                        "source_id": "synthetic:c9-source-A",
+                        "text_characters": 104,
+                        "text_truncated": false
+                      }
+                    ],
+                    "schema": "selector_receipt_v1",
+                    "selected_record_ids": [
+                      6,
+                      5,
+                      4
+                    ]
+                  },
+                  "static_formula_reproducible": true,
+                  "static_policy": {
+                    "formula": "log(p_ab/(p_a*p_b))/-log(p_ab)",
+                    "p_ab_one_value": 1.0,
+                    "retain_only_positive": true,
+                    "round_digits": 4
+                  },
+                  "used_text_characters": 218,
+                  "weight_basis": "static_npmi"
+                }
+              },
+              "graph_audit_sha256": "513e9b004736f915038ae96497f796ab38b37e695677f1091ca45c3f322f3c48",
+              "materials": [
+                {
+                  "active_at_retrieval": true,
+                  "chunk_index": null,
+                  "citation_id": "M1",
+                  "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "model_payload": {
+                    "citation_id": "M1",
+                    "citation_marker": "[M1]",
+                    "direct_marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "dynamic_score": 0.0,
+                    "expanded_marks": [],
+                    "id": 6,
+                    "marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                    "ranking_mode": "static",
+                    "ranking_score": 0.5229,
+                    "scope": "10:knowledge",
+                    "source_id": "synthetic:c9-entry-two",
+                    "static_score": 0.5229,
+                    "text": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                    "text_truncated": false,
+                    "weight_basis": "static_npmi"
+                  },
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                  "record_id": 6,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-two",
+                  "stored_text": "Bibliography\nSynthetic alpha gamma publication entry-two."
+                },
+                {
+                  "active_at_retrieval": true,
+                  "chunk_index": null,
+                  "citation_id": "M2",
+                  "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "model_payload": {
+                    "citation_id": "M2",
+                    "citation_marker": "[M2]",
+                    "direct_marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "dynamic_score": 0.0,
+                    "expanded_marks": [],
+                    "id": 5,
+                    "marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                    "ranking_mode": "static",
+                    "ranking_score": 0.5229,
+                    "scope": "10:knowledge",
+                    "source_id": "synthetic:c9-entry-one",
+                    "static_score": 0.5229,
+                    "text": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                    "text_truncated": false,
+                    "weight_basis": "static_npmi"
+                  },
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                  "record_id": 5,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-one",
+                  "stored_text": "Bibliography\nSynthetic alpha gamma publication entry-one."
+                },
+                {
+                  "active_at_retrieval": true,
+                  "chunk_index": null,
+                  "citation_id": "M3",
+                  "fingerprint": "967cdd23243d815667027f5aaaaa934547cc5079643d8b63f181180561c40476",
+                  "marks": [
+                    "alpha",
+                    "beta"
+                  ],
+                  "model_payload": {
+                    "citation_id": "M3",
+                    "citation_marker": "[M3]",
+                    "direct_marks": [
+                      "alpha"
+                    ],
+                    "dynamic_score": 0.0,
+                    "expanded_marks": [
+                      "beta"
+                    ],
+                    "id": 4,
+                    "marks": [
+                      "alpha",
+                      "beta"
+                    ],
+                    "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                    "ranking_mode": "static",
+                    "ranking_score": 0.4019,
+                    "scope": "10:knowledge",
+                    "source_id": "synthetic:c9-source-A",
+                    "static_score": 0.4019,
+                    "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                    "text_truncated": false,
+                    "weight_basis": "static_npmi"
+                  },
+                  "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                  "record_id": 4,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-source-A",
+                  "stored_text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}"
+                }
+              ],
+              "model_materials": [
+                {
+                  "citation_id": "M1",
+                  "citation_marker": "[M1]",
+                  "direct_marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "dynamic_score": 0.0,
+                  "expanded_marks": [],
+                  "id": 6,
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                  "ranking_mode": "static",
+                  "ranking_score": 0.5229,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-two",
+                  "static_score": 0.5229,
+                  "text": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                  "text_truncated": false,
+                  "weight_basis": "static_npmi"
+                },
+                {
+                  "citation_id": "M2",
+                  "citation_marker": "[M2]",
+                  "direct_marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "dynamic_score": 0.0,
+                  "expanded_marks": [],
+                  "id": 5,
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                  "ranking_mode": "static",
+                  "ranking_score": 0.5229,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-one",
+                  "static_score": 0.5229,
+                  "text": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                  "text_truncated": false,
+                  "weight_basis": "static_npmi"
+                },
+                {
+                  "citation_id": "M3",
+                  "citation_marker": "[M3]",
+                  "direct_marks": [
+                    "alpha"
+                  ],
+                  "dynamic_score": 0.0,
+                  "expanded_marks": [
+                    "beta"
+                  ],
+                  "id": 4,
+                  "marks": [
+                    "alpha",
+                    "beta"
+                  ],
+                  "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                  "ranking_mode": "static",
+                  "ranking_score": 0.4019,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-source-A",
+                  "static_score": 0.4019,
+                  "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                  "text_truncated": false,
+                  "weight_basis": "static_npmi"
+                }
+              ],
+              "model_projection": "citation_material_selector_v1",
+              "query": "alpha links gamma",
+              "scope": "10:knowledge",
+              "selector_receipt_sha256": "df753faeb28d946b9024a349c5ac9f854975118dc7d165be3cac7a9de6d30409",
+              "sources": {
+                "synthetic:c9-entry-one": {
+                  "metadata_available": false,
+                  "source_id": "synthetic:c9-entry-one"
+                },
+                "synthetic:c9-entry-two": {
+                  "metadata_available": false,
+                  "source_id": "synthetic:c9-entry-two"
+                },
+                "synthetic:c9-source-A": {
+                  "metadata_available": false,
+                  "source_id": "synthetic:c9-source-A"
+                }
+              },
+              "version": 2
+            },
+            "record_sha256": "fc837f447f225b61320da6a4d302b0b496e0ef3284e5733e7c02112668b70480",
+            "bindings": [
+              {
+                "local_citation_id": "M1",
+                "evidence_uid": "c86f23f3cd883725c1d9ee0f23d07d435b8301d6a4a12d0398debef9465fd2ab",
+                "citation_id": "M1"
+              },
+              {
+                "local_citation_id": "M2",
+                "evidence_uid": "449becd41b01b9086ef5365a1bf5568dbbd0383da7d75fed4e38468c76691c92",
+                "citation_id": "M2"
+              },
+              {
+                "local_citation_id": "M3",
+                "evidence_uid": "297c3b4c636035c8737e1c39da661d5035153d25692a0b7d71be39d8f05f3a1e",
+                "citation_id": "M3"
+              }
+            ]
+          }
+        ],
+        "materials": [
+          {
+            "evidence_uid": "c86f23f3cd883725c1d9ee0f23d07d435b8301d6a4a12d0398debef9465fd2ab",
+            "citation_id": "M1",
+            "round_index": 0,
+            "request_id": "synthetic-message:initial",
+            "local_citation_id": "M1",
+            "retrieval_sha256": "fc837f447f225b61320da6a4d302b0b496e0ef3284e5733e7c02112668b70480",
+            "material": {
+              "active_at_retrieval": true,
+              "chunk_index": null,
+              "citation_id": "M1",
+              "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+              "marks": [
+                "alpha",
+                "gamma"
+              ],
+              "model_payload": {
+                "citation_id": "M1",
+                "citation_marker": "[M1]",
+                "direct_marks": [
+                  "alpha",
+                  "gamma"
+                ],
+                "dynamic_score": 0.0,
+                "expanded_marks": [],
+                "id": 6,
+                "marks": [
+                  "alpha",
+                  "gamma"
+                ],
+                "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                "ranking_mode": "static",
+                "ranking_score": 0.5229,
+                "scope": "10:knowledge",
+                "source_id": "synthetic:c9-entry-two",
+                "static_score": 0.5229,
+                "text": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                "text_truncated": false,
+                "weight_basis": "static_npmi"
+              },
+              "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+              "record_id": 6,
+              "scope": "10:knowledge",
+              "source_id": "synthetic:c9-entry-two",
+              "stored_text": "Bibliography\nSynthetic alpha gamma publication entry-two."
+            },
+            "source": {
+              "metadata_available": false,
+              "source_id": "synthetic:c9-entry-two"
+            }
+          },
+          {
+            "evidence_uid": "449becd41b01b9086ef5365a1bf5568dbbd0383da7d75fed4e38468c76691c92",
+            "citation_id": "M2",
+            "round_index": 0,
+            "request_id": "synthetic-message:initial",
+            "local_citation_id": "M2",
+            "retrieval_sha256": "fc837f447f225b61320da6a4d302b0b496e0ef3284e5733e7c02112668b70480",
+            "material": {
+              "active_at_retrieval": true,
+              "chunk_index": null,
+              "citation_id": "M2",
+              "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+              "marks": [
+                "alpha",
+                "gamma"
+              ],
+              "model_payload": {
+                "citation_id": "M2",
+                "citation_marker": "[M2]",
+                "direct_marks": [
+                  "alpha",
+                  "gamma"
+                ],
+                "dynamic_score": 0.0,
+                "expanded_marks": [],
+                "id": 5,
+                "marks": [
+                  "alpha",
+                  "gamma"
+                ],
+                "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                "ranking_mode": "static",
+                "ranking_score": 0.5229,
+                "scope": "10:knowledge",
+                "source_id": "synthetic:c9-entry-one",
+                "static_score": 0.5229,
+                "text": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                "text_truncated": false,
+                "weight_basis": "static_npmi"
+              },
+              "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+              "record_id": 5,
+              "scope": "10:knowledge",
+              "source_id": "synthetic:c9-entry-one",
+              "stored_text": "Bibliography\nSynthetic alpha gamma publication entry-one."
+            },
+            "source": {
+              "metadata_available": false,
+              "source_id": "synthetic:c9-entry-one"
+            }
+          },
+          {
+            "evidence_uid": "297c3b4c636035c8737e1c39da661d5035153d25692a0b7d71be39d8f05f3a1e",
+            "citation_id": "M3",
+            "round_index": 0,
+            "request_id": "synthetic-message:initial",
+            "local_citation_id": "M3",
+            "retrieval_sha256": "fc837f447f225b61320da6a4d302b0b496e0ef3284e5733e7c02112668b70480",
+            "material": {
+              "active_at_retrieval": true,
+              "chunk_index": null,
+              "citation_id": "M3",
+              "fingerprint": "967cdd23243d815667027f5aaaaa934547cc5079643d8b63f181180561c40476",
+              "marks": [
+                "alpha",
+                "beta"
+              ],
+              "model_payload": {
+                "citation_id": "M3",
+                "citation_marker": "[M3]",
+                "direct_marks": [
+                  "alpha"
+                ],
+                "dynamic_score": 0.0,
+                "expanded_marks": [
+                  "beta"
+                ],
+                "id": 4,
+                "marks": [
+                  "alpha",
+                  "beta"
+                ],
+                "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                "ranking_mode": "static",
+                "ranking_score": 0.4019,
+                "scope": "10:knowledge",
+                "source_id": "synthetic:c9-source-A",
+                "static_score": 0.4019,
+                "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                "text_truncated": false,
+                "weight_basis": "static_npmi"
+              },
+              "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+              "record_id": 4,
+              "scope": "10:knowledge",
+              "source_id": "synthetic:c9-source-A",
+              "stored_text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}"
+            },
+            "source": {
+              "metadata_available": false,
+              "source_id": "synthetic:c9-source-A"
+            }
+          }
+        ],
+        "semantic_support": "not_evaluated",
+        "citation_coverage": "not_established"
+      },
+      "action": {
+        "action": "query",
+        "clarification": "",
+        "missing_evidence": [
+          "Synthetic relation gap"
+        ],
+        "query": {
+          "ambiguities": [],
+          "canonical_terms": [
+            "alpha",
+            "gamma"
+          ],
+          "entities": [
+            {
+              "canonical": "alpha",
+              "id": "e1",
+              "span": [
+                0,
+                5
+              ],
+              "surface": "alpha"
+            },
+            {
+              "canonical": "gamma",
+              "id": "e2",
+              "span": [
+                12,
+                17
+              ],
+              "surface": "gamma"
+            }
+          ],
+          "negations": [],
+          "relations": [
+            {
+              "direction": "subject_to_object",
+              "negated": false,
+              "object_id": "e2",
+              "predicate": "links",
+              "span": [
+                6,
+                11
+              ],
+              "subject_id": "e1",
+              "surface": "links"
+            }
+          ],
+          "scope": null,
+          "time": null
+        },
+        "stop_reason": ""
+      },
+      "planning_call_id": "e42d99abada34e1cba26e08a59f61407",
+      "config": {
+        "accumulate_rounds": true,
+        "aliases": {},
+        "composition_rules": [
+          {
+            "relation1": "links",
+            "relation2": "links",
+            "result": "links",
+            "rule_id": "synthetic-links-composition"
+          }
+        ],
+        "enabled": true,
+        "max_actions": 8,
+        "max_added_terms": 4,
+        "max_aliases": 16,
+        "max_arcs": 1024,
+        "max_bindings": 1024,
+        "max_candidates": 64,
+        "max_depth": 4,
+        "max_expansions": 4096,
+        "max_facts_per_material": 16,
+        "max_frontier": 256,
+        "max_nodes": 256,
+        "max_quote_chars": 16384,
+        "max_rounds": 8,
+        "max_rules": 16,
+        "max_seconds": 3,
+        "max_serialized_bytes": 1048576,
+        "max_source_chars": 262144,
+        "max_support_ids": 128,
+        "max_terms": 12
+      },
+      "expected_stable_receipt_sha256": "b15668e19a06b3110ac6d03261fa472597d8e08bc374efeaf23267b7ccf886b7"
+    },
+    {
+      "name": "two_sources_two_rounds_accumulated",
+      "frozen": {
+        "citation_coverage": "not_established",
+        "materials": [
+          {
+            "citation_id": "M1",
+            "evidence_uid": "c86f23f3cd883725c1d9ee0f23d07d435b8301d6a4a12d0398debef9465fd2ab",
+            "local_citation_id": "M1",
+            "material": {
+              "active_at_retrieval": true,
+              "chunk_index": null,
+              "citation_id": "M1",
+              "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+              "marks": [
+                "alpha",
+                "gamma"
+              ],
+              "model_payload": {
+                "citation_id": "M1",
+                "citation_marker": "[M1]",
+                "direct_marks": [
+                  "alpha",
+                  "gamma"
+                ],
+                "dynamic_score": 0.0,
+                "expanded_marks": [],
+                "id": 6,
+                "marks": [
+                  "alpha",
+                  "gamma"
+                ],
+                "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                "ranking_mode": "static",
+                "ranking_score": 0.5229,
+                "scope": "10:knowledge",
+                "source_id": "synthetic:c9-entry-two",
+                "static_score": 0.5229,
+                "text": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                "text_truncated": false,
+                "weight_basis": "static_npmi"
+              },
+              "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+              "record_id": 6,
+              "scope": "10:knowledge",
+              "source_id": "synthetic:c9-entry-two",
+              "stored_text": "Bibliography\nSynthetic alpha gamma publication entry-two."
+            },
+            "request_id": "synthetic-message:initial",
+            "retrieval_sha256": "fc837f447f225b61320da6a4d302b0b496e0ef3284e5733e7c02112668b70480",
+            "round_index": 0,
+            "source": {
+              "metadata_available": false,
+              "source_id": "synthetic:c9-entry-two"
+            }
+          },
+          {
+            "citation_id": "M2",
+            "evidence_uid": "449becd41b01b9086ef5365a1bf5568dbbd0383da7d75fed4e38468c76691c92",
+            "local_citation_id": "M2",
+            "material": {
+              "active_at_retrieval": true,
+              "chunk_index": null,
+              "citation_id": "M2",
+              "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+              "marks": [
+                "alpha",
+                "gamma"
+              ],
+              "model_payload": {
+                "citation_id": "M2",
+                "citation_marker": "[M2]",
+                "direct_marks": [
+                  "alpha",
+                  "gamma"
+                ],
+                "dynamic_score": 0.0,
+                "expanded_marks": [],
+                "id": 5,
+                "marks": [
+                  "alpha",
+                  "gamma"
+                ],
+                "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                "ranking_mode": "static",
+                "ranking_score": 0.5229,
+                "scope": "10:knowledge",
+                "source_id": "synthetic:c9-entry-one",
+                "static_score": 0.5229,
+                "text": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                "text_truncated": false,
+                "weight_basis": "static_npmi"
+              },
+              "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+              "record_id": 5,
+              "scope": "10:knowledge",
+              "source_id": "synthetic:c9-entry-one",
+              "stored_text": "Bibliography\nSynthetic alpha gamma publication entry-one."
+            },
+            "request_id": "synthetic-message:initial",
+            "retrieval_sha256": "fc837f447f225b61320da6a4d302b0b496e0ef3284e5733e7c02112668b70480",
+            "round_index": 0,
+            "source": {
+              "metadata_available": false,
+              "source_id": "synthetic:c9-entry-one"
+            }
+          },
+          {
+            "citation_id": "M3",
+            "evidence_uid": "297c3b4c636035c8737e1c39da661d5035153d25692a0b7d71be39d8f05f3a1e",
+            "local_citation_id": "M3",
+            "material": {
+              "active_at_retrieval": true,
+              "chunk_index": null,
+              "citation_id": "M3",
+              "fingerprint": "967cdd23243d815667027f5aaaaa934547cc5079643d8b63f181180561c40476",
+              "marks": [
+                "alpha",
+                "beta"
+              ],
+              "model_payload": {
+                "citation_id": "M3",
+                "citation_marker": "[M3]",
+                "direct_marks": [
+                  "alpha"
+                ],
+                "dynamic_score": 0.0,
+                "expanded_marks": [
+                  "beta"
+                ],
+                "id": 4,
+                "marks": [
+                  "alpha",
+                  "beta"
+                ],
+                "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                "ranking_mode": "static",
+                "ranking_score": 0.4019,
+                "scope": "10:knowledge",
+                "source_id": "synthetic:c9-source-A",
+                "static_score": 0.4019,
+                "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                "text_truncated": false,
+                "weight_basis": "static_npmi"
+              },
+              "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+              "record_id": 4,
+              "scope": "10:knowledge",
+              "source_id": "synthetic:c9-source-A",
+              "stored_text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}"
+            },
+            "request_id": "synthetic-message:initial",
+            "retrieval_sha256": "fc837f447f225b61320da6a4d302b0b496e0ef3284e5733e7c02112668b70480",
+            "round_index": 0,
+            "source": {
+              "metadata_available": false,
+              "source_id": "synthetic:c9-source-A"
+            }
+          },
+          {
+            "citation_id": "M4",
+            "evidence_uid": "d038975507562cd06bf25f799fc90726da714b497f9570828d6d6d5bfd9a2499",
+            "local_citation_id": "M3",
+            "material": {
+              "active_at_retrieval": true,
+              "chunk_index": null,
+              "citation_id": "M3",
+              "fingerprint": "4c7d4bd7d3973b845518fbf60e2893c34179757dd1dd8e3e0ad819dcf98b4c1c",
+              "marks": [
+                "beta",
+                "gamma"
+              ],
+              "model_payload": {
+                "citation_id": "M3",
+                "citation_marker": "[M3]",
+                "direct_marks": [
+                  "beta",
+                  "gamma"
+                ],
+                "dynamic_score": 0.0,
+                "expanded_marks": [],
+                "id": 3,
+                "marks": [
+                  "beta",
+                  "gamma"
+                ],
+                "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                "ranking_mode": "static",
+                "ranking_score": 0.4019,
+                "scope": "10:knowledge",
+                "source_id": "synthetic:c9-source-B",
+                "static_score": 0.4019,
+                "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                "text_truncated": false,
+                "weight_basis": "static_npmi"
+              },
+              "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+              "record_id": 3,
+              "scope": "10:knowledge",
+              "source_id": "synthetic:c9-source-B",
+              "stored_text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}"
+            },
+            "request_id": "synthetic-message:query:1",
+            "retrieval_sha256": "970617af363ecc95b2eaa8aa942ec6c1e2629862013d75c095188121d05f5ab4",
+            "round_index": 1,
+            "source": {
+              "metadata_available": false,
+              "source_id": "synthetic:c9-source-B"
+            }
+          }
+        ],
+        "rounds": [
+          {
+            "bindings": [
+              {
+                "citation_id": "M1",
+                "evidence_uid": "c86f23f3cd883725c1d9ee0f23d07d435b8301d6a4a12d0398debef9465fd2ab",
+                "local_citation_id": "M1"
+              },
+              {
+                "citation_id": "M2",
+                "evidence_uid": "449becd41b01b9086ef5365a1bf5568dbbd0383da7d75fed4e38468c76691c92",
+                "local_citation_id": "M2"
+              },
+              {
+                "citation_id": "M3",
+                "evidence_uid": "297c3b4c636035c8737e1c39da661d5035153d25692a0b7d71be39d8f05f3a1e",
+                "local_citation_id": "M3"
+              }
+            ],
+            "parent_evidence_sha256": null,
+            "planning_call_id": null,
+            "record": {
+              "event_id": "synthetic-message",
+              "graph_audit": {
+                "audit_scope": "direct_hit_neighborhood_v1",
+                "durable_payload_sha256": "c00125465394ae363db5e07b826f27279bf9b337cff6d6c64ae9ddcfe725ca70",
+                "event_id": "synthetic-message",
+                "match": {
+                  "direct_hits": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "direct_limit": 4,
+                  "discarded_direct_matches": [],
+                  "excluded_self_marks": [
+                    "indeces",
+                    "indices"
+                  ],
+                  "known_marks_count": 18,
+                  "literal_matches": [
+                    "alpha",
+                    "gamma"
+                  ]
+                },
+                "observation": {
+                  "applied": false,
+                  "changed_edges": [],
+                  "dynamic_shadow_enabled": false,
+                  "original_changes_known": true,
+                  "reason": "static_shadow_disabled",
+                  "seeded_after": false,
+                  "seeded_before": false,
+                  "seeded_edges": 0,
+                  "status": "disabled"
+                },
+                "replay": false,
+                "request": {
+                  "observed_at": 1720000000.0,
+                  "query": "alpha links gamma",
+                  "requested_marks": []
+                },
+                "schema_version": 2,
+                "scope": "10:knowledge",
+                "selection": {
+                  "active_record_count": 20,
+                  "edge_statistics": [
+                    {
+                      "a": "alpha",
+                      "active_source_support": true,
+                      "b": "beta",
+                      "co_count": 1,
+                      "context": [],
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.3059,
+                      "source_record_ids": [
+                        4
+                      ],
+                      "static_score": 0.3059
+                    },
+                    {
+                      "a": "alpha",
+                      "active_source_support": true,
+                      "b": "gamma",
+                      "co_count": 2,
+                      "context": [],
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.5229,
+                      "source_record_ids": [
+                        5,
+                        6
+                      ],
+                      "static_score": 0.5229
+                    },
+                    {
+                      "a": "beta",
+                      "active_source_support": true,
+                      "b": "gamma",
+                      "co_count": 1,
+                      "context": [],
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.4019,
+                      "source_record_ids": [
+                        3
+                      ],
+                      "static_score": 0.4019
+                    }
+                  ],
+                  "edge_statistics_scope": "direct_hit_incident_v1",
+                  "excluded_record_count": 15,
+                  "expanded_marks": [
+                    "beta"
+                  ],
+                  "expansion_candidates": [
+                    {
+                      "co_count": 1,
+                      "considered": true,
+                      "context": [],
+                      "context_passed": true,
+                      "deduplication_winner": false,
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.3059,
+                      "from_mark": "alpha",
+                      "mark": "beta",
+                      "neighbor_rank": 1,
+                      "selected_for_expansion": false,
+                      "source_record_ids": [
+                        4
+                      ],
+                      "static_score": 0.3059,
+                      "within_neighbor_limit": true
+                    },
+                    {
+                      "co_count": 1,
+                      "considered": true,
+                      "context": [],
+                      "context_passed": true,
+                      "deduplication_winner": true,
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.4019,
+                      "from_mark": "gamma",
+                      "mark": "beta",
+                      "neighbor_rank": 1,
+                      "selected_for_expansion": true,
+                      "source_record_ids": [
+                        3
+                      ],
+                      "static_score": 0.4019,
+                      "within_neighbor_limit": true
+                    }
+                  ],
+                  "limits": {
+                    "direct_marks": 4,
+                    "entry_text_characters": 110,
+                    "expanded_marks": 2,
+                    "neighbors_per_hit": 5,
+                    "references": 3,
+                    "total_text_characters": 400
+                  },
+                  "live_edge_count": 3,
+                  "mark_frequencies": {
+                    "alpha": 4,
+                    "beta": 2,
+                    "gamma": 3
+                  },
+                  "mark_frequencies_scope": "edge_endpoints_v1",
+                  "ranked_candidates": [
+                    {
+                      "direct_marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "direct_match_count": 2,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.5229,
+                      "evidence": [
+                        {
+                          "co_count": 2,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.5229,
+                          "from_mark": "alpha",
+                          "mark": "gamma",
+                          "source_record_ids": [
+                            5,
+                            6
+                          ],
+                          "static_score": 0.5229
+                        }
+                      ],
+                      "expanded_marks": [],
+                      "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+                      "marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "quote_characters": 57,
+                      "quote_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                      "rank": 1,
+                      "ranking_score": 0.5229,
+                      "record_id": 6,
+                      "scope": "10:knowledge",
+                      "source_id": "synthetic:c9-entry-two",
+                      "static_score": 0.5229,
+                      "text_characters": 57,
+                      "text_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f"
+                    },
+                    {
+                      "direct_marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "direct_match_count": 2,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.5229,
+                      "evidence": [
+                        {
+                          "co_count": 2,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.5229,
+                          "from_mark": "alpha",
+                          "mark": "gamma",
+                          "source_record_ids": [
+                            5,
+                            6
+                          ],
+                          "static_score": 0.5229
+                        }
+                      ],
+                      "expanded_marks": [],
+                      "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+                      "marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "quote_characters": 57,
+                      "quote_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                      "rank": 2,
+                      "ranking_score": 0.5229,
+                      "record_id": 5,
+                      "scope": "10:knowledge",
+                      "source_id": "synthetic:c9-entry-one",
+                      "static_score": 0.5229,
+                      "text_characters": 57,
+                      "text_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d"
+                    },
+                    {
+                      "direct_marks": [
+                        "alpha"
+                      ],
+                      "direct_match_count": 1,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.4019,
+                      "evidence": [
+                        {
+                          "co_count": 1,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.4019,
+                          "from_mark": "gamma",
+                          "mark": "beta",
+                          "source_record_ids": [
+                            3
+                          ],
+                          "static_score": 0.4019
+                        }
+                      ],
+                      "expanded_marks": [
+                        "beta"
+                      ],
+                      "fingerprint": "967cdd23243d815667027f5aaaaa934547cc5079643d8b63f181180561c40476",
+                      "marks": [
+                        "alpha",
+                        "beta"
+                      ],
+                      "quote_characters": 104,
+                      "quote_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                      "rank": 3,
+                      "ranking_score": 0.4019,
+                      "record_id": 4,
+                      "scope": "10:knowledge",
+                      "source_id": "synthetic:c9-source-A",
+                      "static_score": 0.4019,
+                      "text_characters": 104,
+                      "text_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18"
+                    },
+                    {
+                      "direct_marks": [
+                        "gamma"
+                      ],
+                      "direct_match_count": 1,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.4019,
+                      "evidence": [
+                        {
+                          "co_count": 1,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.4019,
+                          "from_mark": "gamma",
+                          "mark": "beta",
+                          "source_record_ids": [
+                            3
+                          ],
+                          "static_score": 0.4019
+                        }
+                      ],
+                      "expanded_marks": [
+                        "beta"
+                      ],
+                      "fingerprint": "4c7d4bd7d3973b845518fbf60e2893c34179757dd1dd8e3e0ad819dcf98b4c1c",
+                      "marks": [
+                        "beta",
+                        "gamma"
+                      ],
+                      "quote_characters": 104,
+                      "quote_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae",
+                      "rank": 4,
+                      "ranking_score": 0.4019,
+                      "record_id": 3,
+                      "scope": "10:knowledge",
+                      "source_id": "synthetic:c9-source-B",
+                      "static_score": 0.4019,
+                      "text_characters": 104,
+                      "text_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae"
+                    },
+                    {
+                      "direct_marks": [
+                        "alpha"
+                      ],
+                      "direct_match_count": 1,
+                      "dynamic_score": 0,
+                      "effective_score": 0,
+                      "evidence": [],
+                      "expanded_marks": [],
+                      "fingerprint": "99d81390ad5a218f152e952c752590df15291bdd55a6a61849b334a62acd8982",
+                      "marks": [
+                        "alpha"
+                      ],
+                      "quote_characters": 37,
+                      "quote_sha256": "b722d3cab75fe37a13add52b8061e3a64d99074a9cf482806f8f771c3d36d5fb",
+                      "rank": 5,
+                      "ranking_score": 0,
+                      "record_id": 7,
+                      "scope": "10:knowledge",
+                      "source_id": "synthetic:c9-alpha-only",
+                      "static_score": 0,
+                      "text_characters": 37,
+                      "text_sha256": "b722d3cab75fe37a13add52b8061e3a64d99074a9cf482806f8f771c3d36d5fb"
+                    }
+                  ],
+                  "ranking_mode": "static",
+                  "ranking_order": [
+                    "direct_match_count descending",
+                    "effective_score descending",
+                    "static_score descending",
+                    "record_id descending"
+                  ],
+                  "selected": [
+                    {
+                      "preview_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                      "rank": 1,
+                      "record_id": 6,
+                      "source_id": "synthetic:c9-entry-two",
+                      "text_characters": 57,
+                      "text_truncated": false
+                    },
+                    {
+                      "preview_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                      "rank": 2,
+                      "record_id": 5,
+                      "source_id": "synthetic:c9-entry-one",
+                      "text_characters": 57,
+                      "text_truncated": false
+                    },
+                    {
+                      "preview_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                      "rank": 3,
+                      "record_id": 4,
+                      "source_id": "synthetic:c9-source-A",
+                      "text_characters": 104,
+                      "text_truncated": false
+                    }
+                  ],
+                  "selected_record_ids": [
+                    6,
+                    5,
+                    4
+                  ],
+                  "selector_contract": "selector_receipt_v1",
+                  "selector_receipt": {
+                    "candidate_set": {
+                      "count": 5,
+                      "inventory": [
+                        {
+                          "direct_marks": [
+                            "alpha",
+                            "gamma"
+                          ],
+                          "direct_match_count": 2,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.5229,
+                          "expanded_marks": [],
+                          "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+                          "marks": [
+                            "alpha",
+                            "gamma"
+                          ],
+                          "quote_characters": 57,
+                          "quote_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                          "rank": 1,
+                          "ranking_score": 0.5229,
+                          "record_id": 6,
+                          "scope": "10:knowledge",
+                          "source_id": "synthetic:c9-entry-two",
+                          "static_score": 0.5229,
+                          "text_characters": 57,
+                          "text_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f"
+                        },
+                        {
+                          "direct_marks": [
+                            "alpha",
+                            "gamma"
+                          ],
+                          "direct_match_count": 2,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.5229,
+                          "expanded_marks": [],
+                          "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+                          "marks": [
+                            "alpha",
+                            "gamma"
+                          ],
+                          "quote_characters": 57,
+                          "quote_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                          "rank": 2,
+                          "ranking_score": 0.5229,
+                          "record_id": 5,
+                          "scope": "10:knowledge",
+                          "source_id": "synthetic:c9-entry-one",
+                          "static_score": 0.5229,
+                          "text_characters": 57,
+                          "text_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d"
+                        },
+                        {
+                          "direct_marks": [
+                            "alpha"
+                          ],
+                          "direct_match_count": 1,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.4019,
+                          "expanded_marks": [
+                            "beta"
+                          ],
+                          "fingerprint": "967cdd23243d815667027f5aaaaa934547cc5079643d8b63f181180561c40476",
+                          "marks": [
+                            "alpha",
+                            "beta"
+                          ],
+                          "quote_characters": 104,
+                          "quote_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                          "rank": 3,
+                          "ranking_score": 0.4019,
+                          "record_id": 4,
+                          "scope": "10:knowledge",
+                          "source_id": "synthetic:c9-source-A",
+                          "static_score": 0.4019,
+                          "text_characters": 104,
+                          "text_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18"
+                        },
+                        {
+                          "direct_marks": [
+                            "gamma"
+                          ],
+                          "direct_match_count": 1,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.4019,
+                          "expanded_marks": [
+                            "beta"
+                          ],
+                          "fingerprint": "4c7d4bd7d3973b845518fbf60e2893c34179757dd1dd8e3e0ad819dcf98b4c1c",
+                          "marks": [
+                            "beta",
+                            "gamma"
+                          ],
+                          "quote_characters": 104,
+                          "quote_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae",
+                          "rank": 4,
+                          "ranking_score": 0.4019,
+                          "record_id": 3,
+                          "scope": "10:knowledge",
+                          "source_id": "synthetic:c9-source-B",
+                          "static_score": 0.4019,
+                          "text_characters": 104,
+                          "text_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae"
+                        },
+                        {
+                          "direct_marks": [
+                            "alpha"
+                          ],
+                          "direct_match_count": 1,
+                          "dynamic_score": 0,
+                          "effective_score": 0,
+                          "expanded_marks": [],
+                          "fingerprint": "99d81390ad5a218f152e952c752590df15291bdd55a6a61849b334a62acd8982",
+                          "marks": [
+                            "alpha"
+                          ],
+                          "quote_characters": 37,
+                          "quote_sha256": "b722d3cab75fe37a13add52b8061e3a64d99074a9cf482806f8f771c3d36d5fb",
+                          "rank": 5,
+                          "ranking_score": 0,
+                          "record_id": 7,
+                          "scope": "10:knowledge",
+                          "source_id": "synthetic:c9-alpha-only",
+                          "static_score": 0,
+                          "text_characters": 37,
+                          "text_sha256": "b722d3cab75fe37a13add52b8061e3a64d99074a9cf482806f8f771c3d36d5fb"
+                        }
+                      ],
+                      "scope": "eligible_ranked_candidates_v1",
+                      "sha256": "01d2a917762d9655e994f349d0768191d03f80d6a0b6725c20aa19d45cdc3fdc"
+                    },
+                    "exclusions": [
+                      {
+                        "reason": "model_not_selected",
+                        "record_id": 3
+                      },
+                      {
+                        "reason": "model_not_selected",
+                        "record_id": 7
+                      }
+                    ],
+                    "input": {
+                      "context_query": "",
+                      "context_query_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "event_id": "synthetic-message",
+                      "query_sha256": "a840d26d49b221e4d25228f49944000ab22d20f429300f838158b298ee47fab6",
+                      "ranking_mode": "static",
+                      "retrieval_policy": "legacy_v1",
+                      "scope": "10:knowledge"
+                    },
+                    "input_sha256": "ad6ebfb9db3df8b4f5fb9d9c06b9ebd7d061423804b3283cfe256047ac0bf679",
+                    "policy": {
+                      "id": "model_npmi_labels",
+                      "version": "v1"
+                    },
+                    "result_bindings": [
+                      {
+                        "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+                        "preview_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                        "quote_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                        "record_id": 6,
+                        "scope": "10:knowledge",
+                        "source_id": "synthetic:c9-entry-two",
+                        "text_characters": 57,
+                        "text_truncated": false
+                      },
+                      {
+                        "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+                        "preview_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                        "quote_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                        "record_id": 5,
+                        "scope": "10:knowledge",
+                        "source_id": "synthetic:c9-entry-one",
+                        "text_characters": 57,
+                        "text_truncated": false
+                      },
+                      {
+                        "fingerprint": "967cdd23243d815667027f5aaaaa934547cc5079643d8b63f181180561c40476",
+                        "preview_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                        "quote_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                        "record_id": 4,
+                        "scope": "10:knowledge",
+                        "source_id": "synthetic:c9-source-A",
+                        "text_characters": 104,
+                        "text_truncated": false
+                      }
+                    ],
+                    "schema": "selector_receipt_v1",
+                    "selected_record_ids": [
+                      6,
+                      5,
+                      4
+                    ]
+                  },
+                  "static_formula_reproducible": true,
+                  "static_policy": {
+                    "formula": "log(p_ab/(p_a*p_b))/-log(p_ab)",
+                    "p_ab_one_value": 1.0,
+                    "retain_only_positive": true,
+                    "round_digits": 4
+                  },
+                  "used_text_characters": 218,
+                  "weight_basis": "static_npmi"
+                }
+              },
+              "graph_audit_sha256": "513e9b004736f915038ae96497f796ab38b37e695677f1091ca45c3f322f3c48",
+              "materials": [
+                {
+                  "active_at_retrieval": true,
+                  "chunk_index": null,
+                  "citation_id": "M1",
+                  "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "model_payload": {
+                    "citation_id": "M1",
+                    "citation_marker": "[M1]",
+                    "direct_marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "dynamic_score": 0.0,
+                    "expanded_marks": [],
+                    "id": 6,
+                    "marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                    "ranking_mode": "static",
+                    "ranking_score": 0.5229,
+                    "scope": "10:knowledge",
+                    "source_id": "synthetic:c9-entry-two",
+                    "static_score": 0.5229,
+                    "text": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                    "text_truncated": false,
+                    "weight_basis": "static_npmi"
+                  },
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                  "record_id": 6,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-two",
+                  "stored_text": "Bibliography\nSynthetic alpha gamma publication entry-two."
+                },
+                {
+                  "active_at_retrieval": true,
+                  "chunk_index": null,
+                  "citation_id": "M2",
+                  "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "model_payload": {
+                    "citation_id": "M2",
+                    "citation_marker": "[M2]",
+                    "direct_marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "dynamic_score": 0.0,
+                    "expanded_marks": [],
+                    "id": 5,
+                    "marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                    "ranking_mode": "static",
+                    "ranking_score": 0.5229,
+                    "scope": "10:knowledge",
+                    "source_id": "synthetic:c9-entry-one",
+                    "static_score": 0.5229,
+                    "text": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                    "text_truncated": false,
+                    "weight_basis": "static_npmi"
+                  },
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                  "record_id": 5,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-one",
+                  "stored_text": "Bibliography\nSynthetic alpha gamma publication entry-one."
+                },
+                {
+                  "active_at_retrieval": true,
+                  "chunk_index": null,
+                  "citation_id": "M3",
+                  "fingerprint": "967cdd23243d815667027f5aaaaa934547cc5079643d8b63f181180561c40476",
+                  "marks": [
+                    "alpha",
+                    "beta"
+                  ],
+                  "model_payload": {
+                    "citation_id": "M3",
+                    "citation_marker": "[M3]",
+                    "direct_marks": [
+                      "alpha"
+                    ],
+                    "dynamic_score": 0.0,
+                    "expanded_marks": [
+                      "beta"
+                    ],
+                    "id": 4,
+                    "marks": [
+                      "alpha",
+                      "beta"
+                    ],
+                    "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                    "ranking_mode": "static",
+                    "ranking_score": 0.4019,
+                    "scope": "10:knowledge",
+                    "source_id": "synthetic:c9-source-A",
+                    "static_score": 0.4019,
+                    "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                    "text_truncated": false,
+                    "weight_basis": "static_npmi"
+                  },
+                  "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                  "record_id": 4,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-source-A",
+                  "stored_text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}"
+                }
+              ],
+              "model_materials": [
+                {
+                  "citation_id": "M1",
+                  "citation_marker": "[M1]",
+                  "direct_marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "dynamic_score": 0.0,
+                  "expanded_marks": [],
+                  "id": 6,
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                  "ranking_mode": "static",
+                  "ranking_score": 0.5229,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-two",
+                  "static_score": 0.5229,
+                  "text": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                  "text_truncated": false,
+                  "weight_basis": "static_npmi"
+                },
+                {
+                  "citation_id": "M2",
+                  "citation_marker": "[M2]",
+                  "direct_marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "dynamic_score": 0.0,
+                  "expanded_marks": [],
+                  "id": 5,
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                  "ranking_mode": "static",
+                  "ranking_score": 0.5229,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-one",
+                  "static_score": 0.5229,
+                  "text": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                  "text_truncated": false,
+                  "weight_basis": "static_npmi"
+                },
+                {
+                  "citation_id": "M3",
+                  "citation_marker": "[M3]",
+                  "direct_marks": [
+                    "alpha"
+                  ],
+                  "dynamic_score": 0.0,
+                  "expanded_marks": [
+                    "beta"
+                  ],
+                  "id": 4,
+                  "marks": [
+                    "alpha",
+                    "beta"
+                  ],
+                  "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                  "ranking_mode": "static",
+                  "ranking_score": 0.4019,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-source-A",
+                  "static_score": 0.4019,
+                  "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                  "text_truncated": false,
+                  "weight_basis": "static_npmi"
+                }
+              ],
+              "model_projection": "citation_material_selector_v1",
+              "query": "alpha links gamma",
+              "scope": "10:knowledge",
+              "selector_receipt_sha256": "df753faeb28d946b9024a349c5ac9f854975118dc7d165be3cac7a9de6d30409",
+              "sources": {
+                "synthetic:c9-entry-one": {
+                  "metadata_available": false,
+                  "source_id": "synthetic:c9-entry-one"
+                },
+                "synthetic:c9-entry-two": {
+                  "metadata_available": false,
+                  "source_id": "synthetic:c9-entry-two"
+                },
+                "synthetic:c9-source-A": {
+                  "metadata_available": false,
+                  "source_id": "synthetic:c9-source-A"
+                }
+              },
+              "version": 2
+            },
+            "record_sha256": "fc837f447f225b61320da6a4d302b0b496e0ef3284e5733e7c02112668b70480",
+            "request_id": "synthetic-message:initial",
+            "round_index": 0
+          },
+          {
+            "bindings": [
+              {
+                "citation_id": "M1",
+                "evidence_uid": "c86f23f3cd883725c1d9ee0f23d07d435b8301d6a4a12d0398debef9465fd2ab",
+                "local_citation_id": "M1"
+              },
+              {
+                "citation_id": "M2",
+                "evidence_uid": "449becd41b01b9086ef5365a1bf5568dbbd0383da7d75fed4e38468c76691c92",
+                "local_citation_id": "M2"
+              },
+              {
+                "citation_id": "M4",
+                "evidence_uid": "d038975507562cd06bf25f799fc90726da714b497f9570828d6d6d5bfd9a2499",
+                "local_citation_id": "M3"
+              }
+            ],
+            "parent_evidence_sha256": "22b4bd54492e2474a262041363c1f849efca4775344f272974368a8f292256bd",
+            "planning_call_id": "e42d99abada34e1cba26e08a59f61407",
+            "record": {
+              "event_id": "synthetic-message:query:1",
+              "graph_audit": {
+                "audit_scope": "direct_hit_neighborhood_v1",
+                "durable_payload_sha256": "8d718b3cbabd17145f6adcd24c98934f09decf7d5db1976d237b949e4fd3e630",
+                "event_id": "synthetic-message:query:1",
+                "match": {
+                  "direct_hits": [
+                    "alpha",
+                    "gamma",
+                    "beta"
+                  ],
+                  "direct_limit": 4,
+                  "discarded_direct_matches": [],
+                  "excluded_self_marks": [
+                    "indeces",
+                    "indices"
+                  ],
+                  "known_marks_count": 18,
+                  "literal_matches": [
+                    "alpha",
+                    "gamma",
+                    "beta"
+                  ]
+                },
+                "observation": {
+                  "applied": false,
+                  "changed_edges": [],
+                  "dynamic_shadow_enabled": false,
+                  "original_changes_known": true,
+                  "reason": "static_shadow_disabled",
+                  "seeded_after": false,
+                  "seeded_before": false,
+                  "seeded_edges": 0,
+                  "status": "disabled"
+                },
+                "replay": false,
+                "request": {
+                  "observed_at": 1720000000.0,
+                  "query": "alpha links gamma\nCanonical query data:\n{\"ambiguities\": [], \"canonical_terms\": [\"alpha\", \"gamma\"], \"entities\": [{\"canonical\": \"alpha\", \"id\": \"e1\", \"span\": [0, 5], \"surface\": \"alpha\"}, {\"canonical\": \"gamma\", \"id\": \"e2\", \"span\": [12, 17], \"surface\": \"gamma\"}], \"negations\": [], \"relations\": [{\"direction\": \"subject_to_object\", \"negated\": false, \"object_id\": \"e2\", \"predicate\": \"links\", \"span\": [6, 11], \"subject_id\": \"e1\", \"surface\": \"links\"}], \"scope\": null, \"time\": null}\nSourced graph terms:\n[\"alpha\", \"gamma\", \"beta\"]",
+                  "requested_marks": [
+                    "alpha",
+                    "beta",
+                    "gamma"
+                  ]
+                },
+                "schema_version": 2,
+                "scope": "10:knowledge",
+                "selection": {
+                  "active_record_count": 20,
+                  "edge_statistics": [
+                    {
+                      "a": "alpha",
+                      "active_source_support": true,
+                      "b": "beta",
+                      "co_count": 1,
+                      "context": [],
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.3059,
+                      "source_record_ids": [
+                        4
+                      ],
+                      "static_score": 0.3059
+                    },
+                    {
+                      "a": "alpha",
+                      "active_source_support": true,
+                      "b": "gamma",
+                      "co_count": 2,
+                      "context": [],
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.5229,
+                      "source_record_ids": [
+                        5,
+                        6
+                      ],
+                      "static_score": 0.5229
+                    },
+                    {
+                      "a": "beta",
+                      "active_source_support": true,
+                      "b": "gamma",
+                      "co_count": 1,
+                      "context": [],
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.4019,
+                      "source_record_ids": [
+                        3
+                      ],
+                      "static_score": 0.4019
+                    }
+                  ],
+                  "edge_statistics_scope": "direct_hit_incident_v1",
+                  "excluded_record_count": 15,
+                  "expanded_marks": [],
+                  "expansion_candidates": [],
+                  "limits": {
+                    "direct_marks": 4,
+                    "entry_text_characters": 110,
+                    "expanded_marks": 2,
+                    "neighbors_per_hit": 5,
+                    "references": 3,
+                    "total_text_characters": 400
+                  },
+                  "live_edge_count": 3,
+                  "mark_frequencies": {
+                    "alpha": 4,
+                    "beta": 2,
+                    "gamma": 3
+                  },
+                  "mark_frequencies_scope": "edge_endpoints_v1",
+                  "ranked_candidates": [
+                    {
+                      "direct_marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "direct_match_count": 2,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.5229,
+                      "evidence": [
+                        {
+                          "co_count": 2,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.5229,
+                          "from_mark": "alpha",
+                          "mark": "gamma",
+                          "source_record_ids": [
+                            5,
+                            6
+                          ],
+                          "static_score": 0.5229
+                        }
+                      ],
+                      "expanded_marks": [],
+                      "marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "quote_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                      "rank": 1,
+                      "record_id": 6,
+                      "source_id": "synthetic:c9-entry-two",
+                      "static_score": 0.5229,
+                      "text_characters": 57,
+                      "text_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f"
+                    },
+                    {
+                      "direct_marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "direct_match_count": 2,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.5229,
+                      "evidence": [
+                        {
+                          "co_count": 2,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.5229,
+                          "from_mark": "alpha",
+                          "mark": "gamma",
+                          "source_record_ids": [
+                            5,
+                            6
+                          ],
+                          "static_score": 0.5229
+                        }
+                      ],
+                      "expanded_marks": [],
+                      "marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "quote_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                      "rank": 2,
+                      "record_id": 5,
+                      "source_id": "synthetic:c9-entry-one",
+                      "static_score": 0.5229,
+                      "text_characters": 57,
+                      "text_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d"
+                    },
+                    {
+                      "direct_marks": [
+                        "beta",
+                        "gamma"
+                      ],
+                      "direct_match_count": 2,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.4019,
+                      "evidence": [
+                        {
+                          "co_count": 1,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.4019,
+                          "from_mark": "beta",
+                          "mark": "gamma",
+                          "source_record_ids": [
+                            3
+                          ],
+                          "static_score": 0.4019
+                        }
+                      ],
+                      "expanded_marks": [],
+                      "marks": [
+                        "beta",
+                        "gamma"
+                      ],
+                      "quote_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae",
+                      "rank": 3,
+                      "record_id": 3,
+                      "source_id": "synthetic:c9-source-B",
+                      "static_score": 0.4019,
+                      "text_characters": 104,
+                      "text_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae"
+                    },
+                    {
+                      "direct_marks": [
+                        "alpha",
+                        "beta"
+                      ],
+                      "direct_match_count": 2,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.3059,
+                      "evidence": [
+                        {
+                          "co_count": 1,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.3059,
+                          "from_mark": "alpha",
+                          "mark": "beta",
+                          "source_record_ids": [
+                            4
+                          ],
+                          "static_score": 0.3059
+                        }
+                      ],
+                      "expanded_marks": [],
+                      "marks": [
+                        "alpha",
+                        "beta"
+                      ],
+                      "quote_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                      "rank": 4,
+                      "record_id": 4,
+                      "source_id": "synthetic:c9-source-A",
+                      "static_score": 0.3059,
+                      "text_characters": 104,
+                      "text_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18"
+                    },
+                    {
+                      "direct_marks": [
+                        "alpha"
+                      ],
+                      "direct_match_count": 1,
+                      "dynamic_score": 0,
+                      "effective_score": 0,
+                      "evidence": [],
+                      "expanded_marks": [],
+                      "marks": [
+                        "alpha"
+                      ],
+                      "quote_sha256": "b722d3cab75fe37a13add52b8061e3a64d99074a9cf482806f8f771c3d36d5fb",
+                      "rank": 5,
+                      "record_id": 7,
+                      "source_id": "synthetic:c9-alpha-only",
+                      "static_score": 0,
+                      "text_characters": 37,
+                      "text_sha256": "b722d3cab75fe37a13add52b8061e3a64d99074a9cf482806f8f771c3d36d5fb"
+                    }
+                  ],
+                  "ranking_mode": "static",
+                  "ranking_order": [
+                    "direct_match_count descending",
+                    "effective_score descending",
+                    "static_score descending",
+                    "record_id descending"
+                  ],
+                  "selected": [
+                    {
+                      "preview_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                      "rank": 1,
+                      "record_id": 6,
+                      "source_id": "synthetic:c9-entry-two",
+                      "text_characters": 57,
+                      "text_truncated": false
+                    },
+                    {
+                      "preview_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                      "rank": 2,
+                      "record_id": 5,
+                      "source_id": "synthetic:c9-entry-one",
+                      "text_characters": 57,
+                      "text_truncated": false
+                    },
+                    {
+                      "preview_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae",
+                      "rank": 3,
+                      "record_id": 3,
+                      "source_id": "synthetic:c9-source-B",
+                      "text_characters": 104,
+                      "text_truncated": false
+                    }
+                  ],
+                  "selected_record_ids": [
+                    6,
+                    5,
+                    3
+                  ],
+                  "static_formula_reproducible": true,
+                  "static_policy": {
+                    "formula": "log(p_ab/(p_a*p_b))/-log(p_ab)",
+                    "p_ab_one_value": 1.0,
+                    "retain_only_positive": true,
+                    "round_digits": 4
+                  },
+                  "used_text_characters": 218,
+                  "weight_basis": "static_npmi"
+                }
+              },
+              "graph_audit_sha256": "0d60ae5a07f471041668a929cba1fa2bb0c8980dced28f6a63fadb88d2ca0bf7",
+              "materials": [
+                {
+                  "active_at_retrieval": true,
+                  "chunk_index": null,
+                  "citation_id": "M1",
+                  "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "model_payload": {
+                    "citation_id": "M1",
+                    "citation_marker": "[M1]",
+                    "direct_marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "dynamic_score": 0.0,
+                    "expanded_marks": [],
+                    "id": 6,
+                    "marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                    "ranking_mode": "static",
+                    "ranking_score": 0.5229,
+                    "scope": "10:knowledge",
+                    "source_id": "synthetic:c9-entry-two",
+                    "static_score": 0.5229,
+                    "text": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                    "text_truncated": false,
+                    "weight_basis": "static_npmi"
+                  },
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                  "record_id": 6,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-two",
+                  "stored_text": "Bibliography\nSynthetic alpha gamma publication entry-two."
+                },
+                {
+                  "active_at_retrieval": true,
+                  "chunk_index": null,
+                  "citation_id": "M2",
+                  "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "model_payload": {
+                    "citation_id": "M2",
+                    "citation_marker": "[M2]",
+                    "direct_marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "dynamic_score": 0.0,
+                    "expanded_marks": [],
+                    "id": 5,
+                    "marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                    "ranking_mode": "static",
+                    "ranking_score": 0.5229,
+                    "scope": "10:knowledge",
+                    "source_id": "synthetic:c9-entry-one",
+                    "static_score": 0.5229,
+                    "text": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                    "text_truncated": false,
+                    "weight_basis": "static_npmi"
+                  },
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                  "record_id": 5,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-one",
+                  "stored_text": "Bibliography\nSynthetic alpha gamma publication entry-one."
+                },
+                {
+                  "active_at_retrieval": true,
+                  "chunk_index": null,
+                  "citation_id": "M3",
+                  "fingerprint": "4c7d4bd7d3973b845518fbf60e2893c34179757dd1dd8e3e0ad819dcf98b4c1c",
+                  "marks": [
+                    "beta",
+                    "gamma"
+                  ],
+                  "model_payload": {
+                    "citation_id": "M3",
+                    "citation_marker": "[M3]",
+                    "direct_marks": [
+                      "beta",
+                      "gamma"
+                    ],
+                    "dynamic_score": 0.0,
+                    "expanded_marks": [],
+                    "id": 3,
+                    "marks": [
+                      "beta",
+                      "gamma"
+                    ],
+                    "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                    "ranking_mode": "static",
+                    "ranking_score": 0.4019,
+                    "scope": "10:knowledge",
+                    "source_id": "synthetic:c9-source-B",
+                    "static_score": 0.4019,
+                    "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                    "text_truncated": false,
+                    "weight_basis": "static_npmi"
+                  },
+                  "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                  "record_id": 3,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-source-B",
+                  "stored_text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}"
+                }
+              ],
+              "model_materials": [
+                {
+                  "citation_id": "M1",
+                  "citation_marker": "[M1]",
+                  "direct_marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "dynamic_score": 0.0,
+                  "expanded_marks": [],
+                  "id": 6,
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                  "ranking_mode": "static",
+                  "ranking_score": 0.5229,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-two",
+                  "static_score": 0.5229,
+                  "text": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                  "text_truncated": false,
+                  "weight_basis": "static_npmi"
+                },
+                {
+                  "citation_id": "M2",
+                  "citation_marker": "[M2]",
+                  "direct_marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "dynamic_score": 0.0,
+                  "expanded_marks": [],
+                  "id": 5,
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                  "ranking_mode": "static",
+                  "ranking_score": 0.5229,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-one",
+                  "static_score": 0.5229,
+                  "text": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                  "text_truncated": false,
+                  "weight_basis": "static_npmi"
+                },
+                {
+                  "citation_id": "M3",
+                  "citation_marker": "[M3]",
+                  "direct_marks": [
+                    "beta",
+                    "gamma"
+                  ],
+                  "dynamic_score": 0.0,
+                  "expanded_marks": [],
+                  "id": 3,
+                  "marks": [
+                    "beta",
+                    "gamma"
+                  ],
+                  "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                  "ranking_mode": "static",
+                  "ranking_score": 0.4019,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-source-B",
+                  "static_score": 0.4019,
+                  "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                  "text_truncated": false,
+                  "weight_basis": "static_npmi"
+                }
+              ],
+              "model_projection": "citation_material_v1",
+              "query": "alpha links gamma\nCanonical query data:\n{\"ambiguities\": [], \"canonical_terms\": [\"alpha\", \"gamma\"], \"entities\": [{\"canonical\": \"alpha\", \"id\": \"e1\", \"span\": [0, 5], \"surface\": \"alpha\"}, {\"canonical\": \"gamma\", \"id\": \"e2\", \"span\": [12, 17], \"surface\": \"gamma\"}], \"negations\": [], \"relations\": [{\"direction\": \"subject_to_object\", \"negated\": false, \"object_id\": \"e2\", \"predicate\": \"links\", \"span\": [6, 11], \"subject_id\": \"e1\", \"surface\": \"links\"}], \"scope\": null, \"time\": null}\nSourced graph terms:\n[\"alpha\", \"gamma\", \"beta\"]",
+              "scope": "10:knowledge",
+              "sources": {
+                "synthetic:c9-entry-one": {
+                  "metadata_available": false,
+                  "source_id": "synthetic:c9-entry-one"
+                },
+                "synthetic:c9-entry-two": {
+                  "metadata_available": false,
+                  "source_id": "synthetic:c9-entry-two"
+                },
+                "synthetic:c9-source-B": {
+                  "metadata_available": false,
+                  "source_id": "synthetic:c9-source-B"
+                }
+              },
+              "version": 1
+            },
+            "record_sha256": "970617af363ecc95b2eaa8aa942ec6c1e2629862013d75c095188121d05f5ab4",
+            "request_id": "synthetic-message:query:1",
+            "round_index": 1
+          }
+        ],
+        "schema": "active_requery_evidence_v1",
+        "scope": "10:knowledge",
+        "semantic_support": "not_evaluated",
+        "version": 1
+      },
+      "action": {
+        "action": "query",
+        "clarification": "",
+        "missing_evidence": [
+          "Synthetic relation gap"
+        ],
+        "query": {
+          "ambiguities": [],
+          "canonical_terms": [
+            "alpha",
+            "gamma"
+          ],
+          "entities": [
+            {
+              "canonical": "alpha",
+              "id": "e1",
+              "span": [
+                0,
+                5
+              ],
+              "surface": "alpha"
+            },
+            {
+              "canonical": "gamma",
+              "id": "e2",
+              "span": [
+                12,
+                17
+              ],
+              "surface": "gamma"
+            }
+          ],
+          "negations": [],
+          "relations": [
+            {
+              "direction": "subject_to_object",
+              "negated": false,
+              "object_id": "e2",
+              "predicate": "links",
+              "span": [
+                6,
+                11
+              ],
+              "subject_id": "e1",
+              "surface": "links"
+            }
+          ],
+          "scope": null,
+          "time": null
+        },
+        "stop_reason": ""
+      },
+      "planning_call_id": "e42d99abada34e1cba26e08a59f61407",
+      "config": {
+        "accumulate_rounds": true,
+        "aliases": {},
+        "composition_rules": [
+          {
+            "relation1": "links",
+            "relation2": "links",
+            "result": "links",
+            "rule_id": "synthetic-links-composition"
+          }
+        ],
+        "enabled": true,
+        "max_actions": 8,
+        "max_added_terms": 4,
+        "max_aliases": 16,
+        "max_arcs": 1024,
+        "max_bindings": 1024,
+        "max_candidates": 64,
+        "max_depth": 4,
+        "max_expansions": 4096,
+        "max_facts_per_material": 16,
+        "max_frontier": 256,
+        "max_nodes": 256,
+        "max_quote_chars": 16384,
+        "max_rounds": 8,
+        "max_rules": 16,
+        "max_seconds": 3,
+        "max_serialized_bytes": 1048576,
+        "max_source_chars": 262144,
+        "max_support_ids": 128,
+        "max_terms": 12
+      },
+      "expected_stable_receipt_sha256": "95f25387319f001d6cee3b6ea889ec5ac8457c52a274aef2f0bb6f48c16a6a26"
+    },
+    {
+      "name": "same_split_sources_round_local_policy",
+      "frozen": {
+        "citation_coverage": "not_established",
+        "materials": [
+          {
+            "citation_id": "M1",
+            "evidence_uid": "c86f23f3cd883725c1d9ee0f23d07d435b8301d6a4a12d0398debef9465fd2ab",
+            "local_citation_id": "M1",
+            "material": {
+              "active_at_retrieval": true,
+              "chunk_index": null,
+              "citation_id": "M1",
+              "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+              "marks": [
+                "alpha",
+                "gamma"
+              ],
+              "model_payload": {
+                "citation_id": "M1",
+                "citation_marker": "[M1]",
+                "direct_marks": [
+                  "alpha",
+                  "gamma"
+                ],
+                "dynamic_score": 0.0,
+                "expanded_marks": [],
+                "id": 6,
+                "marks": [
+                  "alpha",
+                  "gamma"
+                ],
+                "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                "ranking_mode": "static",
+                "ranking_score": 0.5229,
+                "scope": "10:knowledge",
+                "source_id": "synthetic:c9-entry-two",
+                "static_score": 0.5229,
+                "text": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                "text_truncated": false,
+                "weight_basis": "static_npmi"
+              },
+              "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+              "record_id": 6,
+              "scope": "10:knowledge",
+              "source_id": "synthetic:c9-entry-two",
+              "stored_text": "Bibliography\nSynthetic alpha gamma publication entry-two."
+            },
+            "request_id": "synthetic-message:initial",
+            "retrieval_sha256": "fc837f447f225b61320da6a4d302b0b496e0ef3284e5733e7c02112668b70480",
+            "round_index": 0,
+            "source": {
+              "metadata_available": false,
+              "source_id": "synthetic:c9-entry-two"
+            }
+          },
+          {
+            "citation_id": "M2",
+            "evidence_uid": "449becd41b01b9086ef5365a1bf5568dbbd0383da7d75fed4e38468c76691c92",
+            "local_citation_id": "M2",
+            "material": {
+              "active_at_retrieval": true,
+              "chunk_index": null,
+              "citation_id": "M2",
+              "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+              "marks": [
+                "alpha",
+                "gamma"
+              ],
+              "model_payload": {
+                "citation_id": "M2",
+                "citation_marker": "[M2]",
+                "direct_marks": [
+                  "alpha",
+                  "gamma"
+                ],
+                "dynamic_score": 0.0,
+                "expanded_marks": [],
+                "id": 5,
+                "marks": [
+                  "alpha",
+                  "gamma"
+                ],
+                "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                "ranking_mode": "static",
+                "ranking_score": 0.5229,
+                "scope": "10:knowledge",
+                "source_id": "synthetic:c9-entry-one",
+                "static_score": 0.5229,
+                "text": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                "text_truncated": false,
+                "weight_basis": "static_npmi"
+              },
+              "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+              "record_id": 5,
+              "scope": "10:knowledge",
+              "source_id": "synthetic:c9-entry-one",
+              "stored_text": "Bibliography\nSynthetic alpha gamma publication entry-one."
+            },
+            "request_id": "synthetic-message:initial",
+            "retrieval_sha256": "fc837f447f225b61320da6a4d302b0b496e0ef3284e5733e7c02112668b70480",
+            "round_index": 0,
+            "source": {
+              "metadata_available": false,
+              "source_id": "synthetic:c9-entry-one"
+            }
+          },
+          {
+            "citation_id": "M3",
+            "evidence_uid": "297c3b4c636035c8737e1c39da661d5035153d25692a0b7d71be39d8f05f3a1e",
+            "local_citation_id": "M3",
+            "material": {
+              "active_at_retrieval": true,
+              "chunk_index": null,
+              "citation_id": "M3",
+              "fingerprint": "967cdd23243d815667027f5aaaaa934547cc5079643d8b63f181180561c40476",
+              "marks": [
+                "alpha",
+                "beta"
+              ],
+              "model_payload": {
+                "citation_id": "M3",
+                "citation_marker": "[M3]",
+                "direct_marks": [
+                  "alpha"
+                ],
+                "dynamic_score": 0.0,
+                "expanded_marks": [
+                  "beta"
+                ],
+                "id": 4,
+                "marks": [
+                  "alpha",
+                  "beta"
+                ],
+                "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                "ranking_mode": "static",
+                "ranking_score": 0.4019,
+                "scope": "10:knowledge",
+                "source_id": "synthetic:c9-source-A",
+                "static_score": 0.4019,
+                "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                "text_truncated": false,
+                "weight_basis": "static_npmi"
+              },
+              "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+              "record_id": 4,
+              "scope": "10:knowledge",
+              "source_id": "synthetic:c9-source-A",
+              "stored_text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}"
+            },
+            "request_id": "synthetic-message:initial",
+            "retrieval_sha256": "fc837f447f225b61320da6a4d302b0b496e0ef3284e5733e7c02112668b70480",
+            "round_index": 0,
+            "source": {
+              "metadata_available": false,
+              "source_id": "synthetic:c9-source-A"
+            }
+          },
+          {
+            "citation_id": "M4",
+            "evidence_uid": "d038975507562cd06bf25f799fc90726da714b497f9570828d6d6d5bfd9a2499",
+            "local_citation_id": "M3",
+            "material": {
+              "active_at_retrieval": true,
+              "chunk_index": null,
+              "citation_id": "M3",
+              "fingerprint": "4c7d4bd7d3973b845518fbf60e2893c34179757dd1dd8e3e0ad819dcf98b4c1c",
+              "marks": [
+                "beta",
+                "gamma"
+              ],
+              "model_payload": {
+                "citation_id": "M3",
+                "citation_marker": "[M3]",
+                "direct_marks": [
+                  "beta",
+                  "gamma"
+                ],
+                "dynamic_score": 0.0,
+                "expanded_marks": [],
+                "id": 3,
+                "marks": [
+                  "beta",
+                  "gamma"
+                ],
+                "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                "ranking_mode": "static",
+                "ranking_score": 0.4019,
+                "scope": "10:knowledge",
+                "source_id": "synthetic:c9-source-B",
+                "static_score": 0.4019,
+                "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                "text_truncated": false,
+                "weight_basis": "static_npmi"
+              },
+              "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+              "record_id": 3,
+              "scope": "10:knowledge",
+              "source_id": "synthetic:c9-source-B",
+              "stored_text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}"
+            },
+            "request_id": "synthetic-message:query:1",
+            "retrieval_sha256": "970617af363ecc95b2eaa8aa942ec6c1e2629862013d75c095188121d05f5ab4",
+            "round_index": 1,
+            "source": {
+              "metadata_available": false,
+              "source_id": "synthetic:c9-source-B"
+            }
+          }
+        ],
+        "rounds": [
+          {
+            "bindings": [
+              {
+                "citation_id": "M1",
+                "evidence_uid": "c86f23f3cd883725c1d9ee0f23d07d435b8301d6a4a12d0398debef9465fd2ab",
+                "local_citation_id": "M1"
+              },
+              {
+                "citation_id": "M2",
+                "evidence_uid": "449becd41b01b9086ef5365a1bf5568dbbd0383da7d75fed4e38468c76691c92",
+                "local_citation_id": "M2"
+              },
+              {
+                "citation_id": "M3",
+                "evidence_uid": "297c3b4c636035c8737e1c39da661d5035153d25692a0b7d71be39d8f05f3a1e",
+                "local_citation_id": "M3"
+              }
+            ],
+            "parent_evidence_sha256": null,
+            "planning_call_id": null,
+            "record": {
+              "event_id": "synthetic-message",
+              "graph_audit": {
+                "audit_scope": "direct_hit_neighborhood_v1",
+                "durable_payload_sha256": "c00125465394ae363db5e07b826f27279bf9b337cff6d6c64ae9ddcfe725ca70",
+                "event_id": "synthetic-message",
+                "match": {
+                  "direct_hits": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "direct_limit": 4,
+                  "discarded_direct_matches": [],
+                  "excluded_self_marks": [
+                    "indeces",
+                    "indices"
+                  ],
+                  "known_marks_count": 18,
+                  "literal_matches": [
+                    "alpha",
+                    "gamma"
+                  ]
+                },
+                "observation": {
+                  "applied": false,
+                  "changed_edges": [],
+                  "dynamic_shadow_enabled": false,
+                  "original_changes_known": true,
+                  "reason": "static_shadow_disabled",
+                  "seeded_after": false,
+                  "seeded_before": false,
+                  "seeded_edges": 0,
+                  "status": "disabled"
+                },
+                "replay": false,
+                "request": {
+                  "observed_at": 1720000000.0,
+                  "query": "alpha links gamma",
+                  "requested_marks": []
+                },
+                "schema_version": 2,
+                "scope": "10:knowledge",
+                "selection": {
+                  "active_record_count": 20,
+                  "edge_statistics": [
+                    {
+                      "a": "alpha",
+                      "active_source_support": true,
+                      "b": "beta",
+                      "co_count": 1,
+                      "context": [],
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.3059,
+                      "source_record_ids": [
+                        4
+                      ],
+                      "static_score": 0.3059
+                    },
+                    {
+                      "a": "alpha",
+                      "active_source_support": true,
+                      "b": "gamma",
+                      "co_count": 2,
+                      "context": [],
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.5229,
+                      "source_record_ids": [
+                        5,
+                        6
+                      ],
+                      "static_score": 0.5229
+                    },
+                    {
+                      "a": "beta",
+                      "active_source_support": true,
+                      "b": "gamma",
+                      "co_count": 1,
+                      "context": [],
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.4019,
+                      "source_record_ids": [
+                        3
+                      ],
+                      "static_score": 0.4019
+                    }
+                  ],
+                  "edge_statistics_scope": "direct_hit_incident_v1",
+                  "excluded_record_count": 15,
+                  "expanded_marks": [
+                    "beta"
+                  ],
+                  "expansion_candidates": [
+                    {
+                      "co_count": 1,
+                      "considered": true,
+                      "context": [],
+                      "context_passed": true,
+                      "deduplication_winner": false,
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.3059,
+                      "from_mark": "alpha",
+                      "mark": "beta",
+                      "neighbor_rank": 1,
+                      "selected_for_expansion": false,
+                      "source_record_ids": [
+                        4
+                      ],
+                      "static_score": 0.3059,
+                      "within_neighbor_limit": true
+                    },
+                    {
+                      "co_count": 1,
+                      "considered": true,
+                      "context": [],
+                      "context_passed": true,
+                      "deduplication_winner": true,
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.4019,
+                      "from_mark": "gamma",
+                      "mark": "beta",
+                      "neighbor_rank": 1,
+                      "selected_for_expansion": true,
+                      "source_record_ids": [
+                        3
+                      ],
+                      "static_score": 0.4019,
+                      "within_neighbor_limit": true
+                    }
+                  ],
+                  "limits": {
+                    "direct_marks": 4,
+                    "entry_text_characters": 110,
+                    "expanded_marks": 2,
+                    "neighbors_per_hit": 5,
+                    "references": 3,
+                    "total_text_characters": 400
+                  },
+                  "live_edge_count": 3,
+                  "mark_frequencies": {
+                    "alpha": 4,
+                    "beta": 2,
+                    "gamma": 3
+                  },
+                  "mark_frequencies_scope": "edge_endpoints_v1",
+                  "ranked_candidates": [
+                    {
+                      "direct_marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "direct_match_count": 2,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.5229,
+                      "evidence": [
+                        {
+                          "co_count": 2,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.5229,
+                          "from_mark": "alpha",
+                          "mark": "gamma",
+                          "source_record_ids": [
+                            5,
+                            6
+                          ],
+                          "static_score": 0.5229
+                        }
+                      ],
+                      "expanded_marks": [],
+                      "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+                      "marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "quote_characters": 57,
+                      "quote_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                      "rank": 1,
+                      "ranking_score": 0.5229,
+                      "record_id": 6,
+                      "scope": "10:knowledge",
+                      "source_id": "synthetic:c9-entry-two",
+                      "static_score": 0.5229,
+                      "text_characters": 57,
+                      "text_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f"
+                    },
+                    {
+                      "direct_marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "direct_match_count": 2,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.5229,
+                      "evidence": [
+                        {
+                          "co_count": 2,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.5229,
+                          "from_mark": "alpha",
+                          "mark": "gamma",
+                          "source_record_ids": [
+                            5,
+                            6
+                          ],
+                          "static_score": 0.5229
+                        }
+                      ],
+                      "expanded_marks": [],
+                      "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+                      "marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "quote_characters": 57,
+                      "quote_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                      "rank": 2,
+                      "ranking_score": 0.5229,
+                      "record_id": 5,
+                      "scope": "10:knowledge",
+                      "source_id": "synthetic:c9-entry-one",
+                      "static_score": 0.5229,
+                      "text_characters": 57,
+                      "text_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d"
+                    },
+                    {
+                      "direct_marks": [
+                        "alpha"
+                      ],
+                      "direct_match_count": 1,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.4019,
+                      "evidence": [
+                        {
+                          "co_count": 1,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.4019,
+                          "from_mark": "gamma",
+                          "mark": "beta",
+                          "source_record_ids": [
+                            3
+                          ],
+                          "static_score": 0.4019
+                        }
+                      ],
+                      "expanded_marks": [
+                        "beta"
+                      ],
+                      "fingerprint": "967cdd23243d815667027f5aaaaa934547cc5079643d8b63f181180561c40476",
+                      "marks": [
+                        "alpha",
+                        "beta"
+                      ],
+                      "quote_characters": 104,
+                      "quote_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                      "rank": 3,
+                      "ranking_score": 0.4019,
+                      "record_id": 4,
+                      "scope": "10:knowledge",
+                      "source_id": "synthetic:c9-source-A",
+                      "static_score": 0.4019,
+                      "text_characters": 104,
+                      "text_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18"
+                    },
+                    {
+                      "direct_marks": [
+                        "gamma"
+                      ],
+                      "direct_match_count": 1,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.4019,
+                      "evidence": [
+                        {
+                          "co_count": 1,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.4019,
+                          "from_mark": "gamma",
+                          "mark": "beta",
+                          "source_record_ids": [
+                            3
+                          ],
+                          "static_score": 0.4019
+                        }
+                      ],
+                      "expanded_marks": [
+                        "beta"
+                      ],
+                      "fingerprint": "4c7d4bd7d3973b845518fbf60e2893c34179757dd1dd8e3e0ad819dcf98b4c1c",
+                      "marks": [
+                        "beta",
+                        "gamma"
+                      ],
+                      "quote_characters": 104,
+                      "quote_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae",
+                      "rank": 4,
+                      "ranking_score": 0.4019,
+                      "record_id": 3,
+                      "scope": "10:knowledge",
+                      "source_id": "synthetic:c9-source-B",
+                      "static_score": 0.4019,
+                      "text_characters": 104,
+                      "text_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae"
+                    },
+                    {
+                      "direct_marks": [
+                        "alpha"
+                      ],
+                      "direct_match_count": 1,
+                      "dynamic_score": 0,
+                      "effective_score": 0,
+                      "evidence": [],
+                      "expanded_marks": [],
+                      "fingerprint": "99d81390ad5a218f152e952c752590df15291bdd55a6a61849b334a62acd8982",
+                      "marks": [
+                        "alpha"
+                      ],
+                      "quote_characters": 37,
+                      "quote_sha256": "b722d3cab75fe37a13add52b8061e3a64d99074a9cf482806f8f771c3d36d5fb",
+                      "rank": 5,
+                      "ranking_score": 0,
+                      "record_id": 7,
+                      "scope": "10:knowledge",
+                      "source_id": "synthetic:c9-alpha-only",
+                      "static_score": 0,
+                      "text_characters": 37,
+                      "text_sha256": "b722d3cab75fe37a13add52b8061e3a64d99074a9cf482806f8f771c3d36d5fb"
+                    }
+                  ],
+                  "ranking_mode": "static",
+                  "ranking_order": [
+                    "direct_match_count descending",
+                    "effective_score descending",
+                    "static_score descending",
+                    "record_id descending"
+                  ],
+                  "selected": [
+                    {
+                      "preview_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                      "rank": 1,
+                      "record_id": 6,
+                      "source_id": "synthetic:c9-entry-two",
+                      "text_characters": 57,
+                      "text_truncated": false
+                    },
+                    {
+                      "preview_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                      "rank": 2,
+                      "record_id": 5,
+                      "source_id": "synthetic:c9-entry-one",
+                      "text_characters": 57,
+                      "text_truncated": false
+                    },
+                    {
+                      "preview_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                      "rank": 3,
+                      "record_id": 4,
+                      "source_id": "synthetic:c9-source-A",
+                      "text_characters": 104,
+                      "text_truncated": false
+                    }
+                  ],
+                  "selected_record_ids": [
+                    6,
+                    5,
+                    4
+                  ],
+                  "selector_contract": "selector_receipt_v1",
+                  "selector_receipt": {
+                    "candidate_set": {
+                      "count": 5,
+                      "inventory": [
+                        {
+                          "direct_marks": [
+                            "alpha",
+                            "gamma"
+                          ],
+                          "direct_match_count": 2,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.5229,
+                          "expanded_marks": [],
+                          "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+                          "marks": [
+                            "alpha",
+                            "gamma"
+                          ],
+                          "quote_characters": 57,
+                          "quote_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                          "rank": 1,
+                          "ranking_score": 0.5229,
+                          "record_id": 6,
+                          "scope": "10:knowledge",
+                          "source_id": "synthetic:c9-entry-two",
+                          "static_score": 0.5229,
+                          "text_characters": 57,
+                          "text_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f"
+                        },
+                        {
+                          "direct_marks": [
+                            "alpha",
+                            "gamma"
+                          ],
+                          "direct_match_count": 2,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.5229,
+                          "expanded_marks": [],
+                          "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+                          "marks": [
+                            "alpha",
+                            "gamma"
+                          ],
+                          "quote_characters": 57,
+                          "quote_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                          "rank": 2,
+                          "ranking_score": 0.5229,
+                          "record_id": 5,
+                          "scope": "10:knowledge",
+                          "source_id": "synthetic:c9-entry-one",
+                          "static_score": 0.5229,
+                          "text_characters": 57,
+                          "text_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d"
+                        },
+                        {
+                          "direct_marks": [
+                            "alpha"
+                          ],
+                          "direct_match_count": 1,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.4019,
+                          "expanded_marks": [
+                            "beta"
+                          ],
+                          "fingerprint": "967cdd23243d815667027f5aaaaa934547cc5079643d8b63f181180561c40476",
+                          "marks": [
+                            "alpha",
+                            "beta"
+                          ],
+                          "quote_characters": 104,
+                          "quote_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                          "rank": 3,
+                          "ranking_score": 0.4019,
+                          "record_id": 4,
+                          "scope": "10:knowledge",
+                          "source_id": "synthetic:c9-source-A",
+                          "static_score": 0.4019,
+                          "text_characters": 104,
+                          "text_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18"
+                        },
+                        {
+                          "direct_marks": [
+                            "gamma"
+                          ],
+                          "direct_match_count": 1,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.4019,
+                          "expanded_marks": [
+                            "beta"
+                          ],
+                          "fingerprint": "4c7d4bd7d3973b845518fbf60e2893c34179757dd1dd8e3e0ad819dcf98b4c1c",
+                          "marks": [
+                            "beta",
+                            "gamma"
+                          ],
+                          "quote_characters": 104,
+                          "quote_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae",
+                          "rank": 4,
+                          "ranking_score": 0.4019,
+                          "record_id": 3,
+                          "scope": "10:knowledge",
+                          "source_id": "synthetic:c9-source-B",
+                          "static_score": 0.4019,
+                          "text_characters": 104,
+                          "text_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae"
+                        },
+                        {
+                          "direct_marks": [
+                            "alpha"
+                          ],
+                          "direct_match_count": 1,
+                          "dynamic_score": 0,
+                          "effective_score": 0,
+                          "expanded_marks": [],
+                          "fingerprint": "99d81390ad5a218f152e952c752590df15291bdd55a6a61849b334a62acd8982",
+                          "marks": [
+                            "alpha"
+                          ],
+                          "quote_characters": 37,
+                          "quote_sha256": "b722d3cab75fe37a13add52b8061e3a64d99074a9cf482806f8f771c3d36d5fb",
+                          "rank": 5,
+                          "ranking_score": 0,
+                          "record_id": 7,
+                          "scope": "10:knowledge",
+                          "source_id": "synthetic:c9-alpha-only",
+                          "static_score": 0,
+                          "text_characters": 37,
+                          "text_sha256": "b722d3cab75fe37a13add52b8061e3a64d99074a9cf482806f8f771c3d36d5fb"
+                        }
+                      ],
+                      "scope": "eligible_ranked_candidates_v1",
+                      "sha256": "01d2a917762d9655e994f349d0768191d03f80d6a0b6725c20aa19d45cdc3fdc"
+                    },
+                    "exclusions": [
+                      {
+                        "reason": "model_not_selected",
+                        "record_id": 3
+                      },
+                      {
+                        "reason": "model_not_selected",
+                        "record_id": 7
+                      }
+                    ],
+                    "input": {
+                      "context_query": "",
+                      "context_query_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "event_id": "synthetic-message",
+                      "query_sha256": "a840d26d49b221e4d25228f49944000ab22d20f429300f838158b298ee47fab6",
+                      "ranking_mode": "static",
+                      "retrieval_policy": "legacy_v1",
+                      "scope": "10:knowledge"
+                    },
+                    "input_sha256": "ad6ebfb9db3df8b4f5fb9d9c06b9ebd7d061423804b3283cfe256047ac0bf679",
+                    "policy": {
+                      "id": "model_npmi_labels",
+                      "version": "v1"
+                    },
+                    "result_bindings": [
+                      {
+                        "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+                        "preview_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                        "quote_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                        "record_id": 6,
+                        "scope": "10:knowledge",
+                        "source_id": "synthetic:c9-entry-two",
+                        "text_characters": 57,
+                        "text_truncated": false
+                      },
+                      {
+                        "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+                        "preview_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                        "quote_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                        "record_id": 5,
+                        "scope": "10:knowledge",
+                        "source_id": "synthetic:c9-entry-one",
+                        "text_characters": 57,
+                        "text_truncated": false
+                      },
+                      {
+                        "fingerprint": "967cdd23243d815667027f5aaaaa934547cc5079643d8b63f181180561c40476",
+                        "preview_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                        "quote_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                        "record_id": 4,
+                        "scope": "10:knowledge",
+                        "source_id": "synthetic:c9-source-A",
+                        "text_characters": 104,
+                        "text_truncated": false
+                      }
+                    ],
+                    "schema": "selector_receipt_v1",
+                    "selected_record_ids": [
+                      6,
+                      5,
+                      4
+                    ]
+                  },
+                  "static_formula_reproducible": true,
+                  "static_policy": {
+                    "formula": "log(p_ab/(p_a*p_b))/-log(p_ab)",
+                    "p_ab_one_value": 1.0,
+                    "retain_only_positive": true,
+                    "round_digits": 4
+                  },
+                  "used_text_characters": 218,
+                  "weight_basis": "static_npmi"
+                }
+              },
+              "graph_audit_sha256": "513e9b004736f915038ae96497f796ab38b37e695677f1091ca45c3f322f3c48",
+              "materials": [
+                {
+                  "active_at_retrieval": true,
+                  "chunk_index": null,
+                  "citation_id": "M1",
+                  "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "model_payload": {
+                    "citation_id": "M1",
+                    "citation_marker": "[M1]",
+                    "direct_marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "dynamic_score": 0.0,
+                    "expanded_marks": [],
+                    "id": 6,
+                    "marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                    "ranking_mode": "static",
+                    "ranking_score": 0.5229,
+                    "scope": "10:knowledge",
+                    "source_id": "synthetic:c9-entry-two",
+                    "static_score": 0.5229,
+                    "text": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                    "text_truncated": false,
+                    "weight_basis": "static_npmi"
+                  },
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                  "record_id": 6,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-two",
+                  "stored_text": "Bibliography\nSynthetic alpha gamma publication entry-two."
+                },
+                {
+                  "active_at_retrieval": true,
+                  "chunk_index": null,
+                  "citation_id": "M2",
+                  "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "model_payload": {
+                    "citation_id": "M2",
+                    "citation_marker": "[M2]",
+                    "direct_marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "dynamic_score": 0.0,
+                    "expanded_marks": [],
+                    "id": 5,
+                    "marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                    "ranking_mode": "static",
+                    "ranking_score": 0.5229,
+                    "scope": "10:knowledge",
+                    "source_id": "synthetic:c9-entry-one",
+                    "static_score": 0.5229,
+                    "text": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                    "text_truncated": false,
+                    "weight_basis": "static_npmi"
+                  },
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                  "record_id": 5,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-one",
+                  "stored_text": "Bibliography\nSynthetic alpha gamma publication entry-one."
+                },
+                {
+                  "active_at_retrieval": true,
+                  "chunk_index": null,
+                  "citation_id": "M3",
+                  "fingerprint": "967cdd23243d815667027f5aaaaa934547cc5079643d8b63f181180561c40476",
+                  "marks": [
+                    "alpha",
+                    "beta"
+                  ],
+                  "model_payload": {
+                    "citation_id": "M3",
+                    "citation_marker": "[M3]",
+                    "direct_marks": [
+                      "alpha"
+                    ],
+                    "dynamic_score": 0.0,
+                    "expanded_marks": [
+                      "beta"
+                    ],
+                    "id": 4,
+                    "marks": [
+                      "alpha",
+                      "beta"
+                    ],
+                    "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                    "ranking_mode": "static",
+                    "ranking_score": 0.4019,
+                    "scope": "10:knowledge",
+                    "source_id": "synthetic:c9-source-A",
+                    "static_score": 0.4019,
+                    "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                    "text_truncated": false,
+                    "weight_basis": "static_npmi"
+                  },
+                  "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                  "record_id": 4,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-source-A",
+                  "stored_text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}"
+                }
+              ],
+              "model_materials": [
+                {
+                  "citation_id": "M1",
+                  "citation_marker": "[M1]",
+                  "direct_marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "dynamic_score": 0.0,
+                  "expanded_marks": [],
+                  "id": 6,
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                  "ranking_mode": "static",
+                  "ranking_score": 0.5229,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-two",
+                  "static_score": 0.5229,
+                  "text": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                  "text_truncated": false,
+                  "weight_basis": "static_npmi"
+                },
+                {
+                  "citation_id": "M2",
+                  "citation_marker": "[M2]",
+                  "direct_marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "dynamic_score": 0.0,
+                  "expanded_marks": [],
+                  "id": 5,
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                  "ranking_mode": "static",
+                  "ranking_score": 0.5229,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-one",
+                  "static_score": 0.5229,
+                  "text": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                  "text_truncated": false,
+                  "weight_basis": "static_npmi"
+                },
+                {
+                  "citation_id": "M3",
+                  "citation_marker": "[M3]",
+                  "direct_marks": [
+                    "alpha"
+                  ],
+                  "dynamic_score": 0.0,
+                  "expanded_marks": [
+                    "beta"
+                  ],
+                  "id": 4,
+                  "marks": [
+                    "alpha",
+                    "beta"
+                  ],
+                  "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                  "ranking_mode": "static",
+                  "ranking_score": 0.4019,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-source-A",
+                  "static_score": 0.4019,
+                  "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                  "text_truncated": false,
+                  "weight_basis": "static_npmi"
+                }
+              ],
+              "model_projection": "citation_material_selector_v1",
+              "query": "alpha links gamma",
+              "scope": "10:knowledge",
+              "selector_receipt_sha256": "df753faeb28d946b9024a349c5ac9f854975118dc7d165be3cac7a9de6d30409",
+              "sources": {
+                "synthetic:c9-entry-one": {
+                  "metadata_available": false,
+                  "source_id": "synthetic:c9-entry-one"
+                },
+                "synthetic:c9-entry-two": {
+                  "metadata_available": false,
+                  "source_id": "synthetic:c9-entry-two"
+                },
+                "synthetic:c9-source-A": {
+                  "metadata_available": false,
+                  "source_id": "synthetic:c9-source-A"
+                }
+              },
+              "version": 2
+            },
+            "record_sha256": "fc837f447f225b61320da6a4d302b0b496e0ef3284e5733e7c02112668b70480",
+            "request_id": "synthetic-message:initial",
+            "round_index": 0
+          },
+          {
+            "bindings": [
+              {
+                "citation_id": "M1",
+                "evidence_uid": "c86f23f3cd883725c1d9ee0f23d07d435b8301d6a4a12d0398debef9465fd2ab",
+                "local_citation_id": "M1"
+              },
+              {
+                "citation_id": "M2",
+                "evidence_uid": "449becd41b01b9086ef5365a1bf5568dbbd0383da7d75fed4e38468c76691c92",
+                "local_citation_id": "M2"
+              },
+              {
+                "citation_id": "M4",
+                "evidence_uid": "d038975507562cd06bf25f799fc90726da714b497f9570828d6d6d5bfd9a2499",
+                "local_citation_id": "M3"
+              }
+            ],
+            "parent_evidence_sha256": "22b4bd54492e2474a262041363c1f849efca4775344f272974368a8f292256bd",
+            "planning_call_id": "e42d99abada34e1cba26e08a59f61407",
+            "record": {
+              "event_id": "synthetic-message:query:1",
+              "graph_audit": {
+                "audit_scope": "direct_hit_neighborhood_v1",
+                "durable_payload_sha256": "8d718b3cbabd17145f6adcd24c98934f09decf7d5db1976d237b949e4fd3e630",
+                "event_id": "synthetic-message:query:1",
+                "match": {
+                  "direct_hits": [
+                    "alpha",
+                    "gamma",
+                    "beta"
+                  ],
+                  "direct_limit": 4,
+                  "discarded_direct_matches": [],
+                  "excluded_self_marks": [
+                    "indeces",
+                    "indices"
+                  ],
+                  "known_marks_count": 18,
+                  "literal_matches": [
+                    "alpha",
+                    "gamma",
+                    "beta"
+                  ]
+                },
+                "observation": {
+                  "applied": false,
+                  "changed_edges": [],
+                  "dynamic_shadow_enabled": false,
+                  "original_changes_known": true,
+                  "reason": "static_shadow_disabled",
+                  "seeded_after": false,
+                  "seeded_before": false,
+                  "seeded_edges": 0,
+                  "status": "disabled"
+                },
+                "replay": false,
+                "request": {
+                  "observed_at": 1720000000.0,
+                  "query": "alpha links gamma\nCanonical query data:\n{\"ambiguities\": [], \"canonical_terms\": [\"alpha\", \"gamma\"], \"entities\": [{\"canonical\": \"alpha\", \"id\": \"e1\", \"span\": [0, 5], \"surface\": \"alpha\"}, {\"canonical\": \"gamma\", \"id\": \"e2\", \"span\": [12, 17], \"surface\": \"gamma\"}], \"negations\": [], \"relations\": [{\"direction\": \"subject_to_object\", \"negated\": false, \"object_id\": \"e2\", \"predicate\": \"links\", \"span\": [6, 11], \"subject_id\": \"e1\", \"surface\": \"links\"}], \"scope\": null, \"time\": null}\nSourced graph terms:\n[\"alpha\", \"gamma\", \"beta\"]",
+                  "requested_marks": [
+                    "alpha",
+                    "beta",
+                    "gamma"
+                  ]
+                },
+                "schema_version": 2,
+                "scope": "10:knowledge",
+                "selection": {
+                  "active_record_count": 20,
+                  "edge_statistics": [
+                    {
+                      "a": "alpha",
+                      "active_source_support": true,
+                      "b": "beta",
+                      "co_count": 1,
+                      "context": [],
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.3059,
+                      "source_record_ids": [
+                        4
+                      ],
+                      "static_score": 0.3059
+                    },
+                    {
+                      "a": "alpha",
+                      "active_source_support": true,
+                      "b": "gamma",
+                      "co_count": 2,
+                      "context": [],
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.5229,
+                      "source_record_ids": [
+                        5,
+                        6
+                      ],
+                      "static_score": 0.5229
+                    },
+                    {
+                      "a": "beta",
+                      "active_source_support": true,
+                      "b": "gamma",
+                      "co_count": 1,
+                      "context": [],
+                      "dynamic_last_event_id": null,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.4019,
+                      "source_record_ids": [
+                        3
+                      ],
+                      "static_score": 0.4019
+                    }
+                  ],
+                  "edge_statistics_scope": "direct_hit_incident_v1",
+                  "excluded_record_count": 15,
+                  "expanded_marks": [],
+                  "expansion_candidates": [],
+                  "limits": {
+                    "direct_marks": 4,
+                    "entry_text_characters": 110,
+                    "expanded_marks": 2,
+                    "neighbors_per_hit": 5,
+                    "references": 3,
+                    "total_text_characters": 400
+                  },
+                  "live_edge_count": 3,
+                  "mark_frequencies": {
+                    "alpha": 4,
+                    "beta": 2,
+                    "gamma": 3
+                  },
+                  "mark_frequencies_scope": "edge_endpoints_v1",
+                  "ranked_candidates": [
+                    {
+                      "direct_marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "direct_match_count": 2,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.5229,
+                      "evidence": [
+                        {
+                          "co_count": 2,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.5229,
+                          "from_mark": "alpha",
+                          "mark": "gamma",
+                          "source_record_ids": [
+                            5,
+                            6
+                          ],
+                          "static_score": 0.5229
+                        }
+                      ],
+                      "expanded_marks": [],
+                      "marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "quote_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                      "rank": 1,
+                      "record_id": 6,
+                      "source_id": "synthetic:c9-entry-two",
+                      "static_score": 0.5229,
+                      "text_characters": 57,
+                      "text_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f"
+                    },
+                    {
+                      "direct_marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "direct_match_count": 2,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.5229,
+                      "evidence": [
+                        {
+                          "co_count": 2,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.5229,
+                          "from_mark": "alpha",
+                          "mark": "gamma",
+                          "source_record_ids": [
+                            5,
+                            6
+                          ],
+                          "static_score": 0.5229
+                        }
+                      ],
+                      "expanded_marks": [],
+                      "marks": [
+                        "alpha",
+                        "gamma"
+                      ],
+                      "quote_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                      "rank": 2,
+                      "record_id": 5,
+                      "source_id": "synthetic:c9-entry-one",
+                      "static_score": 0.5229,
+                      "text_characters": 57,
+                      "text_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d"
+                    },
+                    {
+                      "direct_marks": [
+                        "beta",
+                        "gamma"
+                      ],
+                      "direct_match_count": 2,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.4019,
+                      "evidence": [
+                        {
+                          "co_count": 1,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.4019,
+                          "from_mark": "beta",
+                          "mark": "gamma",
+                          "source_record_ids": [
+                            3
+                          ],
+                          "static_score": 0.4019
+                        }
+                      ],
+                      "expanded_marks": [],
+                      "marks": [
+                        "beta",
+                        "gamma"
+                      ],
+                      "quote_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae",
+                      "rank": 3,
+                      "record_id": 3,
+                      "source_id": "synthetic:c9-source-B",
+                      "static_score": 0.4019,
+                      "text_characters": 104,
+                      "text_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae"
+                    },
+                    {
+                      "direct_marks": [
+                        "alpha",
+                        "beta"
+                      ],
+                      "direct_match_count": 2,
+                      "dynamic_score": 0.0,
+                      "effective_score": 0.3059,
+                      "evidence": [
+                        {
+                          "co_count": 1,
+                          "context": [],
+                          "dynamic_last_event_id": null,
+                          "dynamic_score": 0.0,
+                          "effective_score": 0.3059,
+                          "from_mark": "alpha",
+                          "mark": "beta",
+                          "source_record_ids": [
+                            4
+                          ],
+                          "static_score": 0.3059
+                        }
+                      ],
+                      "expanded_marks": [],
+                      "marks": [
+                        "alpha",
+                        "beta"
+                      ],
+                      "quote_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18",
+                      "rank": 4,
+                      "record_id": 4,
+                      "source_id": "synthetic:c9-source-A",
+                      "static_score": 0.3059,
+                      "text_characters": 104,
+                      "text_sha256": "1b94026f8b75efb9810b2f8d3bd6fe7239b950ebddc9c830720a956bb0ef2e18"
+                    },
+                    {
+                      "direct_marks": [
+                        "alpha"
+                      ],
+                      "direct_match_count": 1,
+                      "dynamic_score": 0,
+                      "effective_score": 0,
+                      "evidence": [],
+                      "expanded_marks": [],
+                      "marks": [
+                        "alpha"
+                      ],
+                      "quote_sha256": "b722d3cab75fe37a13add52b8061e3a64d99074a9cf482806f8f771c3d36d5fb",
+                      "rank": 5,
+                      "record_id": 7,
+                      "source_id": "synthetic:c9-alpha-only",
+                      "static_score": 0,
+                      "text_characters": 37,
+                      "text_sha256": "b722d3cab75fe37a13add52b8061e3a64d99074a9cf482806f8f771c3d36d5fb"
+                    }
+                  ],
+                  "ranking_mode": "static",
+                  "ranking_order": [
+                    "direct_match_count descending",
+                    "effective_score descending",
+                    "static_score descending",
+                    "record_id descending"
+                  ],
+                  "selected": [
+                    {
+                      "preview_sha256": "d5f96b0011ec6649609885fcce32194fc3ccf259a0656498c7620116c2c9b96f",
+                      "rank": 1,
+                      "record_id": 6,
+                      "source_id": "synthetic:c9-entry-two",
+                      "text_characters": 57,
+                      "text_truncated": false
+                    },
+                    {
+                      "preview_sha256": "72683431ed0c2bca52bf50c0b0e68300ef2c2292559ee6a3eee54ad873b6ad1d",
+                      "rank": 2,
+                      "record_id": 5,
+                      "source_id": "synthetic:c9-entry-one",
+                      "text_characters": 57,
+                      "text_truncated": false
+                    },
+                    {
+                      "preview_sha256": "c6a2bf5485e859d224ed924903b069255b05fdb784ab26d70643986583894dae",
+                      "rank": 3,
+                      "record_id": 3,
+                      "source_id": "synthetic:c9-source-B",
+                      "text_characters": 104,
+                      "text_truncated": false
+                    }
+                  ],
+                  "selected_record_ids": [
+                    6,
+                    5,
+                    3
+                  ],
+                  "static_formula_reproducible": true,
+                  "static_policy": {
+                    "formula": "log(p_ab/(p_a*p_b))/-log(p_ab)",
+                    "p_ab_one_value": 1.0,
+                    "retain_only_positive": true,
+                    "round_digits": 4
+                  },
+                  "used_text_characters": 218,
+                  "weight_basis": "static_npmi"
+                }
+              },
+              "graph_audit_sha256": "0d60ae5a07f471041668a929cba1fa2bb0c8980dced28f6a63fadb88d2ca0bf7",
+              "materials": [
+                {
+                  "active_at_retrieval": true,
+                  "chunk_index": null,
+                  "citation_id": "M1",
+                  "fingerprint": "48d97d9463ac6bfb73b7dd271b9bb8c6d23dcb2f3953ebb360cbbd007eba36aa",
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "model_payload": {
+                    "citation_id": "M1",
+                    "citation_marker": "[M1]",
+                    "direct_marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "dynamic_score": 0.0,
+                    "expanded_marks": [],
+                    "id": 6,
+                    "marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                    "ranking_mode": "static",
+                    "ranking_score": 0.5229,
+                    "scope": "10:knowledge",
+                    "source_id": "synthetic:c9-entry-two",
+                    "static_score": 0.5229,
+                    "text": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                    "text_truncated": false,
+                    "weight_basis": "static_npmi"
+                  },
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                  "record_id": 6,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-two",
+                  "stored_text": "Bibliography\nSynthetic alpha gamma publication entry-two."
+                },
+                {
+                  "active_at_retrieval": true,
+                  "chunk_index": null,
+                  "citation_id": "M2",
+                  "fingerprint": "1d212889789ce05a8c3cfefcdd152dea3f206d8a6ac3ed0d83825efdca9a168f",
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "model_payload": {
+                    "citation_id": "M2",
+                    "citation_marker": "[M2]",
+                    "direct_marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "dynamic_score": 0.0,
+                    "expanded_marks": [],
+                    "id": 5,
+                    "marks": [
+                      "alpha",
+                      "gamma"
+                    ],
+                    "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                    "ranking_mode": "static",
+                    "ranking_score": 0.5229,
+                    "scope": "10:knowledge",
+                    "source_id": "synthetic:c9-entry-one",
+                    "static_score": 0.5229,
+                    "text": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                    "text_truncated": false,
+                    "weight_basis": "static_npmi"
+                  },
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                  "record_id": 5,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-one",
+                  "stored_text": "Bibliography\nSynthetic alpha gamma publication entry-one."
+                },
+                {
+                  "active_at_retrieval": true,
+                  "chunk_index": null,
+                  "citation_id": "M3",
+                  "fingerprint": "4c7d4bd7d3973b845518fbf60e2893c34179757dd1dd8e3e0ad819dcf98b4c1c",
+                  "marks": [
+                    "beta",
+                    "gamma"
+                  ],
+                  "model_payload": {
+                    "citation_id": "M3",
+                    "citation_marker": "[M3]",
+                    "direct_marks": [
+                      "beta",
+                      "gamma"
+                    ],
+                    "dynamic_score": 0.0,
+                    "expanded_marks": [],
+                    "id": 3,
+                    "marks": [
+                      "beta",
+                      "gamma"
+                    ],
+                    "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                    "ranking_mode": "static",
+                    "ranking_score": 0.4019,
+                    "scope": "10:knowledge",
+                    "source_id": "synthetic:c9-source-B",
+                    "static_score": 0.4019,
+                    "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                    "text_truncated": false,
+                    "weight_basis": "static_npmi"
+                  },
+                  "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                  "record_id": 3,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-source-B",
+                  "stored_text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}"
+                }
+              ],
+              "model_materials": [
+                {
+                  "citation_id": "M1",
+                  "citation_marker": "[M1]",
+                  "direct_marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "dynamic_score": 0.0,
+                  "expanded_marks": [],
+                  "id": 6,
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                  "ranking_mode": "static",
+                  "ranking_score": 0.5229,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-two",
+                  "static_score": 0.5229,
+                  "text": "Bibliography\nSynthetic alpha gamma publication entry-two.",
+                  "text_truncated": false,
+                  "weight_basis": "static_npmi"
+                },
+                {
+                  "citation_id": "M2",
+                  "citation_marker": "[M2]",
+                  "direct_marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "dynamic_score": 0.0,
+                  "expanded_marks": [],
+                  "id": 5,
+                  "marks": [
+                    "alpha",
+                    "gamma"
+                  ],
+                  "quote": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                  "ranking_mode": "static",
+                  "ranking_score": 0.5229,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-entry-one",
+                  "static_score": 0.5229,
+                  "text": "Bibliography\nSynthetic alpha gamma publication entry-one.",
+                  "text_truncated": false,
+                  "weight_basis": "static_npmi"
+                },
+                {
+                  "citation_id": "M3",
+                  "citation_marker": "[M3]",
+                  "direct_marks": [
+                    "beta",
+                    "gamma"
+                  ],
+                  "dynamic_score": 0.0,
+                  "expanded_marks": [],
+                  "id": 3,
+                  "marks": [
+                    "beta",
+                    "gamma"
+                  ],
+                  "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                  "ranking_mode": "static",
+                  "ranking_score": 0.4019,
+                  "scope": "10:knowledge",
+                  "source_id": "synthetic:c9-source-B",
+                  "static_score": 0.4019,
+                  "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"links\",\"polarity\":\"positive\"}]}",
+                  "text_truncated": false,
+                  "weight_basis": "static_npmi"
+                }
+              ],
+              "model_projection": "citation_material_v1",
+              "query": "alpha links gamma\nCanonical query data:\n{\"ambiguities\": [], \"canonical_terms\": [\"alpha\", \"gamma\"], \"entities\": [{\"canonical\": \"alpha\", \"id\": \"e1\", \"span\": [0, 5], \"surface\": \"alpha\"}, {\"canonical\": \"gamma\", \"id\": \"e2\", \"span\": [12, 17], \"surface\": \"gamma\"}], \"negations\": [], \"relations\": [{\"direction\": \"subject_to_object\", \"negated\": false, \"object_id\": \"e2\", \"predicate\": \"links\", \"span\": [6, 11], \"subject_id\": \"e1\", \"surface\": \"links\"}], \"scope\": null, \"time\": null}\nSourced graph terms:\n[\"alpha\", \"gamma\", \"beta\"]",
+              "scope": "10:knowledge",
+              "sources": {
+                "synthetic:c9-entry-one": {
+                  "metadata_available": false,
+                  "source_id": "synthetic:c9-entry-one"
+                },
+                "synthetic:c9-entry-two": {
+                  "metadata_available": false,
+                  "source_id": "synthetic:c9-entry-two"
+                },
+                "synthetic:c9-source-B": {
+                  "metadata_available": false,
+                  "source_id": "synthetic:c9-source-B"
+                }
+              },
+              "version": 1
+            },
+            "record_sha256": "970617af363ecc95b2eaa8aa942ec6c1e2629862013d75c095188121d05f5ab4",
+            "request_id": "synthetic-message:query:1",
+            "round_index": 1
+          }
+        ],
+        "schema": "active_requery_evidence_v1",
+        "scope": "10:knowledge",
+        "semantic_support": "not_evaluated",
+        "version": 1
+      },
+      "action": {
+        "action": "query",
+        "clarification": "",
+        "missing_evidence": [
+          "Synthetic relation gap"
+        ],
+        "query": {
+          "ambiguities": [],
+          "canonical_terms": [
+            "alpha",
+            "gamma"
+          ],
+          "entities": [
+            {
+              "canonical": "alpha",
+              "id": "e1",
+              "span": [
+                0,
+                5
+              ],
+              "surface": "alpha"
+            },
+            {
+              "canonical": "gamma",
+              "id": "e2",
+              "span": [
+                12,
+                17
+              ],
+              "surface": "gamma"
+            }
+          ],
+          "negations": [],
+          "relations": [
+            {
+              "direction": "subject_to_object",
+              "negated": false,
+              "object_id": "e2",
+              "predicate": "links",
+              "span": [
+                6,
+                11
+              ],
+              "subject_id": "e1",
+              "surface": "links"
+            }
+          ],
+          "scope": null,
+          "time": null
+        },
+        "stop_reason": ""
+      },
+      "planning_call_id": "e42d99abada34e1cba26e08a59f61407",
+      "config": {
+        "accumulate_rounds": false,
+        "aliases": {},
+        "composition_rules": [
+          {
+            "relation1": "links",
+            "relation2": "links",
+            "result": "links",
+            "rule_id": "synthetic-links-composition"
+          }
+        ],
+        "enabled": true,
+        "max_actions": 8,
+        "max_added_terms": 4,
+        "max_aliases": 16,
+        "max_arcs": 1024,
+        "max_bindings": 1024,
+        "max_candidates": 64,
+        "max_depth": 4,
+        "max_expansions": 4096,
+        "max_facts_per_material": 16,
+        "max_frontier": 256,
+        "max_nodes": 256,
+        "max_quote_chars": 16384,
+        "max_rounds": 8,
+        "max_rules": 16,
+        "max_seconds": 3,
+        "max_serialized_bytes": 1048576,
+        "max_source_chars": 262144,
+        "max_support_ids": 128,
+        "max_terms": 12
+      },
+      "expected_stable_receipt_sha256": "5c45ad709826e5129675a0c242f0cff361ce32e51363fcb780b805a7e7cf6f57"
+    }
+  ]
+}

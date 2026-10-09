@@ -1,3 +1,47 @@
+# Guarded real transport experimental release 0.17.0.dev11+realentry1
+
+The prepared DEV11 package and Console declare `0.17.0.dev11+realentry1`.
+This release adds an explicitly gated real transport path using the existing
+Responses adapter and an isolated synthetic smoke entry. The path loop remains
+default OFF. Real calls require explicit authorization, a positive cost cap and
+trusted positive upper unit prices; the original serial slot and cumulative
+budgets remain in force. Unknown usage stops the turn, with no automatic retry.
+See [PATH_REQUERY_REAL_ENTRY.md](PATH_REQUERY_REAL_ENTRY.md) for entry behavior,
+fixed caps, durable records and interpretation limits.
+
+The user authorized publication along the existing experimental branch and an
+update of the main working directory. That directory update does not authorize
+merging Git `main`. Exact source identity, final publication commit and remote
+verification belong to the final release receipt; this prepared checkpoint does
+not assert that a push, merge or process switch has already completed. Publishing
+source does not reload an existing Console or start a service.
+
+Free verification of the guarded entry covered 347 source methods: 346 passed,
+1 skipped, 0 failures and 0 errors. The isolated installed subset passed all 48
+methods. All 54 application source/resource files matched byte-for-byte across
+source, wheel and installed target; Console version, offline check and the
+side-effect-free default dry-run plan also passed. These subsets must not be
+summed as distinct complete-suite coverage. The full 1525-method run belongs to
+the preceding C9 source and remains historical evidence, not a full regression
+of this release. Original experiments and failed attempts remain preserved.
+
+The single real synthetic smoke was skipped at the user's direction after
+preflight could not verify the charge for `/responses/input_tokens`. The current
+adapter requires that endpoint before generation; the absence of a listed fee
+was not treated as evidence that it is free. The smoke issued 0 input-count and
+0 generation requests, incurred USD 0 and did not consume its previously
+authorized attempt budget. Real model behavior, actual usage and billed cost,
+API latency, final-answer quality, Discord delivery and production operation
+remain untested. The original 16 behavior contracts remain 12 passed and 4
+partial; shaped-transport tests and engineering review do not upgrade them.
+
+No production configuration, credential, knowledge or database migration is
+part of this release. User materials and existing runtime records must be
+preserved. Rollback leaves the path-loop switch OFF and selects the preserved
+preceding application source/package through the normal operator procedure;
+state, scratch, admission records and failed experiments must not be deleted or
+replayed to obtain a new budget. A service restart is a separate operator action.
+
 # Prepared nonempty evidence-stagnation final reply 0.17.0.dev10
 
 Based on `15912cfbda6e986123efce7995ac1ef6fffb3ad5`, this isolated experimental

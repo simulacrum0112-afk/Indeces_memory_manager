@@ -20,7 +20,8 @@ low_watermark = 0.70
 retrieval_policy = "concept_v1" # Explicit legacy_v1 restores the previous static selection policy.
 model_selection_enabled = true # false uses the existing deterministic retrieval policy without a selection model call.
 
-# Independent offline feasibility snapshot. These flags do not migrate live state.
+# Opt-in DEV11 features. These flags stay OFF and do not migrate live state.
+# Real calls require separate budget approval, allow_real_calls and positive upper tariffs/cap.
 active_requery_enabled = false
 active_requery_max_rounds = 2
 active_requery_max_calls = 6 # Initial selection, any summary, planning and final reply share this cap.
@@ -28,11 +29,13 @@ active_requery_input_tokens = 32768
 active_requery_output_tokens = 4096
 active_requery_seconds = 60.0 # Whole opted-in turn, including delivery; existing stage caps still apply.
 active_requery_allow_real_calls = false
-active_requery_cost_usd = 0.0 # Mock-only until separate authorization and positive configured tariffs/cap.
+active_requery_cost_usd = 0.0 # Zero rejects real calls; set only after separate budget approval.
 active_requery_input_usd_per_million = 0.0
 active_requery_output_usd_per_million = 0.0
 communicability_enabled = false # Independent frozen-neighborhood diagnostic; never changes ranking or evidence.
 path_hypotheses_enabled = false # Bounded automatic candidates and frozen source binding; hypotheses only.
+path_requery_loop_enabled = false # Sourced clues affect static queries; configured real mode uses the same budget gates.
+# Isolated smoke entry and remaining limits: docs/PATH_REQUERY_REAL_ENTRY.md.
 
 [knowledge]
 poll_seconds = 0.5

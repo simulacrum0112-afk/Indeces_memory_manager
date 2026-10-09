@@ -1,0 +1,1457 @@
+{
+  "schema": "path_requery_frozen_synthetic_fixture_v1",
+  "scope": "temporary synthetic source only",
+  "semantic_truth": false,
+  "cases": [
+    {
+      "name": "declared_composition",
+      "frozen": {
+        "version": 1,
+        "scope": "synthetic:knowledge",
+        "event_id": "synthetic-loop-retrieval-4",
+        "query": "alpha gamma",
+        "model_projection": "citation_material_v1",
+        "model_materials": [
+          {
+            "id": 2,
+            "source_id": "synthetic:source-2",
+            "scope": "synthetic:knowledge",
+            "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+            "text_truncated": false,
+            "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+            "marks": [
+              "beta",
+              "gamma"
+            ],
+            "direct_marks": [
+              "gamma"
+            ],
+            "expanded_marks": [
+              "beta"
+            ],
+            "ranking_mode": "static",
+            "weight_basis": "static_npmi",
+            "static_score": 0.3691,
+            "dynamic_score": 0.0,
+            "ranking_score": 0.3691,
+            "citation_id": "M1",
+            "citation_marker": "[M1]"
+          },
+          {
+            "id": 1,
+            "source_id": "synthetic:source-1",
+            "scope": "synthetic:knowledge",
+            "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+            "text_truncated": false,
+            "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+            "marks": [
+              "alpha",
+              "beta"
+            ],
+            "direct_marks": [
+              "alpha"
+            ],
+            "expanded_marks": [
+              "beta"
+            ],
+            "ranking_mode": "static",
+            "weight_basis": "static_npmi",
+            "static_score": 0.3691,
+            "dynamic_score": 0.0,
+            "ranking_score": 0.3691,
+            "citation_id": "M2",
+            "citation_marker": "[M2]"
+          }
+        ],
+        "materials": [
+          {
+            "citation_id": "M1",
+            "record_id": 2,
+            "source_id": "synthetic:source-2",
+            "scope": "synthetic:knowledge",
+            "stored_text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+            "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+            "marks": [
+              "beta",
+              "gamma"
+            ],
+            "fingerprint": "df06ce60a0409616ea02c5c9ed5244168ea655e5a189c5fb2f144229f8779da6",
+            "active_at_retrieval": true,
+            "chunk_index": null,
+            "model_payload": {
+              "id": 2,
+              "source_id": "synthetic:source-2",
+              "scope": "synthetic:knowledge",
+              "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+              "text_truncated": false,
+              "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+              "marks": [
+                "beta",
+                "gamma"
+              ],
+              "direct_marks": [
+                "gamma"
+              ],
+              "expanded_marks": [
+                "beta"
+              ],
+              "ranking_mode": "static",
+              "weight_basis": "static_npmi",
+              "static_score": 0.3691,
+              "dynamic_score": 0.0,
+              "ranking_score": 0.3691,
+              "citation_id": "M1",
+              "citation_marker": "[M1]"
+            }
+          },
+          {
+            "citation_id": "M2",
+            "record_id": 1,
+            "source_id": "synthetic:source-1",
+            "scope": "synthetic:knowledge",
+            "stored_text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+            "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+            "marks": [
+              "alpha",
+              "beta"
+            ],
+            "fingerprint": "93128a377a647bf61910616793bbef379e19aca2ef02802db59168e47bd9f19f",
+            "active_at_retrieval": true,
+            "chunk_index": null,
+            "model_payload": {
+              "id": 1,
+              "source_id": "synthetic:source-1",
+              "scope": "synthetic:knowledge",
+              "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+              "text_truncated": false,
+              "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+              "marks": [
+                "alpha",
+                "beta"
+              ],
+              "direct_marks": [
+                "alpha"
+              ],
+              "expanded_marks": [
+                "beta"
+              ],
+              "ranking_mode": "static",
+              "weight_basis": "static_npmi",
+              "static_score": 0.3691,
+              "dynamic_score": 0.0,
+              "ranking_score": 0.3691,
+              "citation_id": "M2",
+              "citation_marker": "[M2]"
+            }
+          }
+        ],
+        "sources": {
+          "synthetic:source-2": {
+            "source_id": "synthetic:source-2",
+            "metadata_available": false
+          },
+          "synthetic:source-1": {
+            "source_id": "synthetic:source-1",
+            "metadata_available": false
+          }
+        },
+        "graph_audit": {
+          "audit_scope": "direct_hit_neighborhood_v1",
+          "durable_payload_sha256": "2dcb64318ad0329e1acba736da9d8efa2d3f3aac1488f62fe1db302e08291700",
+          "event_id": "synthetic-loop-retrieval-4",
+          "match": {
+            "direct_hits": [
+              "alpha",
+              "gamma"
+            ],
+            "direct_limit": 4,
+            "discarded_direct_matches": [],
+            "excluded_self_marks": [
+              "indeces",
+              "indices"
+            ],
+            "known_marks_count": 4,
+            "literal_matches": [
+              "alpha",
+              "gamma"
+            ]
+          },
+          "observation": {
+            "applied": false,
+            "changed_edges": [],
+            "dynamic_shadow_enabled": false,
+            "original_changes_known": true,
+            "reason": "static_shadow_disabled",
+            "seeded_after": false,
+            "seeded_before": false,
+            "seeded_edges": 0,
+            "status": "disabled"
+          },
+          "replay": false,
+          "request": {
+            "observed_at": 6.0,
+            "query": "alpha gamma",
+            "requested_marks": []
+          },
+          "schema_version": 2,
+          "scope": "synthetic:knowledge",
+          "selection": {
+            "active_record_count": 3,
+            "edge_statistics": [
+              {
+                "a": "alpha",
+                "active_source_support": true,
+                "b": "beta",
+                "co_count": 1,
+                "context": [],
+                "dynamic_last_event_id": null,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "source_record_ids": [
+                  1
+                ],
+                "static_score": 0.3691
+              },
+              {
+                "a": "beta",
+                "active_source_support": true,
+                "b": "gamma",
+                "co_count": 1,
+                "context": [],
+                "dynamic_last_event_id": null,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "source_record_ids": [
+                  2
+                ],
+                "static_score": 0.3691
+              }
+            ],
+            "edge_statistics_scope": "direct_hit_incident_v1",
+            "excluded_record_count": 1,
+            "expanded_marks": [
+              "beta"
+            ],
+            "expansion_candidates": [
+              {
+                "co_count": 1,
+                "considered": true,
+                "context": [],
+                "context_passed": true,
+                "deduplication_winner": false,
+                "dynamic_last_event_id": null,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "from_mark": "alpha",
+                "mark": "beta",
+                "neighbor_rank": 1,
+                "selected_for_expansion": false,
+                "source_record_ids": [
+                  1
+                ],
+                "static_score": 0.3691,
+                "within_neighbor_limit": true
+              },
+              {
+                "co_count": 1,
+                "considered": true,
+                "context": [],
+                "context_passed": true,
+                "deduplication_winner": true,
+                "dynamic_last_event_id": null,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "from_mark": "gamma",
+                "mark": "beta",
+                "neighbor_rank": 1,
+                "selected_for_expansion": true,
+                "source_record_ids": [
+                  2
+                ],
+                "static_score": 0.3691,
+                "within_neighbor_limit": true
+              }
+            ],
+            "limits": {
+              "direct_marks": 4,
+              "entry_text_characters": 110,
+              "expanded_marks": 2,
+              "neighbors_per_hit": 5,
+              "references": 3,
+              "total_text_characters": 400
+            },
+            "live_edge_count": 2,
+            "mark_frequencies": {
+              "alpha": 1,
+              "beta": 2,
+              "gamma": 1
+            },
+            "mark_frequencies_scope": "edge_endpoints_v1",
+            "ranked_candidates": [
+              {
+                "direct_marks": [
+                  "gamma"
+                ],
+                "direct_match_count": 1,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "evidence": [
+                  {
+                    "co_count": 1,
+                    "context": [],
+                    "dynamic_last_event_id": null,
+                    "dynamic_score": 0.0,
+                    "effective_score": 0.3691,
+                    "from_mark": "gamma",
+                    "mark": "beta",
+                    "source_record_ids": [
+                      2
+                    ],
+                    "static_score": 0.3691
+                  }
+                ],
+                "expanded_marks": [
+                  "beta"
+                ],
+                "marks": [
+                  "beta",
+                  "gamma"
+                ],
+                "quote_sha256": "290302cae6a121e50467471a41a1d992521f0bd4e687adcac82b1a53b8a6c72e",
+                "rank": 1,
+                "record_id": 2,
+                "source_id": "synthetic:source-2",
+                "static_score": 0.3691,
+                "text_characters": 107,
+                "text_sha256": "290302cae6a121e50467471a41a1d992521f0bd4e687adcac82b1a53b8a6c72e"
+              },
+              {
+                "direct_marks": [
+                  "alpha"
+                ],
+                "direct_match_count": 1,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "evidence": [
+                  {
+                    "co_count": 1,
+                    "context": [],
+                    "dynamic_last_event_id": null,
+                    "dynamic_score": 0.0,
+                    "effective_score": 0.3691,
+                    "from_mark": "gamma",
+                    "mark": "beta",
+                    "source_record_ids": [
+                      2
+                    ],
+                    "static_score": 0.3691
+                  }
+                ],
+                "expanded_marks": [
+                  "beta"
+                ],
+                "marks": [
+                  "alpha",
+                  "beta"
+                ],
+                "quote_sha256": "23c3db8b3c53a3d08936a3329966fe28de806721c51f043ee4f02ee490ac3e11",
+                "rank": 2,
+                "record_id": 1,
+                "source_id": "synthetic:source-1",
+                "static_score": 0.3691,
+                "text_characters": 107,
+                "text_sha256": "23c3db8b3c53a3d08936a3329966fe28de806721c51f043ee4f02ee490ac3e11"
+              }
+            ],
+            "ranking_mode": "static",
+            "ranking_order": [
+              "direct_match_count descending",
+              "effective_score descending",
+              "static_score descending",
+              "record_id descending"
+            ],
+            "selected": [
+              {
+                "preview_sha256": "290302cae6a121e50467471a41a1d992521f0bd4e687adcac82b1a53b8a6c72e",
+                "rank": 1,
+                "record_id": 2,
+                "source_id": "synthetic:source-2",
+                "text_characters": 107,
+                "text_truncated": false
+              },
+              {
+                "preview_sha256": "23c3db8b3c53a3d08936a3329966fe28de806721c51f043ee4f02ee490ac3e11",
+                "rank": 2,
+                "record_id": 1,
+                "source_id": "synthetic:source-1",
+                "text_characters": 107,
+                "text_truncated": false
+              }
+            ],
+            "selected_record_ids": [
+              2,
+              1
+            ],
+            "static_formula_reproducible": true,
+            "static_policy": {
+              "formula": "log(p_ab/(p_a*p_b))/-log(p_ab)",
+              "p_ab_one_value": 1.0,
+              "retain_only_positive": true,
+              "round_digits": 4
+            },
+            "used_text_characters": 214,
+            "weight_basis": "static_npmi"
+          }
+        },
+        "graph_audit_sha256": "44965e843c121f2cc64771e84849b00fadc545fd9651ce74940f2bfb54fddefc"
+      },
+      "action": {
+        "action": "query",
+        "query": {
+          "entities": [
+            {
+              "id": "e1",
+              "surface": "alpha",
+              "canonical": "alpha",
+              "span": [
+                0,
+                5
+              ]
+            },
+            {
+              "id": "e2",
+              "surface": "gamma",
+              "canonical": "gamma",
+              "span": [
+                15,
+                20
+              ]
+            }
+          ],
+          "relations": [
+            {
+              "subject_id": "e1",
+              "object_id": "e2",
+              "predicate": "composed",
+              "surface": "composed",
+              "span": [
+                6,
+                14
+              ],
+              "negated": false,
+              "direction": "subject_to_object"
+            }
+          ],
+          "negations": [],
+          "time": null,
+          "scope": null,
+          "canonical_terms": [
+            "alpha",
+            "gamma"
+          ],
+          "ambiguities": []
+        },
+        "missing_evidence": [
+          "Synthetic relation fixture remains unresolved."
+        ],
+        "clarification": "",
+        "stop_reason": ""
+      },
+      "planning_call_id": "synthetic-plan",
+      "config": {
+        "enabled": true,
+        "max_nodes": 256,
+        "max_arcs": 1024,
+        "max_depth": 4,
+        "max_frontier": 256,
+        "max_candidates": 64,
+        "max_expansions": 4096,
+        "max_seconds": 3,
+        "max_rounds": 8,
+        "max_actions": 8,
+        "max_facts_per_material": 16,
+        "max_quote_chars": 16384,
+        "max_source_chars": 262144,
+        "max_serialized_bytes": 1048576,
+        "max_support_ids": 128,
+        "max_bindings": 1024,
+        "max_terms": 12,
+        "max_added_terms": 4,
+        "max_aliases": 16,
+        "max_rules": 16,
+        "aliases": {},
+        "composition_rules": [
+          {
+            "rule_id": "synthetic-declared-rule",
+            "relation1": "step_one",
+            "relation2": "step_two",
+            "result": "composed"
+          }
+        ]
+      },
+      "expected_stable_receipt_sha256": "134f1eac32b5ce5b891fcc8163d2d894221f92131d60ce344af9724aea95cb47"
+    },
+    {
+      "name": "no_composition_rule",
+      "frozen": {
+        "version": 1,
+        "scope": "synthetic:knowledge",
+        "event_id": "synthetic-loop-retrieval-4",
+        "query": "alpha gamma",
+        "model_projection": "citation_material_v1",
+        "model_materials": [
+          {
+            "id": 2,
+            "source_id": "synthetic:source-2",
+            "scope": "synthetic:knowledge",
+            "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+            "text_truncated": false,
+            "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+            "marks": [
+              "beta",
+              "gamma"
+            ],
+            "direct_marks": [
+              "gamma"
+            ],
+            "expanded_marks": [
+              "beta"
+            ],
+            "ranking_mode": "static",
+            "weight_basis": "static_npmi",
+            "static_score": 0.3691,
+            "dynamic_score": 0.0,
+            "ranking_score": 0.3691,
+            "citation_id": "M1",
+            "citation_marker": "[M1]"
+          },
+          {
+            "id": 1,
+            "source_id": "synthetic:source-1",
+            "scope": "synthetic:knowledge",
+            "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+            "text_truncated": false,
+            "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+            "marks": [
+              "alpha",
+              "beta"
+            ],
+            "direct_marks": [
+              "alpha"
+            ],
+            "expanded_marks": [
+              "beta"
+            ],
+            "ranking_mode": "static",
+            "weight_basis": "static_npmi",
+            "static_score": 0.3691,
+            "dynamic_score": 0.0,
+            "ranking_score": 0.3691,
+            "citation_id": "M2",
+            "citation_marker": "[M2]"
+          }
+        ],
+        "materials": [
+          {
+            "citation_id": "M1",
+            "record_id": 2,
+            "source_id": "synthetic:source-2",
+            "scope": "synthetic:knowledge",
+            "stored_text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+            "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+            "marks": [
+              "beta",
+              "gamma"
+            ],
+            "fingerprint": "df06ce60a0409616ea02c5c9ed5244168ea655e5a189c5fb2f144229f8779da6",
+            "active_at_retrieval": true,
+            "chunk_index": null,
+            "model_payload": {
+              "id": 2,
+              "source_id": "synthetic:source-2",
+              "scope": "synthetic:knowledge",
+              "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+              "text_truncated": false,
+              "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+              "marks": [
+                "beta",
+                "gamma"
+              ],
+              "direct_marks": [
+                "gamma"
+              ],
+              "expanded_marks": [
+                "beta"
+              ],
+              "ranking_mode": "static",
+              "weight_basis": "static_npmi",
+              "static_score": 0.3691,
+              "dynamic_score": 0.0,
+              "ranking_score": 0.3691,
+              "citation_id": "M1",
+              "citation_marker": "[M1]"
+            }
+          },
+          {
+            "citation_id": "M2",
+            "record_id": 1,
+            "source_id": "synthetic:source-1",
+            "scope": "synthetic:knowledge",
+            "stored_text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+            "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+            "marks": [
+              "alpha",
+              "beta"
+            ],
+            "fingerprint": "93128a377a647bf61910616793bbef379e19aca2ef02802db59168e47bd9f19f",
+            "active_at_retrieval": true,
+            "chunk_index": null,
+            "model_payload": {
+              "id": 1,
+              "source_id": "synthetic:source-1",
+              "scope": "synthetic:knowledge",
+              "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+              "text_truncated": false,
+              "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+              "marks": [
+                "alpha",
+                "beta"
+              ],
+              "direct_marks": [
+                "alpha"
+              ],
+              "expanded_marks": [
+                "beta"
+              ],
+              "ranking_mode": "static",
+              "weight_basis": "static_npmi",
+              "static_score": 0.3691,
+              "dynamic_score": 0.0,
+              "ranking_score": 0.3691,
+              "citation_id": "M2",
+              "citation_marker": "[M2]"
+            }
+          }
+        ],
+        "sources": {
+          "synthetic:source-2": {
+            "source_id": "synthetic:source-2",
+            "metadata_available": false
+          },
+          "synthetic:source-1": {
+            "source_id": "synthetic:source-1",
+            "metadata_available": false
+          }
+        },
+        "graph_audit": {
+          "audit_scope": "direct_hit_neighborhood_v1",
+          "durable_payload_sha256": "2dcb64318ad0329e1acba736da9d8efa2d3f3aac1488f62fe1db302e08291700",
+          "event_id": "synthetic-loop-retrieval-4",
+          "match": {
+            "direct_hits": [
+              "alpha",
+              "gamma"
+            ],
+            "direct_limit": 4,
+            "discarded_direct_matches": [],
+            "excluded_self_marks": [
+              "indeces",
+              "indices"
+            ],
+            "known_marks_count": 4,
+            "literal_matches": [
+              "alpha",
+              "gamma"
+            ]
+          },
+          "observation": {
+            "applied": false,
+            "changed_edges": [],
+            "dynamic_shadow_enabled": false,
+            "original_changes_known": true,
+            "reason": "static_shadow_disabled",
+            "seeded_after": false,
+            "seeded_before": false,
+            "seeded_edges": 0,
+            "status": "disabled"
+          },
+          "replay": false,
+          "request": {
+            "observed_at": 6.0,
+            "query": "alpha gamma",
+            "requested_marks": []
+          },
+          "schema_version": 2,
+          "scope": "synthetic:knowledge",
+          "selection": {
+            "active_record_count": 3,
+            "edge_statistics": [
+              {
+                "a": "alpha",
+                "active_source_support": true,
+                "b": "beta",
+                "co_count": 1,
+                "context": [],
+                "dynamic_last_event_id": null,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "source_record_ids": [
+                  1
+                ],
+                "static_score": 0.3691
+              },
+              {
+                "a": "beta",
+                "active_source_support": true,
+                "b": "gamma",
+                "co_count": 1,
+                "context": [],
+                "dynamic_last_event_id": null,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "source_record_ids": [
+                  2
+                ],
+                "static_score": 0.3691
+              }
+            ],
+            "edge_statistics_scope": "direct_hit_incident_v1",
+            "excluded_record_count": 1,
+            "expanded_marks": [
+              "beta"
+            ],
+            "expansion_candidates": [
+              {
+                "co_count": 1,
+                "considered": true,
+                "context": [],
+                "context_passed": true,
+                "deduplication_winner": false,
+                "dynamic_last_event_id": null,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "from_mark": "alpha",
+                "mark": "beta",
+                "neighbor_rank": 1,
+                "selected_for_expansion": false,
+                "source_record_ids": [
+                  1
+                ],
+                "static_score": 0.3691,
+                "within_neighbor_limit": true
+              },
+              {
+                "co_count": 1,
+                "considered": true,
+                "context": [],
+                "context_passed": true,
+                "deduplication_winner": true,
+                "dynamic_last_event_id": null,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "from_mark": "gamma",
+                "mark": "beta",
+                "neighbor_rank": 1,
+                "selected_for_expansion": true,
+                "source_record_ids": [
+                  2
+                ],
+                "static_score": 0.3691,
+                "within_neighbor_limit": true
+              }
+            ],
+            "limits": {
+              "direct_marks": 4,
+              "entry_text_characters": 110,
+              "expanded_marks": 2,
+              "neighbors_per_hit": 5,
+              "references": 3,
+              "total_text_characters": 400
+            },
+            "live_edge_count": 2,
+            "mark_frequencies": {
+              "alpha": 1,
+              "beta": 2,
+              "gamma": 1
+            },
+            "mark_frequencies_scope": "edge_endpoints_v1",
+            "ranked_candidates": [
+              {
+                "direct_marks": [
+                  "gamma"
+                ],
+                "direct_match_count": 1,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "evidence": [
+                  {
+                    "co_count": 1,
+                    "context": [],
+                    "dynamic_last_event_id": null,
+                    "dynamic_score": 0.0,
+                    "effective_score": 0.3691,
+                    "from_mark": "gamma",
+                    "mark": "beta",
+                    "source_record_ids": [
+                      2
+                    ],
+                    "static_score": 0.3691
+                  }
+                ],
+                "expanded_marks": [
+                  "beta"
+                ],
+                "marks": [
+                  "beta",
+                  "gamma"
+                ],
+                "quote_sha256": "290302cae6a121e50467471a41a1d992521f0bd4e687adcac82b1a53b8a6c72e",
+                "rank": 1,
+                "record_id": 2,
+                "source_id": "synthetic:source-2",
+                "static_score": 0.3691,
+                "text_characters": 107,
+                "text_sha256": "290302cae6a121e50467471a41a1d992521f0bd4e687adcac82b1a53b8a6c72e"
+              },
+              {
+                "direct_marks": [
+                  "alpha"
+                ],
+                "direct_match_count": 1,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "evidence": [
+                  {
+                    "co_count": 1,
+                    "context": [],
+                    "dynamic_last_event_id": null,
+                    "dynamic_score": 0.0,
+                    "effective_score": 0.3691,
+                    "from_mark": "gamma",
+                    "mark": "beta",
+                    "source_record_ids": [
+                      2
+                    ],
+                    "static_score": 0.3691
+                  }
+                ],
+                "expanded_marks": [
+                  "beta"
+                ],
+                "marks": [
+                  "alpha",
+                  "beta"
+                ],
+                "quote_sha256": "23c3db8b3c53a3d08936a3329966fe28de806721c51f043ee4f02ee490ac3e11",
+                "rank": 2,
+                "record_id": 1,
+                "source_id": "synthetic:source-1",
+                "static_score": 0.3691,
+                "text_characters": 107,
+                "text_sha256": "23c3db8b3c53a3d08936a3329966fe28de806721c51f043ee4f02ee490ac3e11"
+              }
+            ],
+            "ranking_mode": "static",
+            "ranking_order": [
+              "direct_match_count descending",
+              "effective_score descending",
+              "static_score descending",
+              "record_id descending"
+            ],
+            "selected": [
+              {
+                "preview_sha256": "290302cae6a121e50467471a41a1d992521f0bd4e687adcac82b1a53b8a6c72e",
+                "rank": 1,
+                "record_id": 2,
+                "source_id": "synthetic:source-2",
+                "text_characters": 107,
+                "text_truncated": false
+              },
+              {
+                "preview_sha256": "23c3db8b3c53a3d08936a3329966fe28de806721c51f043ee4f02ee490ac3e11",
+                "rank": 2,
+                "record_id": 1,
+                "source_id": "synthetic:source-1",
+                "text_characters": 107,
+                "text_truncated": false
+              }
+            ],
+            "selected_record_ids": [
+              2,
+              1
+            ],
+            "static_formula_reproducible": true,
+            "static_policy": {
+              "formula": "log(p_ab/(p_a*p_b))/-log(p_ab)",
+              "p_ab_one_value": 1.0,
+              "retain_only_positive": true,
+              "round_digits": 4
+            },
+            "used_text_characters": 214,
+            "weight_basis": "static_npmi"
+          }
+        },
+        "graph_audit_sha256": "44965e843c121f2cc64771e84849b00fadc545fd9651ce74940f2bfb54fddefc"
+      },
+      "action": {
+        "action": "query",
+        "query": {
+          "entities": [
+            {
+              "id": "e1",
+              "surface": "alpha",
+              "canonical": "alpha",
+              "span": [
+                0,
+                5
+              ]
+            },
+            {
+              "id": "e2",
+              "surface": "gamma",
+              "canonical": "gamma",
+              "span": [
+                15,
+                20
+              ]
+            }
+          ],
+          "relations": [
+            {
+              "subject_id": "e1",
+              "object_id": "e2",
+              "predicate": "composed",
+              "surface": "composed",
+              "span": [
+                6,
+                14
+              ],
+              "negated": false,
+              "direction": "subject_to_object"
+            }
+          ],
+          "negations": [],
+          "time": null,
+          "scope": null,
+          "canonical_terms": [
+            "alpha",
+            "gamma"
+          ],
+          "ambiguities": []
+        },
+        "missing_evidence": [
+          "Synthetic relation fixture remains unresolved."
+        ],
+        "clarification": "",
+        "stop_reason": ""
+      },
+      "planning_call_id": "synthetic-plan",
+      "config": {
+        "enabled": true,
+        "max_nodes": 256,
+        "max_arcs": 1024,
+        "max_depth": 4,
+        "max_frontier": 256,
+        "max_candidates": 64,
+        "max_expansions": 4096,
+        "max_seconds": 3,
+        "max_rounds": 8,
+        "max_actions": 8,
+        "max_facts_per_material": 16,
+        "max_quote_chars": 16384,
+        "max_source_chars": 262144,
+        "max_serialized_bytes": 1048576,
+        "max_support_ids": 128,
+        "max_bindings": 1024,
+        "max_terms": 12,
+        "max_added_terms": 4,
+        "max_aliases": 16,
+        "max_rules": 16,
+        "aliases": {},
+        "composition_rules": []
+      },
+      "expected_stable_receipt_sha256": "b4b3f1887be33ad331f61346ad34cef8e105dccf3850ab12ff25140d96bfbf7b"
+    },
+    {
+      "name": "feature_disabled",
+      "frozen": {
+        "version": 1,
+        "scope": "synthetic:knowledge",
+        "event_id": "synthetic-loop-retrieval-4",
+        "query": "alpha gamma",
+        "model_projection": "citation_material_v1",
+        "model_materials": [
+          {
+            "id": 2,
+            "source_id": "synthetic:source-2",
+            "scope": "synthetic:knowledge",
+            "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+            "text_truncated": false,
+            "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+            "marks": [
+              "beta",
+              "gamma"
+            ],
+            "direct_marks": [
+              "gamma"
+            ],
+            "expanded_marks": [
+              "beta"
+            ],
+            "ranking_mode": "static",
+            "weight_basis": "static_npmi",
+            "static_score": 0.3691,
+            "dynamic_score": 0.0,
+            "ranking_score": 0.3691,
+            "citation_id": "M1",
+            "citation_marker": "[M1]"
+          },
+          {
+            "id": 1,
+            "source_id": "synthetic:source-1",
+            "scope": "synthetic:knowledge",
+            "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+            "text_truncated": false,
+            "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+            "marks": [
+              "alpha",
+              "beta"
+            ],
+            "direct_marks": [
+              "alpha"
+            ],
+            "expanded_marks": [
+              "beta"
+            ],
+            "ranking_mode": "static",
+            "weight_basis": "static_npmi",
+            "static_score": 0.3691,
+            "dynamic_score": 0.0,
+            "ranking_score": 0.3691,
+            "citation_id": "M2",
+            "citation_marker": "[M2]"
+          }
+        ],
+        "materials": [
+          {
+            "citation_id": "M1",
+            "record_id": 2,
+            "source_id": "synthetic:source-2",
+            "scope": "synthetic:knowledge",
+            "stored_text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+            "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+            "marks": [
+              "beta",
+              "gamma"
+            ],
+            "fingerprint": "df06ce60a0409616ea02c5c9ed5244168ea655e5a189c5fb2f144229f8779da6",
+            "active_at_retrieval": true,
+            "chunk_index": null,
+            "model_payload": {
+              "id": 2,
+              "source_id": "synthetic:source-2",
+              "scope": "synthetic:knowledge",
+              "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+              "text_truncated": false,
+              "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"beta\",\"object\":\"gamma\",\"relation\":\"step_two\",\"polarity\":\"positive\"}]}",
+              "marks": [
+                "beta",
+                "gamma"
+              ],
+              "direct_marks": [
+                "gamma"
+              ],
+              "expanded_marks": [
+                "beta"
+              ],
+              "ranking_mode": "static",
+              "weight_basis": "static_npmi",
+              "static_score": 0.3691,
+              "dynamic_score": 0.0,
+              "ranking_score": 0.3691,
+              "citation_id": "M1",
+              "citation_marker": "[M1]"
+            }
+          },
+          {
+            "citation_id": "M2",
+            "record_id": 1,
+            "source_id": "synthetic:source-1",
+            "scope": "synthetic:knowledge",
+            "stored_text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+            "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+            "marks": [
+              "alpha",
+              "beta"
+            ],
+            "fingerprint": "93128a377a647bf61910616793bbef379e19aca2ef02802db59168e47bd9f19f",
+            "active_at_retrieval": true,
+            "chunk_index": null,
+            "model_payload": {
+              "id": 1,
+              "source_id": "synthetic:source-1",
+              "scope": "synthetic:knowledge",
+              "text": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+              "text_truncated": false,
+              "quote": "typed_facts_v1: {\"facts\":[{\"subject\":\"alpha\",\"object\":\"beta\",\"relation\":\"step_one\",\"polarity\":\"positive\"}]}",
+              "marks": [
+                "alpha",
+                "beta"
+              ],
+              "direct_marks": [
+                "alpha"
+              ],
+              "expanded_marks": [
+                "beta"
+              ],
+              "ranking_mode": "static",
+              "weight_basis": "static_npmi",
+              "static_score": 0.3691,
+              "dynamic_score": 0.0,
+              "ranking_score": 0.3691,
+              "citation_id": "M2",
+              "citation_marker": "[M2]"
+            }
+          }
+        ],
+        "sources": {
+          "synthetic:source-2": {
+            "source_id": "synthetic:source-2",
+            "metadata_available": false
+          },
+          "synthetic:source-1": {
+            "source_id": "synthetic:source-1",
+            "metadata_available": false
+          }
+        },
+        "graph_audit": {
+          "audit_scope": "direct_hit_neighborhood_v1",
+          "durable_payload_sha256": "2dcb64318ad0329e1acba736da9d8efa2d3f3aac1488f62fe1db302e08291700",
+          "event_id": "synthetic-loop-retrieval-4",
+          "match": {
+            "direct_hits": [
+              "alpha",
+              "gamma"
+            ],
+            "direct_limit": 4,
+            "discarded_direct_matches": [],
+            "excluded_self_marks": [
+              "indeces",
+              "indices"
+            ],
+            "known_marks_count": 4,
+            "literal_matches": [
+              "alpha",
+              "gamma"
+            ]
+          },
+          "observation": {
+            "applied": false,
+            "changed_edges": [],
+            "dynamic_shadow_enabled": false,
+            "original_changes_known": true,
+            "reason": "static_shadow_disabled",
+            "seeded_after": false,
+            "seeded_before": false,
+            "seeded_edges": 0,
+            "status": "disabled"
+          },
+          "replay": false,
+          "request": {
+            "observed_at": 6.0,
+            "query": "alpha gamma",
+            "requested_marks": []
+          },
+          "schema_version": 2,
+          "scope": "synthetic:knowledge",
+          "selection": {
+            "active_record_count": 3,
+            "edge_statistics": [
+              {
+                "a": "alpha",
+                "active_source_support": true,
+                "b": "beta",
+                "co_count": 1,
+                "context": [],
+                "dynamic_last_event_id": null,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "source_record_ids": [
+                  1
+                ],
+                "static_score": 0.3691
+              },
+              {
+                "a": "beta",
+                "active_source_support": true,
+                "b": "gamma",
+                "co_count": 1,
+                "context": [],
+                "dynamic_last_event_id": null,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "source_record_ids": [
+                  2
+                ],
+                "static_score": 0.3691
+              }
+            ],
+            "edge_statistics_scope": "direct_hit_incident_v1",
+            "excluded_record_count": 1,
+            "expanded_marks": [
+              "beta"
+            ],
+            "expansion_candidates": [
+              {
+                "co_count": 1,
+                "considered": true,
+                "context": [],
+                "context_passed": true,
+                "deduplication_winner": false,
+                "dynamic_last_event_id": null,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "from_mark": "alpha",
+                "mark": "beta",
+                "neighbor_rank": 1,
+                "selected_for_expansion": false,
+                "source_record_ids": [
+                  1
+                ],
+                "static_score": 0.3691,
+                "within_neighbor_limit": true
+              },
+              {
+                "co_count": 1,
+                "considered": true,
+                "context": [],
+                "context_passed": true,
+                "deduplication_winner": true,
+                "dynamic_last_event_id": null,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "from_mark": "gamma",
+                "mark": "beta",
+                "neighbor_rank": 1,
+                "selected_for_expansion": true,
+                "source_record_ids": [
+                  2
+                ],
+                "static_score": 0.3691,
+                "within_neighbor_limit": true
+              }
+            ],
+            "limits": {
+              "direct_marks": 4,
+              "entry_text_characters": 110,
+              "expanded_marks": 2,
+              "neighbors_per_hit": 5,
+              "references": 3,
+              "total_text_characters": 400
+            },
+            "live_edge_count": 2,
+            "mark_frequencies": {
+              "alpha": 1,
+              "beta": 2,
+              "gamma": 1
+            },
+            "mark_frequencies_scope": "edge_endpoints_v1",
+            "ranked_candidates": [
+              {
+                "direct_marks": [
+                  "gamma"
+                ],
+                "direct_match_count": 1,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "evidence": [
+                  {
+                    "co_count": 1,
+                    "context": [],
+                    "dynamic_last_event_id": null,
+                    "dynamic_score": 0.0,
+                    "effective_score": 0.3691,
+                    "from_mark": "gamma",
+                    "mark": "beta",
+                    "source_record_ids": [
+                      2
+                    ],
+                    "static_score": 0.3691
+                  }
+                ],
+                "expanded_marks": [
+                  "beta"
+                ],
+                "marks": [
+                  "beta",
+                  "gamma"
+                ],
+                "quote_sha256": "290302cae6a121e50467471a41a1d992521f0bd4e687adcac82b1a53b8a6c72e",
+                "rank": 1,
+                "record_id": 2,
+                "source_id": "synthetic:source-2",
+                "static_score": 0.3691,
+                "text_characters": 107,
+                "text_sha256": "290302cae6a121e50467471a41a1d992521f0bd4e687adcac82b1a53b8a6c72e"
+              },
+              {
+                "direct_marks": [
+                  "alpha"
+                ],
+                "direct_match_count": 1,
+                "dynamic_score": 0.0,
+                "effective_score": 0.3691,
+                "evidence": [
+                  {
+                    "co_count": 1,
+                    "context": [],
+                    "dynamic_last_event_id": null,
+                    "dynamic_score": 0.0,
+                    "effective_score": 0.3691,
+                    "from_mark": "gamma",
+                    "mark": "beta",
+                    "source_record_ids": [
+                      2
+                    ],
+                    "static_score": 0.3691
+                  }
+                ],
+                "expanded_marks": [
+                  "beta"
+                ],
+                "marks": [
+                  "alpha",
+                  "beta"
+                ],
+                "quote_sha256": "23c3db8b3c53a3d08936a3329966fe28de806721c51f043ee4f02ee490ac3e11",
+                "rank": 2,
+                "record_id": 1,
+                "source_id": "synthetic:source-1",
+                "static_score": 0.3691,
+                "text_characters": 107,
+                "text_sha256": "23c3db8b3c53a3d08936a3329966fe28de806721c51f043ee4f02ee490ac3e11"
+              }
+            ],
+            "ranking_mode": "static",
+            "ranking_order": [
+              "direct_match_count descending",
+              "effective_score descending",
+              "static_score descending",
+              "record_id descending"
+            ],
+            "selected": [
+              {
+                "preview_sha256": "290302cae6a121e50467471a41a1d992521f0bd4e687adcac82b1a53b8a6c72e",
+                "rank": 1,
+                "record_id": 2,
+                "source_id": "synthetic:source-2",
+                "text_characters": 107,
+                "text_truncated": false
+              },
+              {
+                "preview_sha256": "23c3db8b3c53a3d08936a3329966fe28de806721c51f043ee4f02ee490ac3e11",
+                "rank": 2,
+                "record_id": 1,
+                "source_id": "synthetic:source-1",
+                "text_characters": 107,
+                "text_truncated": false
+              }
+            ],
+            "selected_record_ids": [
+              2,
+              1
+            ],
+            "static_formula_reproducible": true,
+            "static_policy": {
+              "formula": "log(p_ab/(p_a*p_b))/-log(p_ab)",
+              "p_ab_one_value": 1.0,
+              "retain_only_positive": true,
+              "round_digits": 4
+            },
+            "used_text_characters": 214,
+            "weight_basis": "static_npmi"
+          }
+        },
+        "graph_audit_sha256": "44965e843c121f2cc64771e84849b00fadc545fd9651ce74940f2bfb54fddefc"
+      },
+      "action": {
+        "action": "query",
+        "query": {
+          "entities": [
+            {
+              "id": "e1",
+              "surface": "alpha",
+              "canonical": "alpha",
+              "span": [
+                0,
+                5
+              ]
+            },
+            {
+              "id": "e2",
+              "surface": "gamma",
+              "canonical": "gamma",
+              "span": [
+                15,
+                20
+              ]
+            }
+          ],
+          "relations": [
+            {
+              "subject_id": "e1",
+              "object_id": "e2",
+              "predicate": "composed",
+              "surface": "composed",
+              "span": [
+                6,
+                14
+              ],
+              "negated": false,
+              "direction": "subject_to_object"
+            }
+          ],
+          "negations": [],
+          "time": null,
+          "scope": null,
+          "canonical_terms": [
+            "alpha",
+            "gamma"
+          ],
+          "ambiguities": []
+        },
+        "missing_evidence": [
+          "Synthetic relation fixture remains unresolved."
+        ],
+        "clarification": "",
+        "stop_reason": ""
+      },
+      "planning_call_id": "synthetic-plan",
+      "config": {
+        "enabled": false,
+        "max_nodes": 256,
+        "max_arcs": 1024,
+        "max_depth": 4,
+        "max_frontier": 256,
+        "max_candidates": 64,
+        "max_expansions": 4096,
+        "max_seconds": 0.25,
+        "max_rounds": 8,
+        "max_actions": 8,
+        "max_facts_per_material": 16,
+        "max_quote_chars": 16384,
+        "max_source_chars": 262144,
+        "max_serialized_bytes": 1048576,
+        "max_support_ids": 128,
+        "max_bindings": 1024,
+        "max_terms": 12,
+        "max_added_terms": 4,
+        "max_aliases": 16,
+        "max_rules": 16,
+        "aliases": {},
+        "composition_rules": []
+      },
+      "expected_stable_receipt_sha256": "02101b1963e993089ea2a5c2f6006e28acac1d39bfd1d41fc0946bc19518b397"
+    }
+  ]
+}

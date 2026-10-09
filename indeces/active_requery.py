@@ -178,18 +178,41 @@ def _atomic_json(path, value, *, allow_recovery=True, **kwargs):
     return atomic_json(path, value, allow_recovery=allow_recovery, **kwargs)
 
 
+def _require_provider_authorization(adapter, limits):
+    """Check the existing real-call gate without accessing state or transport."""
+    mock = (getattr(adapter, "offline_mock", False) is True
+            and callable(getattr(adapter, "_request_override", None)))
+    if not mock:
+        values = (limits.active_requery_cost_usd,
+                  limits.active_requery_input_usd_per_million,
+                  limits.active_requery_output_usd_per_million)
+        if (limits.active_requery_allow_real_calls is not True
+                or any(type(value) not in (int, float) or not 0 < value <= 1000
+                       or not math.isfinite(value) for value in values)):
+            raise GovernedError("active_requery_real_calls_not_authorized", remote_usage_unknown=False)
+    return mock
+
+
+def _path_requery_provider_fields(adapter, limits):
+    mock = _require_provider_authorization(adapter, limits)
+    fields = {"path_requery_loop_policy": "sourced_path_requery_loop_v1",
+              "path_requery_loop_offline_mock": mock}
+    if not mock:
+        fields.update(path_requery_loop_provider_mode="configured_real",
+                      path_requery_loop_real_call_policy={
+                          "allow_real_calls": True,
+                          "cost_usd": limits.active_requery_cost_usd,
+                          "input_usd_per_million": limits.active_requery_input_usd_per_million,
+                          "output_usd_per_million": limits.active_requery_output_usd_per_million})
+    return fields
+
+
 class TurnBudgetAdapter:
     """Per-turn durable admission; the underlying adapter still owns one slot."""
     def __init__(self, adapter, config, scratch, trace_id, message_id, scope):
         self.base, self.config, self.scratch, self.trace_id = adapter, adapter.config, scratch, trace_id
         self.limits = config.runtime
-        self.mock = (getattr(adapter, "offline_mock", False) is True
-                     and callable(getattr(adapter, "_request_override", None)))
-        if not self.mock and (not self.limits.active_requery_allow_real_calls
-                or self.limits.active_requery_cost_usd <= 0
-                or min(self.limits.active_requery_input_usd_per_million,
-                       self.limits.active_requery_output_usd_per_million) <= 0):
-            raise GovernedError("active_requery_real_calls_not_authorized", remote_usage_unknown=False)
+        self.mock = _require_provider_authorization(adapter, self.limits)
         self.input_price = Decimal("0") if self.mock else Decimal(str(self.limits.active_requery_input_usd_per_million)) / 1000000
         self.output_price = Decimal("0") if self.mock else Decimal(str(self.limits.active_requery_output_usd_per_million)) / 1000000
         self.started = time.monotonic()
@@ -440,18 +463,30 @@ class ActiveRequery:
         self.stop_reason = None
         self.fallback_text = None
         self.final_reply_mode = "host_notice"
+        self.path_feedback = None
+        self.path_loop_enabled = getattr(getattr(getattr(runtime, "config", None), "runtime", None),
+                                         "path_requery_loop_enabled", False)
+        if self.path_loop_enabled:
+            mock = _require_provider_authorization(getattr(adapter, "base", adapter), runtime.config.runtime)
+            if mock is not adapter.mock:
+                raise GovernedError("active_requery_provider_mode_mismatch", remote_usage_unknown=False)
+            from .path_requery_loop import PathRequeryLoopConfig
+            self.path_config = getattr(runtime, "path_requery_loop_config", None) or PathRequeryLoopConfig(enabled=True)
         # An independent view selects the native ranked graph results. The
         # initial model selector remains unchanged and is never called here.
         self.query_graph = copy(runtime.graph)
         self.query_graph.selector = None
 
-    def append(self, retrieval, request_id, planning_call_id=None):
+    def append(self, retrieval, request_id, planning_call_id=None, *, effective_terms=None):
         parent = digest(self.bundle) if self.bundle is not None else None
         self.bundle = append_retrieval(self.bundle, retrieval, round_index=self.rounds,
                                        request_id=request_id, planning_call_id=planning_call_id)
         self.runtime.scratch.write("requery_retrieval", trace_id=self.trace_id, round_index=self.rounds,
                                    request_id=request_id, planning_call_id=planning_call_id,
-                                   record=retrieval, record_sha256=digest(retrieval), parent_evidence_sha256=parent)
+                                   record=retrieval, record_sha256=digest(retrieval), parent_evidence_sha256=parent,
+                                   **({"effective_terms": effective_terms,
+                                       "actual_query_sha256": digest(retrieval["query"])}
+                                      if self.path_loop_enabled and planning_call_id is not None else {}))
 
     def stop(self, reason, *, fallback=True, clarification=None):
         if self.adapter.phase != "open":
@@ -512,6 +547,9 @@ class ActiveRequery:
                            "evidence": bundle_model_materials(self.bundle),
                            "remaining_query_rounds": self.runtime.config.runtime.active_requery_max_rounds - self.rounds,
                            "history_context": context_with_bundle(messages, self.bundle, evidence_ref=True)}
+                if self.path_loop_enabled:
+                    payload.update(path_feedback=deepcopy(self.path_feedback),
+                                   path_feedback_sha256=digest(self.path_feedback))
                 result = await self.adapter.call("query", INSTRUCTIONS,
                     [{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}], self.trace_id, ACTION_SCHEMA)
                 action = parse_action(result.text, self.message.text)
@@ -527,6 +565,24 @@ class ActiveRequery:
                     break
                 query = action["query"]
                 identity = query_identity(query)
+                local_start = time.monotonic()
+                feedback = None
+                effective_terms = query["canonical_terms"]
+                if self.path_loop_enabled:
+                    from .path_requery_loop import build_path_feedback
+                    feedback = build_path_feedback(self.bundle, action, planning_call_id=planning_call_id,
+                        config=self.path_config, deadline=min(self.adapter.deadline,
+                            local_start + self.runtime.config.runtime.local_seconds))
+                    self.runtime.scratch.write("path_requery_feedback", trace_id=self.trace_id,
+                        planning_call_id=planning_call_id, parent_evidence_sha256=digest(self.bundle),
+                        receipt=feedback, receipt_sha256=digest(feedback))
+                    self.adapter.check()
+                    if feedback["status"] == "budget_stop":
+                        self.stop("path_requery_budget")
+                        break
+                    effective_terms = feedback["effective_terms"]
+                    identity = digest({"baseline_query_identity": identity,
+                                       "effective_terms": sorted({term.strip().casefold() for term in effective_terms})})
                 if identity in self.queries:
                     self.stop("duplicate_query")
                     break
@@ -539,14 +595,15 @@ class ActiveRequery:
                 # Include immutable source text and every qualifier. No invented
                 # conversion of an association edge into a semantic relation.
                 query_text = self.message.text + "\nCanonical query data:\n" + json.dumps(query, ensure_ascii=False, sort_keys=True)
-                local_start = time.monotonic()
+                if feedback is not None and feedback["added_terms"]:
+                    query_text += "\nSourced graph terms:\n" + json.dumps(effective_terms, ensure_ascii=False, sort_keys=True)
                 def progress():
                     return int(time.monotonic() - local_start > self.runtime.config.runtime.local_seconds
                                or time.monotonic() >= self.adapter.deadline)
                 self.runtime.store.db.set_progress_handler(progress, 1000)
                 try:
                     audit = {}
-                    records = self.query_graph.retrieve(self.runtime.knowledge_scope, query["canonical_terms"],
+                    records = self.query_graph.retrieve(self.runtime.knowledge_scope, effective_terms,
                         query_text, time.time(), event_id=request_id, audit=audit,
                         ranking_mode="static", context_query="")
                     frozen = freeze_retrieval(self.runtime.store.db, self.runtime.knowledge_scope,
@@ -557,11 +614,32 @@ class ActiveRequery:
                 if time.monotonic() - local_start > self.runtime.config.runtime.local_seconds:
                     raise GovernedError("requery_local_timeout", remote_usage_unknown=False)
                 before = len(bundle_model_materials(self.bundle))
-                self.append(frozen, request_id, planning_call_id)
+                before_uids = {item["evidence_uid"] for item in self.bundle["materials"]}
+                if self.path_loop_enabled:
+                    self.append(frozen, request_id, planning_call_id, effective_terms=effective_terms)
+                else:
+                    self.append(frozen, request_id, planning_call_id)
                 self.query_actions.append({"evidence_round_index": len(self.bundle["rounds"]) - 1,
                     "planning_call_id": planning_call_id, "action": deepcopy(action),
                     "action_sha256": digest(action), "anchors_validated": True})
                 after = len(bundle_model_materials(self.bundle))
+                if self.path_loop_enabled:
+                    self.adapter.check()
+                    result_feedback = build_path_feedback(self.bundle, action, planning_call_id=planning_call_id,
+                        config=self.path_config, deadline=min(self.adapter.deadline,
+                            local_start + self.runtime.config.runtime.local_seconds))
+                    self.path_feedback = {"input": feedback, "result": result_feedback}
+                    self.runtime.scratch.write("path_requery_feedback_result", trace_id=self.trace_id,
+                        planning_call_id=planning_call_id, bundle_sha256=digest(self.bundle),
+                        receipt_sha256=digest(feedback), result_receipt=result_feedback,
+                        result_receipt_sha256=digest(result_feedback), effective_terms=effective_terms,
+                        actual_query_sha256=digest(query_text),
+                        added_evidence_uids=[item["evidence_uid"] for item in self.bundle["materials"]
+                                             if item["evidence_uid"] not in before_uids])
+                    self.adapter.check()
+                    if result_feedback["status"] == "budget_stop":
+                        self.stop("path_requery_budget")
+                        break
                 if not records or after == before:
                     reason = "empty_results" if not records else "no_new_evidence"
                     final_reply = bool(records) and after == before and after > 0

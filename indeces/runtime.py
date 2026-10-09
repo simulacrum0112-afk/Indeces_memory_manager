@@ -67,6 +67,11 @@ def bot_reply_data(text):
 
 class Runtime:
     def __init__(self, config, store, adapter, scratch, *, selector=None):
+        if getattr(config.runtime, "path_requery_loop_enabled", False):
+            if not config.runtime.active_requery_enabled:
+                raise GovernedError("path_requery_requires_active_query", remote_usage_unknown=False)
+            from .active_requery import _require_provider_authorization
+            _require_provider_authorization(adapter, config.runtime)
         self.config, self.store, self.adapter, self.scratch = config, store, adapter, scratch
         self.graph = MemoryGraph(store.db, self_marks=(config.name,),
                                  retrieval_policy=config.runtime.retrieval_policy,
@@ -143,6 +148,10 @@ class Runtime:
         # direct callers/tests without adding another conversation surface.
         async with self._serial:
             active_enabled = getattr(self.config.runtime, "active_requery_enabled", False)
+            path_provider_fields = {}
+            if getattr(self.config.runtime, "path_requery_loop_enabled", False):
+                from .active_requery import _path_requery_provider_fields
+                path_provider_fields = _path_requery_provider_fields(self.adapter, self.config.runtime)
             turn_seconds = (min(self.config.runtime.turn_seconds, self.config.runtime.active_requery_seconds)
                             if active_enabled else self.config.runtime.turn_seconds)
             turn_deadline = time.monotonic() + turn_seconds
@@ -160,6 +169,7 @@ class Runtime:
                                run_record_version=3 if getattr(self.config.runtime, "active_requery_enabled", False) else 1,
                                knowledge_scope=self.knowledge_scope,
                                **({"requery_final_policy": FINALIZATION_POLICY} if active_enabled else {}),
+                                **path_provider_fields,
                                **({"model_selection_policy": policy_identity(self.model_selector)}
                                   if self.model_selector is not None else {}))
             delivered = False

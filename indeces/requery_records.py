@@ -18,6 +18,7 @@ from .run_records import (answer_record, digest, text_digest, validate_graph_aud
 BUNDLE_SCHEMA = "active_requery_evidence_v1"
 PLANNING_EVIDENCE_REF_SCHEMA = "active_requery_planning_evidence_ref_v1"
 FINALIZATION_POLICY = "no_new_evidence_final_v1"
+PATH_REQUERY_LOOP_POLICY = "sourced_path_requery_loop_v1"
 REPLY_LIMITATION = (
     "Local retrieval stopped because it added no new evidence. The saved materials "
     "are retained, but their sufficiency and semantic support are not established."
@@ -295,7 +296,8 @@ def _validate_budget_history(events, calls, report, *, partial=False):
         if event in {"requery_budget_event", "requery_stop"}:
             budget_closed |= fields["ledger"].get("phase") in {"completed", "stopped", "halted"}
         _require(not budget_closed or event not in {
-            "call_start", "http_request", "requery_action", "requery_retrieval"},
+            "call_start", "http_request", "requery_action", "requery_retrieval",
+            "path_requery_feedback", "path_requery_feedback_result"},
             "active provider or query event after terminal budget phase")
     for event, fields in ledger_events:
         ledger = fields["ledger"]
@@ -678,6 +680,275 @@ def _validate_ledger_io_records(events, calls, report, *, partial=False):
     return not closed or recovery_close_unconfirmed
 
 
+def _path_receipt_hash(receipt):
+    _require(type(receipt) is dict and receipt.get("schema") == "path_requery_feedback_v1"
+             and type(receipt.get("version")) is int and receipt["version"] == 1,
+             "active path feedback schema invalid")
+    _require(receipt.get("policy") == PATH_REQUERY_LOOP_POLICY
+             and receipt.get("enabled") is True
+             and all(receipt.get(key) is False for key in (
+                 "proof", "truth_verified", "semantic_support_verified",
+                 "changes_base_weights", "additive_score"))
+             and receipt.get("analysis_scope") in {"each_frozen_round", "current_task_frozen_rounds"}
+             and receipt.get("query_anchor_validation") == "upstream_only",
+             "active path feedback scientific/weight declarations invalid")
+    hashed = {key: value for key, value in receipt.items() if key != "feedback_sha256"}
+    _require(receipt.get("feedback_sha256") == digest(hashed),
+             "active path feedback internal digest mismatch")
+
+
+def _path_stable_receipt(receipt):
+    """Elapsed wall time is measured rather than deterministically replayable."""
+    result = deepcopy(receipt)
+    result.pop("feedback_sha256", None)
+    stats = result.get("stats")
+    _require(type(stats) is dict and type(stats.get("elapsed_seconds")) in (int, float)
+             and math.isfinite(stats["elapsed_seconds"]) and stats["elapsed_seconds"] >= 0,
+             "active path feedback elapsed time invalid")
+    _require(set(stats) == {"nodes", "arcs", "expansions", "candidates", "bindings", "elapsed_seconds"}
+             and all(type(stats[key]) is int and stats[key] >= 0
+                     for key in stats if key != "elapsed_seconds"),
+             "active path feedback work counters invalid")
+    stats.pop("elapsed_seconds")
+    return result
+
+
+def _validate_path_receipt(receipt, bundle, action, call_id, report):
+    """Replay source/edge/qualifier work from frozen bytes, without a provider."""
+    from .path_requery_loop import PathRequeryLoopConfig, build_path_feedback
+    _path_receipt_hash(receipt)
+    expected_binding = {
+                 "binding_kind": "prospective_demand_on_parent_evidence",
+                 "planning_call_id": call_id, "action_sha256": digest(action),
+                 "parent_evidence_sha256": digest(bundle)}
+    missing_cutoff_binding = receipt.get("status") == "budget_stop" and receipt.get("demand_binding") is None
+    _require(receipt.get("demand_binding") == expected_binding or missing_cutoff_binding,
+             "active path feedback demand/parent binding mismatch")
+    _require(receipt.get("baseline_terms") == action["query"]["canonical_terms"],
+             "active path feedback baseline terms mismatch")
+    _require(type(receipt.get("limits")) is dict, "active path feedback limits invalid")
+    try:
+        # Saved dev11-v1 receipts predate task-local accumulation. Replay
+        # their original round-local policy explicitly; do not reinterpret
+        # historical bytes under the newer default.
+        limits = dict(receipt["limits"])
+        limits.setdefault("accumulate_rounds", False)
+        config = PathRequeryLoopConfig(**limits)
+    except (TypeError, ValueError):
+        raise ValueError("active path feedback limits invalid") from None
+    _require(config.enabled is True, "active path feedback feature disabled")
+    _require(receipt["analysis_scope"] == (
+        "current_task_frozen_rounds" if config.accumulate_rounds else "each_frozen_round"),
+        "active path feedback accumulation policy mismatch")
+    stable = _path_stable_receipt(receipt)
+    if receipt.get("status") == "budget_stop":
+        # Wall-clock cutoffs can stop between two pure operations. There is no
+        # replayable frontier at that instant; partial hypotheses cannot be fed
+        # back as though they had passed source checks.
+        _require(receipt.get("added_terms") == []
+                 and receipt.get("effective_terms") == receipt.get("baseline_terms")
+                 and all(not receipt.get(key) for key in (
+                     "candidates", "requirements", "mapping", "term_mapping", "graph_scopes",
+                      "clues", "frontier_clues", "accumulated_candidates", "accumulated_candidate_indices",
+                      "accumulation_scope"))
+                 and receipt.get("incomplete") is True
+                 and type(receipt.get("reason")) is str and bool(receipt["reason"])
+                 and receipt.get("gaps") == [{"reason": receipt["reason"], "round_index": None,
+                     "requirement_index": None, "semantic_support_verified": False}],
+                 "active path budget cutoff retained unverified feedback")
+        if missing_cutoff_binding:
+            report["warnings"].append("path_feedback_cutoff_demand_hash_unavailable")
+        if receipt["reason"] == "seconds":
+            report["warnings"].append("path_feedback_clock_cutoff_not_replayed")
+        else:
+            replayed = build_path_feedback(bundle, action, planning_call_id=call_id, config=config)
+            _require(replayed.get("status") == "budget_stop"
+                     and stable == _path_stable_receipt(replayed),
+                     "active path bounded cutoff frozen replay mismatch")
+        return
+    replayed = build_path_feedback(bundle, action, planning_call_id=call_id, config=config)
+    _require(replayed.get("status") != "budget_stop",
+             "active path feedback replay exceeded local verification budget")
+    _require(stable == _path_stable_receipt(replayed),
+             "active path feedback frozen replay mismatch")
+
+
+def _validate_path_provider_mode(events, start):
+    ledgers = [fields.get("ledger", {}) for event, fields in events
+               if event in {"requery_budget_event", "requery_stop"}]
+    if start.get("path_requery_loop_offline_mock") is True:
+        _require("path_requery_loop_provider_mode" not in start
+                 and "path_requery_loop_real_call_policy" not in start,
+                 "active mock path loop has real provider declaration")
+        _require(all(ledger.get("mode") == "mock" for ledger in ledgers),
+                 "active path loop has real provider budget")
+        return
+    _require(start.get("path_requery_loop_offline_mock") is False
+             and start.get("path_requery_loop_provider_mode") == "configured_real",
+             "active path loop provider declaration invalid")
+    policy = start.get("path_requery_loop_real_call_policy")
+    _require(type(policy) is dict and set(policy) == {
+                 "allow_real_calls", "cost_usd", "input_usd_per_million", "output_usd_per_million"}
+             and policy["allow_real_calls"] is True
+             and all(type(policy[key]) in (int, float) and 0 < policy[key] <= 1000
+                     and math.isfinite(policy[key])
+                     for key in ("cost_usd", "input_usd_per_million", "output_usd_per_million")),
+             "active path loop real call policy invalid")
+    input_price = Decimal(str(policy["input_usd_per_million"])) / 1000000
+    output_price = Decimal(str(policy["output_usd_per_million"])) / 1000000
+    try:
+        for ledger in ledgers:
+            _require(type(ledger) is dict and ledger.get("mode") == "configured_real"
+                     and ledger.get("cost_basis") == "configured_upper_unit_prices_not_invoice"
+                     and Decimal(str(ledger["limits"]["cost_usd"])) == Decimal(str(policy["cost_usd"])),
+                     "active path loop real provider budget mismatch")
+            cost = Decimal("0")
+            for entry in ledger["calls"]:
+                reserved = input_price * entry["reserved_input_tokens"] + output_price * entry["reserved_output_tokens"]
+                _require(Decimal(entry["reserved_cost_usd"]) == reserved,
+                         "active path loop real cost reservation mismatch")
+                if entry["usage"] is not None:
+                    cost += input_price * entry["usage"]["input_tokens"] + output_price * entry["usage"]["output_tokens"]
+            _require(Decimal(ledger["estimated_cost_usd"]) == cost,
+                     "active path loop real usage cost mismatch")
+    except (InvalidOperation, KeyError, TypeError):
+        raise ValueError("active path loop real provider cost invalid") from None
+
+
+class _PathLoopVerifier:
+    """Optional state machine; absent policy retains the dev10 wire contract."""
+
+    def __init__(self, events, start, report, *, partial=False):
+        self.report = report
+        self.pending = None
+        self.awaiting_result = None
+        self.latest = None
+        self.query_identities = set()
+        self.enabled = start is not None and "path_requery_loop_policy" in start
+        starts = [fields for event, fields in events if event == "turn_start"]
+        markers = [fields["path_requery_loop_policy"] for fields in starts
+                   if "path_requery_loop_policy" in fields]
+        _require(all(marker == PATH_REQUERY_LOOP_POLICY for marker in markers),
+                 "active path loop policy invalid")
+        feature_events = [(event, fields) for event, fields in events
+                          if event in {"path_requery_feedback", "path_requery_feedback_result"}]
+        if not partial:
+            _require(not feature_events or self.enabled, "active path loop policy missing")
+            if self.enabled:
+                _require(start.get("path_requery_loop_policy") == PATH_REQUERY_LOOP_POLICY,
+                         "active path loop policy invalid")
+                _validate_path_provider_mode(events, start)
+        else:
+            for event, fields in feature_events:
+                key = "receipt" if event == "path_requery_feedback" else "result_receipt"
+                receipt = fields[key]
+                _path_receipt_hash(receipt)
+                _path_stable_receipt(receipt)
+                _require(fields.get(key + "_sha256") == digest(receipt),
+                         "retained active path feedback digest mismatch")
+            if feature_events:
+                report["warnings"].append("retained_path_feedback_binding_partial")
+
+    def planner(self, payload):
+        expected_fields = {"original_text", "round_index", "evidence",
+                           "remaining_query_rounds", "history_context"}
+        if self.enabled:
+            expected_fields |= {"path_feedback", "path_feedback_sha256"}
+            _require(self.pending is None and self.awaiting_result is None,
+                     "active planning before path feedback completion")
+            _require(payload.get("path_feedback") == self.latest
+                     and payload.get("path_feedback_sha256") == digest(self.latest),
+                     "active planning path feedback binding mismatch")
+        return expected_fields
+
+    def before(self, fields, pending_action, bundle):
+        _require(self.enabled and self.pending is None and self.awaiting_result is None
+                 and bundle is not None and pending_action is not None
+                 and pending_action["action"].get("action") == "query",
+                 "active path feedback ordering mismatch")
+        receipt = fields["receipt"]
+        call_id = pending_action["planning_call_id"]
+        _require(fields.get("planning_call_id") == call_id
+                 and fields.get("parent_evidence_sha256") == digest(bundle)
+                 and fields.get("receipt_sha256") == digest(receipt),
+                 "active path feedback event binding mismatch")
+        _validate_path_receipt(receipt, bundle, pending_action["action"], call_id, self.report)
+        from .active_requery import query_identity
+        identity = digest({"baseline_query_identity": query_identity(pending_action["action"]["query"]),
+                           "effective_terms": sorted({term.strip().casefold()
+                                                     for term in receipt["effective_terms"]})})
+        self.pending = {"fields": fields, "action": pending_action["action"],
+                        "query_identity": identity,
+                        "parent_uids": [item["evidence_uid"] for item in bundle["materials"]]}
+
+    def retrieval(self, fields, expected_query):
+        if not self.enabled:
+            return expected_query
+        _require(self.pending is not None and self.awaiting_result is None,
+                 "active retrieval missing path feedback")
+        pre = self.pending["fields"]
+        receipt = pre["receipt"]
+        _require(receipt.get("status") != "budget_stop"
+                 and self.pending["query_identity"] not in self.query_identities,
+                 "active path retrieval after cutoff or repeated query")
+        _require(fields.get("planning_call_id") == pre["planning_call_id"]
+                 and fields.get("effective_terms") == receipt["effective_terms"],
+                 "active retrieval path term binding mismatch")
+        if receipt["added_terms"]:
+            expected_query += "\nSourced graph terms:\n" + json.dumps(
+                receipt["effective_terms"], ensure_ascii=False, sort_keys=True)
+        _require(fields.get("actual_query_sha256") == digest(expected_query),
+                 "active retrieval path query digest mismatch")
+        self.query_identities.add(self.pending["query_identity"])
+        self.awaiting_result = {**self.pending, "actual_query_sha256": digest(expected_query)}
+        self.pending = None
+        return expected_query
+
+    def after(self, fields, bundle):
+        _require(self.enabled and self.awaiting_result is not None and bundle is not None,
+                 "active path result ordering mismatch")
+        pending = self.awaiting_result
+        pre = pending["fields"]
+        result = fields["result_receipt"]
+        added = [item["evidence_uid"] for item in bundle["materials"]
+                 if item["evidence_uid"] not in pending["parent_uids"]]
+        _require(fields.get("planning_call_id") == pre["planning_call_id"]
+                 and fields.get("bundle_sha256") == digest(bundle)
+                 and fields.get("receipt_sha256") == pre["receipt_sha256"]
+                 and fields.get("result_receipt_sha256") == digest(result)
+                 and fields.get("added_evidence_uids") == added
+                 and fields.get("effective_terms") == pre["receipt"]["effective_terms"]
+                 and fields.get("actual_query_sha256") == pending["actual_query_sha256"],
+                 "active path result event binding mismatch")
+        _validate_path_receipt(result, bundle, pending["action"], pre["planning_call_id"], self.report)
+        _require(result["limits"] == pre["receipt"]["limits"],
+                 "active path result changed local limits")
+        self.latest = {"input": deepcopy(pre["receipt"]), "result": deepcopy(result)}
+        self.awaiting_result = None
+
+    def stop(self, fields, bundle, declared_query_rounds):
+        if not self.enabled:
+            return
+        _require(self.awaiting_result is None,
+                 "active path stop before result feedback completion")
+        if self.pending is not None:
+            reason = fields["reason"]
+            if self.pending["fields"]["receipt"].get("status") == "budget_stop":
+                _require(reason == "path_requery_budget", "active path cutoff stop reason mismatch")
+            if reason == "duplicate_query":
+                _require(self.pending["query_identity"] in self.query_identities,
+                         "active path duplicate stop has no executed matching query")
+            if reason == "query_round_budget":
+                _require(declared_query_rounds is not None and bundle is not None
+                         and len(bundle["rounds"]) - 1 >= declared_query_rounds,
+                         "active path round stop preceded round exhaustion")
+            _require(fields.get("fallback") is True,
+                     "active path unexecuted feedback requires explicit fallback")
+            # An admission/round/cutoff stop never executes the prospective
+            # query. Preserve its receipt without claiming a retrieval effect.
+            self.pending = None
+
+
 def verify_active_turn(events, start=None, report=None, *, partial=False):
     """Check version 3 without accepting single-retrieval assumptions.
 
@@ -694,6 +965,7 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
     report["warnings"] = list(dict.fromkeys(report["warnings"]))
     _validate_host_notices(events, start, partial=partial)
     _validate_finalization_policy(events, start, partial=partial)
+    path_loop = _PathLoopVerifier(events, start, report, partial=partial)
     ends = [f for e, f in events if e == "turn_end"]
     contexts = [f for e, f in events if e == "reply_context"]
     generated = [f for e, f in events if e == "answer_generated"]
@@ -786,6 +1058,13 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
                 budget_closed = True
         if event == "http_request":
             _require(not budget_closed, "active provider transport after budget closure")
+        elif event in {"path_requery_feedback", "path_requery_feedback_result"}:
+            _require(not final_started and not stopped and not budget_closed,
+                     "active path feedback after retrieval/budget closure")
+            if event == "path_requery_feedback":
+                path_loop.before(fields, pending_action, bundle)
+            else:
+                path_loop.after(fields, bundle)
         elif event == "memory_observation":
             _require(bundle is None and not initial_recorded, "active initial observation ordering mismatch")
             initial_observed = True
@@ -797,6 +1076,8 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
             if fields["stage"] == "query":
                 _require(bundle is not None and not final_started and not stopped,
                          "active planning call ordering mismatch")
+                _require(path_loop.pending is None and path_loop.awaiting_result is None,
+                         "active planning call before path feedback completion")
             elif fields["stage"] == "reply":
                 _require(final_started and not generated_seen, "active reply call ordering mismatch")
         elif event == "requery_action":
@@ -835,8 +1116,7 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
                      and type(request["input"]) is list and len(request["input"]) == 1
                      and request["input"][0]["role"] == "user", "active actual planning prompt mismatch")
             payload = _json(request["input"][0]["content"])
-            _require(type(payload) is dict and set(payload) == {
-                "original_text", "round_index", "evidence", "remaining_query_rounds", "history_context"}
+            _require(type(payload) is dict and set(payload) == path_loop.planner(payload)
                      and payload["original_text"] == start["input"]["text"]
                      and type(payload["round_index"]) is int and payload["round_index"] == action_round
                      and payload["evidence"] == bundle_model_materials(bundle)
@@ -895,6 +1175,7 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
                 action = pending_action["action"]
                 expected_query = start["input"]["text"] + "\nCanonical query data:\n" + json.dumps(
                     action["query"], ensure_ascii=False, sort_keys=True)
+                expected_query = path_loop.retrieval(fields, expected_query)
                 _require(action.get("action") == "query"
                          and retrieval["query"] == expected_query, "active retrieval query mismatch")
                 _require(declared_query_rounds is not None and round_index <= declared_query_rounds,
@@ -916,6 +1197,7 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
             _require(not final_started and type(fields["reason"]) is str
                      and bool(fields["reason"]) and type(fields["ledger"]) is dict,
                      "active stop receipt invalid")
+            path_loop.stop(fields, bundle, declared_query_rounds)
             if fields.get("fallback") is False:
                 if fields.get("reason") == "no_new_evidence":
                     _require(fields.get("requery_final_policy") == FINALIZATION_POLICY
@@ -965,6 +1247,9 @@ def verify_active_turn(events, start=None, report=None, *, partial=False):
             terminal = True
     _require(not pending_retrieval or not ends or ends[0]["status"] != "delivered",
              "delivered active turn has incomplete evidence append")
+    _require(not ends or ends[0]["status"] != "delivered"
+             or (path_loop.pending is None and path_loop.awaiting_result is None),
+             "delivered active turn has incomplete path feedback")
     initial = bundle["rounds"][0]["record"] if bundle else None
     retrievals = [f for e, f in events if e == "retrieval_record"]
     observations = [f for e, f in events if e == "memory_observation"]
