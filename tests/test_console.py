@@ -243,7 +243,7 @@ class ConsoleTests(unittest.TestCase):
     def test_start_uses_environment_before_saved_credentials(self):
         with patch.dict(console.os.environ, {"DISCORD_BOT_TOKEN": TOKEN, "OPENAI_API_KEY": KEY}, clear=True), \
                 patch.object(console, "load_discord_token") as loader, \
-                patch.object(console, "load_openai_key") as key_loader, \
+                patch("indeces.model_provider.load_openai_key") as key_loader, \
                 patch.object(console, "prompt_secret") as prompt, \
                 patch.object(console, "serve", new_callable=AsyncMock) as serve:
             console.run(self.config, self.path)
@@ -280,7 +280,7 @@ class ConsoleTests(unittest.TestCase):
 
     def test_start_uses_saved_api_key_before_session_prompt(self):
         with patch.dict(console.os.environ, {"DISCORD_BOT_TOKEN": TOKEN}, clear=True), \
-                patch.object(console, "load_openai_key", return_value=KEY) as loader, \
+                patch("indeces.model_provider.load_openai_key", return_value=KEY) as loader, \
                 patch.object(console, "prompt_secret") as prompt, \
                 patch.object(console, "serve", new_callable=AsyncMock) as serve:
             console.run(self.config, self.path)
@@ -294,7 +294,7 @@ class ConsoleTests(unittest.TestCase):
         alias = child / ".." / self.path.name
         with patch.dict(console.os.environ, {}, clear=True), \
                 patch.object(console, "load_discord_token", return_value=TOKEN) as token_loader, \
-                patch.object(console, "load_openai_key", return_value=KEY) as key_loader, \
+                patch("indeces.model_provider.load_openai_key", return_value=KEY) as key_loader, \
                 patch.object(console, "prompt_secret") as prompt, \
                 patch.object(console, "serve", new_callable=AsyncMock) as serve:
             console.run(self.config, alias)
@@ -305,7 +305,7 @@ class ConsoleTests(unittest.TestCase):
 
     def test_invalid_saved_api_key_requires_repair_without_fallback_or_connection(self):
         with patch.dict(console.os.environ, {"DISCORD_BOT_TOKEN": TOKEN}, clear=True), \
-                patch.object(console, "load_openai_key", side_effect=CredentialError("credential_corrupt")), \
+                patch("indeces.model_provider.load_openai_key", side_effect=CredentialError("credential_corrupt")), \
                 patch.object(console, "prompt_secret") as prompt, \
                 patch.object(console, "serve", new_callable=AsyncMock) as serve, \
                 self.assertRaises(CredentialError):
@@ -315,7 +315,7 @@ class ConsoleTests(unittest.TestCase):
 
     def test_invalid_api_key_environment_is_rejected_without_saved_key_fallback(self):
         with patch.dict(console.os.environ, {"DISCORD_BOT_TOKEN": TOKEN, "OPENAI_API_KEY": "invalid\nkey"}, clear=True), \
-                patch.object(console, "load_openai_key") as loader, \
+                patch("indeces.model_provider.load_openai_key") as loader, \
                 patch.object(console, "prompt_secret") as prompt, \
                 patch.object(console, "serve", new_callable=AsyncMock) as serve, \
                 self.assertRaises(CredentialError) as error:
@@ -327,7 +327,7 @@ class ConsoleTests(unittest.TestCase):
 
     def test_start_without_config_path_uses_session_key_and_does_not_load_vault(self):
         with patch.dict(console.os.environ, {"DISCORD_BOT_TOKEN": TOKEN}, clear=True), \
-                patch.object(console, "load_openai_key") as loader, \
+                patch("indeces.model_provider.load_openai_key") as loader, \
                 patch.object(console, "prompt_secret", return_value=KEY) as prompt, \
                 patch.object(console, "serve", new_callable=AsyncMock) as serve:
             console.run(self.config)
@@ -383,7 +383,7 @@ class ConsoleTests(unittest.TestCase):
         secret_path(self.path).write_bytes(TOKEN.encode())
         openai_secret_path(self.path).write_bytes(KEY.encode())
         with patch.object(console, "load_discord_token", side_effect=AssertionError("must not decrypt")) as loader, \
-                patch.object(console, "load_openai_key", side_effect=AssertionError("must not decrypt")) as key_loader, \
+                patch("indeces.model_provider.load_openai_key", side_effect=AssertionError("must not decrypt")) as key_loader, \
                 patch.object(console, "prompt_secret") as prompt, redirect_stdout(io.StringIO()) as output:
             console.status(self.config, self.path)
         self.assertIn("present (checked at start)", output.getvalue())

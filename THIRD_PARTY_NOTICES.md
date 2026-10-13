@@ -1,5 +1,12 @@
 # Third-party sources
 
+`indeces/_vendor/npmi_prune` contains the three unchanged application files from
+the user-supplied npmi_prune v0.1.2 archive, included as part of the user's
+authorized integration and source publication. Exact hashes and scope are in
+[docs/THIRD_PARTY_NPMI_PRUNE.md](docs/THIRD_PARTY_NPMI_PRUNE.md). The supplied
+archive contains no separate license file; the MIT notice below belongs to the
+Hebbian upstream and is not an attribution or license statement for npmi_prune.
+
 `indeces/memory.py` adapts the NPMI, source-context gating, and Hebbian update strategy from [Mingyuliu-botaaa/hebbian-mark-graph](https://github.com/Mingyuliu-botaaa/hebbian-mark-graph), pinned to commit `8769b9ed0af3531b9fbc09fb6e084d8e7adf724d`. The original complete code is not bundled. Integration differences are documented in `docs/BASELINE.md`.
 
 Upstream license:

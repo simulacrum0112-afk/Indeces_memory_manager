@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from indeces.contracts import DeliveryReceipt, FailureNotice, IncomingMessage
 from indeces.runtime import Runtime
+from indeces.user_notices import user_notice
 from tests.test_context import SummaryAdapter
 from tests.test_run_records import RecordFixture
 
@@ -92,7 +93,8 @@ class LocalRetrievalDeadlineTests(RecordFixture, unittest.IsolatedAsyncioTestCas
         self.assertEqual(fields["status"], "failed")
         self.assertEqual(self.adapter.calls, [])
         self.assertEqual(len(self.deliveries), 1)
-        self.assertIn(code, self.deliveries[0])
+        self.assertEqual(self.deliveries[0], user_notice(code))
+        self.assertNotIn(code, self.deliveries[0])
         self.assertNotIn("<@", self.deliveries[0])
         self.assertTrue(any(event == "failure_notice_delivered"
                             and item["receipt"]["text"] == self.deliveries[0]

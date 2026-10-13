@@ -15,10 +15,13 @@ import re
 
 from .scratch import CanonicalSnapshot, canonical, read_records, retention_checkpoint
 from .contracts import validated_token_usage
+from .npmi_telemetry import validate_receipt as validate_npmi_telemetry
 
 
 MAX_PDF_METADATA_BYTES = 512 * 1024
 MODEL_PROJECTION = "citation_material_v1"
+SELECTOR_MODEL_PROJECTION = "citation_material_selector_v1"
+SELECTOR_RECEIPT_SCHEMA = "selector_receipt_v1"
 NEIGHBORHOOD_AUDIT_SCOPE = "direct_hit_neighborhood_v1"
 NEIGHBORHOOD_FREQUENCY_SCOPE = "edge_endpoints_v1"
 _MODEL_MATERIAL_FIELDS = (
@@ -173,10 +176,13 @@ def freeze_retrieval(db, scope, event_id, query, records, graph_audit):
         audit_content = canonical(graph_audit)
         audit_snapshot = json.loads(audit_content) if _native_json_tree(graph_audit) else deepcopy(graph_audit)
         audit_sha256 = hashlib.sha256(audit_content).hexdigest()
-    result = {"version": 1, "scope": scope, "event_id": event_id, "query": query,
-              "model_projection": MODEL_PROJECTION,
+    selected_contract = "selector_receipt" in audit_snapshot.get("selection", {})
+    result = {"version": 2 if selected_contract else 1, "scope": scope, "event_id": event_id, "query": query,
+              "model_projection": SELECTOR_MODEL_PROJECTION if selected_contract else MODEL_PROJECTION,
               "model_materials": model_materials, "materials": materials, "sources": sources,
               "graph_audit": audit_snapshot, "graph_audit_sha256": audit_sha256}
+    if selected_contract:
+        result["selector_receipt_sha256"] = digest(audit_snapshot["selection"]["selector_receipt"])
     validate_retrieval(result)
     return result
 
@@ -221,11 +227,238 @@ def _require(condition, message):
         raise ValueError(message)
 
 
+def validate_ledger_io_failure(value):
+    """Accept numeric OS metadata only; never accept paths or exception text."""
+    _require(type(value) is dict and set(value) == {"operation", "errno", "winerror"},
+             "ledger I/O failure schema mismatch")
+    _require(type(value["operation"]) is str and value["operation"] in {
+        "open", "write", "flush", "fsync", "close", "replace"},
+        "ledger I/O operation invalid")
+    _require(all(value[key] is None or type(value[key]) is int for key in ("errno", "winerror")),
+             "ledger I/O error number invalid")
+    return {key: value[key] for key in ("operation", "errno", "winerror")}
+
+
+def _validate_ledger_io_fields(events):
+    for event, fields in events:
+        if "ledger_io_failure" in fields:
+            _require(event in {"requery_stop", "turn_end"}, "ledger I/O diagnostic event invalid")
+            _require(type(fields.get("trace_id")) is str and bool(fields["trace_id"]),
+                     "ledger I/O diagnostic trace invalid")
+            validate_ledger_io_failure(fields["ledger_io_failure"])
+            if event == "turn_end":
+                _require(fields.get("status") == "failed"
+                         and fields.get("code") == "requery_ledger_write_failed",
+                         "ledger I/O failed turn declaration mismatch")
+        if event in {"requery_ledger_io_failure", "requery_ledger_io_recovered"}:
+            recovered = event == "requery_ledger_io_recovered"
+            expected_fields = {"trace_id", "audit_event", "provider_call_id", "stage"}
+            expected_fields.update({"first_failure", "replace_attempts", "intentional_wait_seconds"}
+                                   if recovered else {"io_failure"})
+            _require(type(fields) is dict and set(fields) == expected_fields,
+                "ledger I/O event schema mismatch")
+            _require(type(fields["trace_id"]) is str and bool(fields["trace_id"]),
+                     "ledger I/O trace invalid")
+            _require(fields["audit_event"] is None or (type(fields["audit_event"]) is str
+                     and fields["audit_event"] in {"call_start", "request_intent", "response_headers",
+                                                    "response_received", "input_gate", "call_end"}),
+                     "ledger I/O audit event invalid")
+            identity = fields["provider_call_id"]
+            _require(identity is None or (type(identity) is str and len(identity) == 32
+                     and all(c in "0123456789abcdef" for c in identity)),
+                     "ledger I/O provider identifier invalid")
+            _require(fields["stage"] is None or (type(fields["stage"]) is str
+                     and fields["stage"] in {"label", "summary", "selection", "query", "reply"}),
+                     "ledger I/O stage invalid")
+            failure = validate_ledger_io_failure(fields["first_failure" if recovered else "io_failure"])
+            if recovered:
+                _require(failure == {"operation": "replace", "errno": 13, "winerror": 5},
+                         "ledger I/O recovery cause invalid")
+                attempts = fields["replace_attempts"]
+                _require(type(attempts) is int and attempts in (2, 3),
+                         "ledger I/O recovery attempts invalid")
+                wait = fields["intentional_wait_seconds"]
+                _require(type(wait) in (int, float) and 0 <= wait <= 0.03 and math.isfinite(wait)
+                         and wait == (0.01 if attempts == 2 else 0.03),
+                         "ledger I/O recovery intentional wait invalid")
+                context = (fields["audit_event"], identity, fields["stage"])
+                _require(all(value is None for value in context)
+                         or all(value is not None for value in context),
+                         "ledger I/O recovery context incomplete")
+
+
 def _has_model_projection(record):
     if "model_projection" not in record:
         return False
-    _require(record["model_projection"] == MODEL_PROJECTION, "unsupported model material projection")
+    _require(record["model_projection"] in (MODEL_PROJECTION, SELECTOR_MODEL_PROJECTION),
+             "unsupported model material projection")
     return True
+
+
+def _validate_selection_contract(audit, retrieval=None):
+    """Check optional selector receipts without trusting the strategy code.
+
+    The inventory covers the eligible ranked input, rather than all library
+    records. Unselected bodies are represented by identities and hashes; this
+    establishes receipt consistency, not their semantic correctness.
+    """
+    selection = audit.get("selection", {})
+    ranked = selection.get("ranked_candidates", [])
+    present = "selector_receipt" in selection
+    declared = "selector_contract" in selection
+    _require(present == declared, "selector graph contract missing")
+    if declared:
+        _require(selection["selector_contract"] == SELECTOR_RECEIPT_SCHEMA,
+                 "unsupported selector graph contract")
+    if retrieval is not None:
+        _require(type(retrieval["version"]) is int and retrieval["version"] in (1, 2),
+                 "unsupported retrieval record")
+        modern = retrieval["version"] == 2
+        if modern:
+            _require(retrieval.get("model_projection") == SELECTOR_MODEL_PROJECTION
+                     and present and "selector_receipt_sha256" in retrieval,
+                     "selector material contract missing")
+            _require(retrieval["selector_receipt_sha256"] == digest(selection["selector_receipt"]),
+                     "selector material receipt digest mismatch")
+        else:
+            _require(not present and "selector_receipt_sha256" not in retrieval
+                     and retrieval.get("model_projection") != SELECTOR_MODEL_PROJECTION,
+                     "selector material contract downgrade")
+    if not present:
+        return ranked[:3]
+    receipt = selection["selector_receipt"]
+    _require(type(receipt) is dict and set(receipt) == {
+        "schema", "policy", "input", "candidate_set", "input_sha256",
+        "selected_record_ids", "exclusions", "result_bindings"}, "selector receipt fields mismatch")
+    _require(receipt["schema"] == SELECTOR_RECEIPT_SCHEMA, "unsupported selector receipt")
+    _require(selection["limits"] == {
+        "direct_marks": 64 if "concept_policy" in selection else 4,
+        "neighbors_per_hit": 5, "expanded_marks": 2, "references": 3,
+        "total_text_characters": 400, "entry_text_characters": 110},
+        "selector limits changed")
+    policy = receipt["policy"]
+    _require(type(policy) is dict and set(policy) == {"id", "version"}
+             and all(type(policy[key]) is str
+                     and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", policy[key])
+                     for key in ("id", "version")), "selector policy identity invalid")
+    request = receipt["input"]
+    _require(type(request) is dict and set(request) == {
+        "scope", "event_id", "query_sha256", "context_query", "context_query_sha256",
+        "ranking_mode", "retrieval_policy"}, "selector input fields mismatch")
+    _require(type(request["context_query"]) is str
+             and request["context_query_sha256"] == text_digest(request["context_query"]),
+             "selector context identity mismatch")
+    _require(request["scope"] == audit["scope"] and request["event_id"] == audit["event_id"]
+             and request["query_sha256"] == text_digest(audit["request"]["query"])
+             and request["ranking_mode"] == selection.get("ranking_mode", "dynamic")
+             and request["retrieval_policy"] == (
+                 "concept_v1" if "concept_policy" in selection else "legacy_v1"),
+             "selector input identity mismatch")
+    if "context_query" in audit["request"]:
+        _require(request["context_query"] == audit["request"]["context_query"],
+                 "selector context input mismatch")
+    candidate_set = receipt["candidate_set"]
+    _require(type(candidate_set) is dict and set(candidate_set) == {
+        "scope", "count", "inventory", "sha256"}, "selector candidate set fields mismatch")
+    inventory = candidate_set["inventory"]
+    _require(candidate_set["scope"] == "eligible_ranked_candidates_v1"
+             and type(candidate_set["count"]) is int and type(inventory) is list
+             and candidate_set["count"] == len(inventory) == len(ranked)
+             and candidate_set["sha256"] == digest(inventory), "selector candidate set identity mismatch")
+    _require(receipt["input_sha256"] == digest({"input": request,
+             "candidate_set_sha256": candidate_set["sha256"], "limits": selection["limits"]}),
+             "selector input digest mismatch")
+    identity_fields = {
+        "record_id", "scope", "source_id", "fingerprint", "rank", "marks", "direct_marks",
+        "expanded_marks", "direct_match_count", "effective_score", "static_score", "dynamic_score",
+        "ranking_score", "text_characters", "quote_characters", "text_sha256", "quote_sha256"}
+    candidate_by_id, identity_by_id = {}, {}
+    for identity, candidate in zip(inventory, ranked):
+        _require(type(identity) is dict and set(identity) == identity_fields,
+                 "selector candidate identity fields mismatch")
+        record_id = identity["record_id"]
+        _require(type(record_id) is int and record_id > 0 and record_id not in identity_by_id
+                 and identity["scope"] == audit["scope"] and type(identity["source_id"]) is str
+                 and bool(identity["source_id"]), "selector candidate identity invalid")
+        _require(all(type(identity[key]) is str and re.fullmatch(r"[0-9a-f]{64}", identity[key])
+                     for key in ("fingerprint", "text_sha256", "quote_sha256")),
+                 "selector candidate hash invalid")
+        _require(all(type(identity[key]) is int and identity[key] >= 0
+                     for key in ("text_characters", "quote_characters")),
+                 "selector candidate length invalid")
+        expected = {key: candidate[key] for key in identity_fields}
+        _require(canonical(identity) == canonical(expected), "selector candidate inventory mismatch")
+        ranking_score = (candidate["relevance_score"] if "concept_policy" in selection
+                         else round(candidate["effective_score"], 6))
+        _require(type(identity["ranking_score"]) in (int, float)
+                 and canonical(identity["ranking_score"]) == canonical(ranking_score),
+                 "selector candidate ranking score mismatch")
+        candidate_by_id[record_id] = candidate
+        identity_by_id[record_id] = identity
+    selected_ids, exclusions = receipt["selected_record_ids"], receipt["exclusions"]
+    _require(type(selected_ids) is list and all(type(value) is int for value in selected_ids)
+             and len(selected_ids) <= selection["limits"]["references"]
+             and len(selected_ids) == len(set(selected_ids))
+             and set(selected_ids) <= set(identity_by_id), "selector selected identities invalid")
+    _require(type(exclusions) is list, "selector exclusions invalid")
+    excluded_ids = []
+    for exclusion in exclusions:
+        _require(type(exclusion) is dict and set(exclusion) == {"record_id", "reason"}
+                 and type(exclusion["record_id"]) is int and type(exclusion["reason"]) is str
+                 and re.fullmatch(r"[a-z][a-z0-9_]{0,63}", exclusion["reason"]),
+                 "selector exclusion invalid")
+        excluded_ids.append(exclusion["record_id"])
+    _require(len(excluded_ids) == len(set(excluded_ids))
+             and not set(excluded_ids) & set(selected_ids)
+             and set(excluded_ids) | set(selected_ids) == set(identity_by_id),
+             "selector candidate partition mismatch")
+    _require(selection["selected_record_ids"] == selected_ids
+             and len(selection["selected"]) == len(selected_ids), "selector selection receipt mismatch")
+    bindings = receipt["result_bindings"]
+    _require(type(bindings) is list and len(bindings) == len(selected_ids),
+             "selector result bindings mismatch")
+    for index, (record_id, binding, selected) in enumerate(zip(
+            selected_ids, bindings, selection["selected"]), 1):
+        identity = identity_by_id[record_id]
+        _require(type(binding) is dict and set(binding) == {
+            "record_id", "source_id", "scope", "fingerprint", "quote_sha256", "preview_sha256",
+            "text_characters", "text_truncated"}, "selector result binding fields mismatch")
+        binding_identity_keys = ("record_id", "source_id", "scope", "fingerprint", "quote_sha256")
+        _require(canonical({key: binding[key] for key in binding_identity_keys})
+                 == canonical({key: identity[key] for key in binding_identity_keys}),
+            "selector result identity mismatch")
+        characters = min(identity["text_characters"], selection["limits"]["entry_text_characters"])
+        _require(type(binding["text_characters"]) is int and binding["text_characters"] == characters
+                 and type(binding["text_truncated"]) is bool
+                 and binding["text_truncated"] == (characters < identity["text_characters"])
+                 and type(binding["preview_sha256"]) is str
+                 and re.fullmatch(r"[0-9a-f]{64}", binding["preview_sha256"]),
+                 "selector result preview invalid")
+        expected_selected = {"rank": index, "record_id": record_id, "source_id": binding["source_id"],
+                             **{key: binding[key] for key in (
+                                 "text_characters", "text_truncated", "preview_sha256")}}
+        _require(canonical(selected) == canonical(expected_selected),
+                 "selector selected content mismatch")
+    used_characters = sum(binding["text_characters"] for binding in bindings)
+    _require(selection["used_text_characters"] == used_characters
+             and used_characters <= selection["limits"]["total_text_characters"],
+             "selector text budget mismatch")
+    if retrieval is not None:
+        materials = retrieval["materials"]
+        _require([material["record_id"] for material in materials] == selected_ids,
+                 "selector material identities mismatch")
+        for material, binding in zip(materials, bindings):
+            identity = identity_by_id[material["record_id"]]
+            _require(material["scope"] == identity["scope"]
+                     and material["source_id"] == identity["source_id"]
+                     and material["fingerprint"] == identity["fingerprint"]
+                     and text_digest(material["stored_text"]) == identity["text_sha256"]
+                     and len(material["stored_text"]) == identity["text_characters"]
+                     and text_digest(material["quote"]) == identity["quote_sha256"]
+                     and len(material["quote"]) == identity["quote_characters"]
+                     and text_digest(material["model_payload"]["text"]) == binding["preview_sha256"],
+                     "selector frozen material identity mismatch")
+    return [candidate_by_id[record_id] for record_id in selected_ids]
 
 
 def _validate_projection_keys(payload, material):
@@ -281,8 +514,9 @@ def _validate_legacy_model_material(payload, material, candidate, selection):
 
 
 def validate_retrieval(record):
-    _require(record["version"] == 1, "unsupported retrieval record")
+    _require(type(record["version"]) is int and record["version"] in (1, 2), "unsupported retrieval record")
     projected = _has_model_projection(record)
+    selected_candidates = _validate_selection_contract(record["graph_audit"], record)
     _require(digest(record["graph_audit"]) == record["graph_audit_sha256"], "graph audit digest mismatch")
     materials = record["materials"]
     _require(len(materials) <= 3, "too many recalled materials")
@@ -304,13 +538,13 @@ def validate_retrieval(record):
         _require(payload["text"] == preview and payload["text_truncated"] == (len(full) > 110), "model preview mismatch")
         _require(digest([material["stored_text"], material["quote"]]) == material["fingerprint"], "material fingerprint mismatch")
         selection = record["graph_audit"]["selection"]
-        _require(len(selection["ranked_candidates"]) >= index, "model material candidate missing")
+        _require(len(selected_candidates) >= index, "model material candidate missing")
         if projected:
-            _validate_model_projection(payload, material, selection["ranked_candidates"][index - 1], selection)
+            _validate_model_projection(payload, material, selected_candidates[index - 1], selection)
         else:
             # Missing the projection marker cannot downgrade a compact view
             # to the historical complete-evidence contract.
-            _validate_legacy_model_material(payload, material, selection["ranked_candidates"][index - 1], selection)
+            _validate_legacy_model_material(payload, material, selected_candidates[index - 1], selection)
         if not source["metadata_available"]:
             _require(not material["source_id"].startswith("kb:"), "knowledge version metadata missing")
             _require(not any(key in material for key in ("pdf_page_occurrences", "pdf_page_numbers"))
@@ -386,18 +620,584 @@ def _bot_reply_data(text):
     return data
 
 
-def _validate_reply_request(context, request, *, bot=False, partial=False):
+_CLAUDE_METADATA = {"provider": "anthropic", "protocol": "messages",
+                    "base_url": "https://api.anthropic.com/v1", "api_version": "2023-06-01"}
+_CLAUDE_MODELS = {"claude-opus-5-5", "claude-fable-5-1"}
+_CLAUDE_COUNT = "/messages/count_tokens"
+_CLAUDE_GENERATE = "/messages"
+
+
+def _native_json_bytes(value):
+    pending = [value]
+    try:
+        while pending:
+            item = pending.pop()
+            if isinstance(item, dict):
+                _require(all(isinstance(key, str) for key in item), "native JSON key invalid")
+                pending.extend(item.keys())
+                pending.extend(item.values())
+            elif isinstance(item, list):
+                pending.extend(item)
+            elif isinstance(item, str):
+                item.encode("utf-8")
+            elif type(item) is float:
+                _require(math.isfinite(item), "nonfinite native JSON number")
+            else:
+                _require(item is None or type(item) in (bool, int), "native JSON value invalid")
+        return canonical(value)
+    except (UnicodeError, RecursionError):
+        raise ValueError("native JSON encoding/nesting invalid") from None
+
+
+def _transport_protocol(events):
+    """Bind native receipts to explicit provenance, never infer it from paths."""
+    relevant = [(event, fields) for event, fields in events
+                if event in {"call_start", "call_end", "call_rejected", "http_request", "http_response"}]
+    providers = {fields["provider"] for _, fields in relevant if "provider" in fields}
+    _require(providers <= {"openai", "anthropic"} and len(providers) <= 1, "mixed/unknown call provider")
+    native = providers == {"anthropic"}
+    for event, fields in relevant:
+        if native:
+            _require(all(fields.get(key) == value for key, value in _CLAUDE_METADATA.items()),
+                     "native transport provenance mismatch")
+            if event in {"http_request", "http_response"}:
+                expected_phase = "input_count" if fields.get("path") == _CLAUDE_COUNT else "generation"
+                _require(fields.get("phase") == expected_phase and isinstance(fields.get("client_request_id"), str)
+                         and bool(fields["client_request_id"]), "native transport phase/identity mismatch")
+            if event == "call_start":
+                _require(fields.get("model") in _CLAUDE_MODELS and fields.get("effort") == "high"
+                         and fields["budget"]["reasoning"] == "high" and "response_schema" in fields,
+                         "native call model/effort/schema mismatch")
+        else:
+            _require(not any(key in fields for key in ("protocol", "api_version", "native_usage"))
+                     and fields.get("provider", "openai") == "openai", "unexpected legacy protocol metadata")
+    expected = {_CLAUDE_COUNT, _CLAUDE_GENERATE} if native else {"/responses/input_tokens", "/responses"}
+    _require(all(fields.get("path") in expected for event, fields in relevant
+                 if event in {"http_request", "http_response"}), "mixed/unknown transport protocol")
+    return "anthropic" if native else "openai"
+
+
+def _native_usage(usage):
+    """Independently reconcile disjoint native input counters, including caches."""
+    if not isinstance(usage, dict) or validated_token_usage(usage) is None:
+        return None
+    for key in ("cache_read_input_tokens", "cache_creation_input_tokens"):
+        if key in usage and (type(usage[key]) is not int or usage[key] < 0):
+            return None
+    for key in ("cache_creation", "server_tool_use", "output_tokens_details"):
+        counters = usage.get(key)
+        if counters is not None and (not isinstance(counters, dict) or any(
+                type(value) is not int or value < 0 for value in counters.values())):
+            return None
+    if usage.get("cache_creation") is not None and sum(usage["cache_creation"].values()) != usage.get("cache_creation_input_tokens", 0):
+        return None
+    if usage.get("output_tokens_details") is not None and usage["output_tokens_details"].get("thinking_tokens", 0) > usage["output_tokens"]:
+        return None
+    try:
+        _native_json_bytes(usage)
+    except (ValueError, UnicodeError, RecursionError):
+        return None
+    return {"input_tokens": usage["input_tokens"] + usage.get("cache_read_input_tokens", 0)
+            + usage.get("cache_creation_input_tokens", 0), "output_tokens": usage["output_tokens"]}
+
+
+def _native_wire_schema(schema):
+    """Reconstruct the native schema projection from the frozen local contract."""
+    _native_json_bytes(schema)
+    try:
+        return _native_schema_projection(schema)
+    except RecursionError:
+        raise ValueError("native response schema nesting invalid") from None
+
+
+def _native_schema_projection(schema):
+    allowed = {"type", "properties", "required", "additionalProperties", "items", "enum", "pattern",
+               "description", "minLength", "maxLength", "minItems", "maxItems", "minimum", "maximum"}
+    _require(isinstance(schema, dict) and not set(schema) - allowed, "native response schema unsupported")
+    kind = schema.get("type")
+    _require(kind in {"object", "array", "string", "integer", "number", "boolean", "null"}, "native schema type invalid")
+    wire = deepcopy(schema)
+    _require("description" not in schema or isinstance(schema["description"], str), "native schema description invalid")
+    if "enum" in schema:
+        _require(isinstance(schema["enum"], list) and bool(schema["enum"])
+                 and all(type(value) in (str, int, float, bool, type(None)) for value in schema["enum"]),
+                 "native schema enum invalid")
+    constraints = []
+    for key in ("minLength", "maxLength", "minItems", "maxItems"):
+        if key in schema:
+            _require(type(schema[key]) is int and schema[key] >= 0
+                     and ((key.endswith("Length") and kind == "string") or (key.endswith("Items") and kind == "array")),
+                     "native schema constraint invalid")
+            if key != "minItems" or schema[key] > 1:
+                constraints.append(f"{key}: {schema[key]}")
+                wire.pop(key)
+    for minimum, maximum in (("minLength", "maxLength"), ("minItems", "maxItems")):
+        _require(minimum not in schema or maximum not in schema or schema[minimum] <= schema[maximum],
+                 "native schema constraint range invalid")
+    for key in ("minimum", "maximum"):
+        if key in schema:
+            _require(kind in {"integer", "number"} and type(schema[key]) in (int, float)
+                     and (type(schema[key]) is int or math.isfinite(schema[key])), "native numeric schema constraint invalid")
+            constraints.append(f"{key}: {schema[key]}")
+            wire.pop(key)
+    _require("minimum" not in schema or "maximum" not in schema or schema["minimum"] <= schema["maximum"],
+             "native numeric schema constraint range invalid")
+    _require("pattern" not in schema or (kind == "string" and schema["pattern"] == r"\S"), "native schema pattern invalid")
+    if kind == "object":
+        properties, required = schema.get("properties"), schema.get("required", [])
+        _require(isinstance(properties, dict) and schema.get("additionalProperties") is False
+                 and isinstance(required, list) and all(isinstance(key, str) for key in required)
+                 and len(set(required)) == len(required) and not set(required) - set(properties), "native object schema invalid")
+        wire["properties"] = {key: _native_schema_projection(value) for key, value in properties.items()}
+    else:
+        _require(not set(schema) & {"properties", "required", "additionalProperties"}, "native schema object fields invalid")
+    if kind == "array":
+        wire["items"] = _native_schema_projection(schema.get("items"))
+    else:
+        _require("items" not in schema, "native schema array fields invalid")
+    if constraints:
+        wire["description"] = (schema.get("description", "") + " Local acceptance constraints: "
+                               + "; ".join(constraints) + ".").strip()
+    return wire
+
+
+def _native_schema_matches(value, schema):
+    kind = schema["type"]
+    if kind == "object":
+        properties = schema["properties"]
+        return (isinstance(value, dict) and not set(schema.get("required", [])) - set(value)
+                and not set(value) - set(properties) and all(_native_schema_matches(item, properties[key]) for key, item in value.items()))
+    if kind == "array":
+        return (isinstance(value, list) and schema.get("minItems", 0) <= len(value) <= schema.get("maxItems", math.inf)
+                and all(_native_schema_matches(item, schema["items"]) for item in value))
+    valid = {"string": isinstance(value, str), "integer": type(value) is int,
+             "number": type(value) in (int, float), "boolean": type(value) is bool, "null": value is None}[kind]
+    if not valid or ("enum" in schema and not any(type(value) is type(item) and value == item for item in schema["enum"])):
+        return False
+    if kind in {"integer", "number"} and not schema.get("minimum", -math.inf) <= value <= schema.get("maximum", math.inf):
+        return False
+    return (kind != "string" or (schema.get("minLength", 0) <= len(value) <= schema.get("maxLength", math.inf)
+            and ("pattern" not in schema or re.search(schema["pattern"], value) is not None)))
+
+
+def _native_request(request, *, start=None, generation=True):
+    _native_json_bytes(request)
+    expected = {"model", "system", "messages", "output_config", "tools", "tool_choice"}
+    if generation:
+        expected |= {"max_tokens", "stream"}
+    _require(isinstance(request, dict) and set(request) == expected and request["model"] in _CLAUDE_MODELS,
+             "native request fields/model invalid")
+    _require(isinstance(request["system"], str) and isinstance(request["messages"], list) and bool(request["messages"]),
+             "native request context invalid")
+    for message in request["messages"]:
+        _require(isinstance(message, dict) and set(message) == {"role", "content"}
+                 and message["role"] in {"user", "assistant"} and isinstance(message["content"], str), "native request message invalid")
+    _require(request["messages"][-1]["role"] == "user" and request["tools"] == []
+             and request["tool_choice"] == {"type": "none"}, "native request tool/prefill policy mismatch")
+    options = request["output_config"]
+    _require(isinstance(options, dict) and options.get("effort") == "high"
+             and not set(options) - {"effort", "format"}, "native request effort mismatch")
+    if start is not None:
+        _require(request["model"] == start["model"], "native request model binding mismatch")
+        schema = start["response_schema"]
+        expected_options = {"effort": "high"}
+        if schema is not None:
+            expected_options["format"] = {"type": "json_schema", "schema": _native_wire_schema(schema)}
+        _require(_native_json_bytes(options) == _native_json_bytes(expected_options), "native request schema binding mismatch")
+    elif "format" in options:
+        _require(isinstance(options["format"], dict) and set(options["format"]) == {"type", "schema"}
+                 and options["format"]["type"] == "json_schema" and isinstance(options["format"]["schema"], dict),
+                 "retained native output format invalid")
+    if generation:
+        _require(type(request["max_tokens"]) is int and request["max_tokens"] > 0 and request["stream"] is False,
+                 "native generation output policy invalid")
+        if start is not None:
+            _require(request["max_tokens"] == start["budget"]["output_tokens"], "native output budget binding mismatch")
+
+
+def _native_result(response, result, *, model=None, schema=None):
+    """Keep full signed native content in evidence; expose only text in the result."""
+    _native_json_bytes(response)
+    _require(isinstance(response, dict) and response.get("type") == "message" and response.get("role") == "assistant"
+             and response.get("model") in _CLAUDE_MODELS and (model is None or response["model"] == model)
+             and isinstance(response.get("id"), str) and bool(response["id"]), "native response identity mismatch")
+    details = response.get("stop_details")
+    _require((details is None or isinstance(details, dict)) and not (isinstance(details, dict) and details.get("type") == "refusal")
+             and response.get("stop_reason") == "end_turn" and response.get("stop_sequence") is None,
+             "native response completion mismatch")
+    _require(isinstance(response.get("content"), list), "native response content invalid")
+    texts = []
+    for block in response["content"]:
+        _require(isinstance(block, dict), "native content block invalid")
+        kind = block.get("type")
+        if kind == "text":
+            _require(isinstance(block.get("text"), str), "native text block invalid")
+            texts.append(block["text"])
+        elif kind == "thinking":
+            _require(isinstance(block.get("thinking"), str) and isinstance(block.get("signature"), str)
+                     and bool(block["signature"]), "native thinking signature invalid")
+        elif kind == "redacted_thinking":
+            _require(isinstance(block.get("data"), str) and bool(block["data"]), "native redacted content invalid")
+        else:
+            raise ValueError("unexpected native content block")
+    text = "".join(texts)
+    _require(bool(text.strip()) and text == result["text"] and response["id"] == result["response_id"],
+             "native response output binding mismatch")
+    usage = _native_usage(response.get("usage"))
+    _require(usage is not None and all(usage[key] == result[key] for key in ("input_tokens", "output_tokens")),
+             "native response usage mismatch")
+    _require(not any((response["usage"].get("server_tool_use") or {}).values()), "native server tool usage forbidden")
+    if schema is not None:
+        def pairs(items):
+            value = {}
+            for key, item in items:
+                _require(key not in value, "duplicate native structured output key")
+                value[key] = item
+            return value
+        value = json.loads(text, object_pairs_hook=pairs,
+                           parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite native structured output")))
+        _native_json_bytes(value)
+        _require(_native_schema_matches(value, schema), "native original output schema mismatch")
+
+
+def _validate_reply_request(context, request, *, bot=False, partial=False, provider="openai"):
     label = "retained actual reply context mismatch" if partial else "actual adaptor input mismatch"
-    _require(request["input"] == context["messages"] and request["instructions"] == context["instructions"], label)
+    if provider == "anthropic":
+        _require(request["messages"] == context["messages"] and request["system"] == context["instructions"], label)
+        schema = context.get("response_schema")
+        expected = {"type": "json_schema", "schema": _native_wire_schema(schema)} if schema is not None else None
+        _require(request.get("output_config", {}).get("format") == expected, "native reply context schema mismatch")
+    else:
+        _require(request["input"] == context["messages"] and request["instructions"] == context["instructions"], label)
     if bot:
         from .prompts import BOT_REPLY_SCHEMA
         _require(context.get("response_schema") == BOT_REPLY_SCHEMA, "bot reply context schema mismatch")
-        _require(request.get("text", {}).get("format")
-                 == {"type": "json_schema", "name": "reply", "strict": True, "schema": BOT_REPLY_SCHEMA},
-                 "actual bot reply schema mismatch")
+        if provider == "anthropic":
+            _require(request.get("output_config", {}).get("format")
+                     == {"type": "json_schema", "schema": _native_wire_schema(BOT_REPLY_SCHEMA)}, "actual bot reply schema mismatch")
+        else:
+            _require(request.get("text", {}).get("format")
+                     == {"type": "json_schema", "name": "reply", "strict": True, "schema": BOT_REPLY_SCHEMA},
+                     "actual bot reply schema mismatch")
+
+
+_MODEL_SELECTION_POLICY = {"id": "model_npmi_labels", "version": "v1"}
+_MODEL_SELECTION_BINDING = (
+    "policy", "scope", "event_id", "query_sha256", "context_query_sha256",
+    "candidate_count", "candidate_set_sha256", "seen_record_ids",
+    "seen_candidates_sha256", "omitted_record_ids", "omitted_candidates_sha256",
+    "messages_sha256", "instructions_sha256", "schema_sha256", "input_sha256",
+)
+
+
+def _validate_native_selection_requests(events, binding, inputs, report, *, partial=False):
+    """Inspect original Messages evidence without rewriting selector semantics."""
+    _require(_transport_protocol(events) == "anthropic", "native selection protocol missing")
+    starts = [fields for event, fields in events if event == "call_start"]
+    _require(len(starts) <= 1, "duplicate native selection call start")
+    start = starts[0] if starts else None
+    original_schema = inputs[0]["response_schema"] if inputs else start["response_schema"] if start else None
+    if inputs and start is not None:
+        _require(canonical(start["response_schema"]) == canonical(original_schema), "native selection original schema binding mismatch")
+    requests = [fields for event, fields in events if event == "http_request"]
+    _require(len(requests) <= 2 and len({fields["path"] for fields in requests}) == len(requests), "duplicate native selection transport")
+    if requests and original_schema is None:
+        _require(partial, "native selection original schema missing")
+        report["warnings"].append("expired_native_selection_schema")
+    for fields in requests:
+        payload = fields["payload"]
+        _native_request(payload, start=start, generation=fields["path"] == _CLAUDE_GENERATE)
+        if binding is not None:
+            _require(digest(payload["messages"]) == binding["messages_sha256"]
+                     and text_digest(payload["system"]) == binding["instructions_sha256"], "actual native selection prompt digest mismatch")
+            if original_schema is not None:
+                _require(digest(original_schema) == binding["schema_sha256"], "native selection original schema digest mismatch")
+        if original_schema is not None:
+            expected = {"type": "json_schema", "schema": _native_wire_schema(original_schema)}
+            _require(canonical(payload["output_config"].get("format")) == canonical(expected), "actual native selection output schema mismatch")
+        if inputs:
+            _require(payload["messages"] == inputs[0]["messages"] and payload["system"] == inputs[0]["instructions"],
+                     "actual native selection input mismatch")
+
+
+def _model_selection_json(text, label):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError("duplicate selection JSON key")
+            result[key] = value
+        return result
+
+    def invalid_constant(value):
+        raise ValueError("invalid selection JSON constant")
+
+    try:
+        return json.loads(text, object_pairs_hook=pairs, parse_constant=invalid_constant)
+    except (ValueError, TypeError, RecursionError):
+        raise ValueError(label) from None
+
+
+def _model_selection_binding(fields):
+    binding = {key: fields[key] for key in _MODEL_SELECTION_BINDING}
+    _require(binding["policy"] == _MODEL_SELECTION_POLICY, "unknown model selection policy")
+    _require(all(type(binding[key]) is str and binding[key] for key in ("scope", "event_id")),
+             "model selection scope/event invalid")
+    _require(all(type(binding[key]) is str and re.fullmatch(r"[0-9a-f]{64}", binding[key])
+                 for key in _MODEL_SELECTION_BINDING if key.endswith("sha256")),
+             "model selection hash invalid")
+    _require(binding["input_sha256"] == digest({key: value for key, value in binding.items()
+                                                if key != "input_sha256"}),
+             "model selection input digest mismatch")
+    seen, omitted = binding["seen_record_ids"], binding["omitted_record_ids"]
+    _require(type(seen) is list and type(omitted) is list
+             and all(type(record_id) is int and record_id > 0 for record_id in seen + omitted)
+             and len(set(seen + omitted)) == len(seen + omitted)
+             and type(binding["candidate_count"]) is int
+             and binding["candidate_count"] == len(seen) + len(omitted),
+             "model selection candidate partition invalid")
+    return binding
+
+
+def _validate_model_selection(events, report, *, start=None, graph=None, partial=False,
+                              allow_budget_narrowing=False):
+    from .richard_chat_audit import is_richard_trace, validate_model_selection
+    if is_richard_trace(events, start, graph):
+        return validate_model_selection(events, report, start=start, graph=graph,
+                                        partial=partial, allow_budget_narrowing=allow_budget_narrowing)
+
+    """Bind one bounded model choice to its input, transport and frozen receipt.
+
+    Available retained evidence is checked, but expired input/call/material
+    evidence never establishes a complete model-selection traversal.
+    """
+    inputs = [f for e, f in events if e == "model_selection_input"]
+    decisions = [f for e, f in events if e == "model_selection_decision"]
+    call_fields = [f for _, f in events if f.get("stage") == "selection"]
+    marker = start.get("model_selection_policy") if start is not None else None
+    receipt = graph.get("selection", {}).get("selector_receipt") if graph else None
+    model_receipt = receipt is not None and receipt.get("policy", {}).get("id") == "model_npmi_labels"
+    active = marker is not None or bool(inputs or decisions or call_fields) or model_receipt
+    if not active:
+        return False
+    _require(len(inputs) <= 1 and len(decisions) <= 1, "duplicate model selection stage")
+    if marker is not None:
+        _require(marker == _MODEL_SELECTION_POLICY, "unknown turn model selection policy")
+    ends = [f for e, f in events if e == "turn_end"]
+    successful = bool(ends and ends[0].get("status") in ("delivered", "skipped"))
+    if not inputs and not decisions and not call_fields and graph is None and not successful:
+        # Retrieval may fail before choose writes any input. An unfinished or
+        # failed turn does not establish that model selection was performed.
+        return True
+    if graph is not None:
+        _require(model_receipt and receipt["policy"] == _MODEL_SELECTION_POLICY,
+                 "model selection receipt missing or downgraded")
+    bindings = [_model_selection_binding(fields) for fields in inputs + decisions]
+    _require(not bindings or all(binding == bindings[0] for binding in bindings),
+             "model selection decision input mismatch")
+    binding = bindings[0] if bindings else None
+    if start is not None and binding is not None:
+        _require(binding["scope"] == start["knowledge_scope"]
+                 and binding["event_id"] == start["message_id"]
+                 and binding["query_sha256"] == text_digest(start["input"]["text"]),
+                 "model selection turn identity mismatch")
+    if receipt is not None and binding is not None:
+        request, candidate_set = receipt["input"], receipt["candidate_set"]
+        _require(all(binding[key] == request[key] for key in (
+            "scope", "event_id", "query_sha256", "context_query_sha256")),
+            "model selection frozen input mismatch")
+        inventory = candidate_set["inventory"]
+        seen_count = len(binding["seen_record_ids"])
+        _require(binding["candidate_count"] == len(inventory)
+                 and binding["candidate_set_sha256"] == candidate_set["sha256"]
+                 and binding["seen_record_ids"] == [item["record_id"] for item in inventory[:seen_count]]
+                 and binding["omitted_record_ids"] == [item["record_id"] for item in inventory[seen_count:]]
+                 and binding["seen_candidates_sha256"] == digest(inventory[:seen_count])
+                 and binding["omitted_candidates_sha256"] == digest(inventory[seen_count:]),
+                 "model selection candidate inventory mismatch")
+    if inputs:
+        fields = inputs[0]
+        messages, instructions, schema = fields["messages"], fields["instructions"], fields["response_schema"]
+        _require(type(instructions) is str and bool(instructions)
+                 and text_digest(instructions) == binding["instructions_sha256"]
+                 and type(messages) is list and len(messages) == 1
+                 and type(messages[0]) is dict and set(messages[0]) == {"role", "content"}
+                 and messages[0]["role"] == "user" and type(messages[0]["content"]) is str
+                 and digest(messages) == binding["messages_sha256"]
+                 and digest(schema) == binding["schema_sha256"],
+                 "model selection prompt/schema digest mismatch")
+        required = min(3, binding["candidate_count"])
+        _require(type(fields["required_selection_count"]) is int
+                 and fields["required_selection_count"] == required
+                 and canonical(schema) == canonical({
+                     "type": "object", "additionalProperties": False,
+                     "properties": {"selected_record_ids": {"type": "array", "minItems": required,
+                         "maxItems": required, "items": {"type": "integer"}}},
+                     "required": ["selected_record_ids"]}), "model selection output schema mismatch")
+        _require(type(fields["planning_reservation"]) is int and fields["planning_reservation"] >= 0
+                 and type(fields["planning_input_limit"]) is int and fields["planning_input_limit"] > 0
+                 and fields["omission_reason"] == ("input_budget" if binding["omitted_record_ids"] else None),
+                 "model selection planning declaration invalid")
+        payload = _model_selection_json(messages[0]["content"], "model selection payload invalid")
+        _require(type(payload) is dict and set(payload) == {
+            "query", "context_query", "ranking_mode", "retrieval_policy", "required_selection_count",
+            "candidate_pool_count", "model_visible_count", "model_omitted_count", "candidates"},
+            "model selection payload fields mismatch")
+        _require(type(payload["query"]) is str and type(payload["context_query"]) is str
+                 and text_digest(payload["query"]) == binding["query_sha256"]
+                 and text_digest(payload["context_query"]) == binding["context_query_sha256"]
+                 and payload["ranking_mode"] == "static"
+                 and payload["retrieval_policy"] in ("concept_v1", "legacy_v1")
+                 and all(type(payload[key]) is int for key in ("required_selection_count", "candidate_pool_count",
+                                                              "model_visible_count", "model_omitted_count"))
+                 and payload["required_selection_count"] == required
+                 and payload["candidate_pool_count"] == binding["candidate_count"]
+                 and payload["model_visible_count"] == len(binding["seen_record_ids"])
+                 and payload["model_omitted_count"] == len(binding["omitted_record_ids"]),
+                 "model selection payload identity mismatch")
+        rows = payload["candidates"]
+        row_keys = {"record_id", "rank", "marks", "direct_marks", "expanded_marks", "direct_match_count",
+                    "static_score", "effective_score", "ranking_score", "relevance_score"}
+        _require(type(rows) is list and all(type(row) is dict and set(row) == row_keys for row in rows)
+                 and [row["record_id"] for row in rows] == binding["seen_record_ids"],
+                 "model selection visible labels mismatch")
+        if receipt is not None:
+            _require(payload["ranking_mode"] == request["ranking_mode"]
+                     and payload["retrieval_policy"] == request["retrieval_policy"]
+                     and payload["context_query"] == request["context_query"],
+                     "model selection frozen query mismatch")
+            expected_rows = [{**{key: item[key] for key in row_keys if key != "relevance_score"},
+                              "relevance_score": item["ranking_score"]
+                                  if request["retrieval_policy"] == "concept_v1" else None}
+                             for item in inventory[:len(rows)]]
+            _require(canonical(rows) == canonical(expected_rows), "model selection visible scores/marks mismatch")
+    selection_call_ids = {fields["call_id"] for fields in call_fields}
+    _require(len(selection_call_ids) <= 1, "multiple model selection calls")
+    selection_events = [(e, f) for e, f in events if f.get("call_id") in selection_call_ids]
+    starts = [f for e, f in selection_events if e == "call_start"]
+    completed = [f for e, f in selection_events if e == "call_end" and f.get("status") == "completed"]
+    _require(len(starts) <= 1 and len(completed) <= 1
+             and all(f.get("stage") in (None, "selection") for _, f in selection_events),
+             "model selection call stage mismatch")
+    if completed and not partial:
+        _require(_validate_call(selection_events) == "complete", "model selection call evidence incomplete")
+    if not partial:
+        _require(len(inputs) == 1, "model selection input missing")
+        _require(not selection_events or len(starts) == 1, "model selection call start missing")
+    if inputs and starts:
+        _require(starts[0]["planning_reservation"] == inputs[0]["planning_reservation"]
+                 and (0 < starts[0]["budget"]["input_tokens"] <= inputs[0]["planning_input_limit"]
+                      if allow_budget_narrowing else
+                      starts[0]["budget"]["input_tokens"] == inputs[0]["planning_input_limit"]),
+                 "model selection call planning mismatch")
+    requests = [f for e, f in selection_events if e == "http_request"]
+    _require(len(requests) <= 2 and len({f["path"] for f in requests}) == len(requests),
+             "duplicate model selection transport")
+    native = _transport_protocol(selection_events) == "anthropic"
+    if native:
+        _validate_native_selection_requests(selection_events, binding, inputs, report, partial=partial)
+    else:
+        for fields in requests:
+            _require(fields["path"] in ("/responses/input_tokens", "/responses"),
+                     "unknown model selection transport")
+            if binding is not None:
+                payload = fields["payload"]
+                form = payload.get("text", {}).get("format")
+                _require(digest(payload["input"]) == binding["messages_sha256"]
+                         and text_digest(payload["instructions"]) == binding["instructions_sha256"]
+                         and type(form) is dict and set(form) == {"type", "name", "strict", "schema"}
+                         and form["type"] == "json_schema" and form["name"] == "selection"
+                         and form["strict"] is True and digest(form["schema"]) == binding["schema_sha256"],
+                         "actual model selection prompt digest mismatch")
+    if inputs:
+        expected_format = {"type": "json_schema", "name": "selection", "strict": True,
+                           "schema": inputs[0]["response_schema"]}
+        for fields in (requests if not native else []):
+            payload = fields["payload"]
+            _require(fields["path"] in ("/responses/input_tokens", "/responses")
+                     and payload["input"] == inputs[0]["messages"]
+                     and payload["instructions"] == inputs[0]["instructions"]
+                     and canonical(payload.get("text", {}).get("format")) == canonical(expected_format),
+                     "actual model selection input/schema mismatch")
+        input_position = next(i for i, (e, _) in enumerate(events) if e == "model_selection_input")
+        _require(all(i > input_position for i, (_, f) in enumerate(events)
+                     if f.get("call_id") in selection_call_ids), "model selection input ordering mismatch")
+    if successful and not partial:
+        _require(len(decisions) == 1 and decisions[0]["status"] in ("selected", "no_candidates")
+                 and model_receipt, "successful turn model selection evidence missing")
+    if decisions:
+        decision = decisions[0]
+        status, selected = decision["status"], decision["selected_record_ids"]
+        _require(type(decision["model_call_performed"]) is bool and type(selected) is list
+                 and all(type(record_id) is int for record_id in selected)
+                 and len(set(selected)) == len(selected) and set(selected) <= set(binding["seen_record_ids"]),
+                 "model selection decision invalid")
+        _require(status in ("selected", "no_candidates", "failed"), "unknown model selection decision status")
+        if status == "no_candidates":
+            _require(binding["candidate_count"] == 0 and selected == [] and decision["exclusions"] == []
+                     and decision["model_call_performed"] is False and not selection_events
+                     and decision["reason"] == "empty_candidate_pool", "empty model selection decision mismatch")
+        elif status == "selected":
+            _require(binding["candidate_count"] > 0 and len(selected) == min(3, binding["candidate_count"])
+                     and decision["model_call_performed"] is True
+                     and (not inputs or inputs[0]["planning_reservation"] <= inputs[0]["planning_input_limit"]),
+                     "model selected count/call mismatch")
+            expected_exclusions = [{"record_id": record_id,
+                "reason": "model_not_selected" if record_id in binding["seen_record_ids"] else "input_budget"}
+                for record_id in binding["seen_record_ids"] + binding["omitted_record_ids"] if record_id not in selected]
+            _require(canonical(decision["exclusions"]) == canonical(expected_exclusions),
+                     "model selection exclusions mismatch")
+        else:
+            _require(not selected and not successful, "failed model selection has successful answer")
+            if decision["code"] == "selection_input_budget":
+                _require(decision["model_call_performed"] is False and not selection_events
+                         and (len(binding["seen_record_ids"]) < min(3, binding["candidate_count"])
+                              or (inputs and inputs[0]["planning_reservation"] > inputs[0]["planning_input_limit"])),
+                         "model selection budget failure mismatch")
+            else:
+                _require(decision["code"] == "invalid_model_selection"
+                         and decision["model_call_performed"] is True, "unknown model selection failure")
+        if decision["model_call_performed"]:
+            _require(partial or len(completed) == 1, "model selection result call evidence missing")
+            _require(decision["response_id"] == decision["model_result"]["response_id"],
+                     "model selection response identity mismatch")
+            if completed:
+                _require(canonical(decision["model_result"]) == canonical(completed[0]["result"]),
+                         "model selection result receipt mismatch")
+            if status == "selected":
+                data = _model_selection_json(decision["model_result"]["text"], "model selection output invalid")
+                _require(type(data) is dict and set(data) == {"selected_record_ids"}
+                         and canonical(data["selected_record_ids"]) == canonical(selected),
+                         "model selection output/decision mismatch")
+        if not partial:
+            _require(decision["model_call_performed"] == bool(selection_events),
+                     "model selection call declaration mismatch")
+        decision_position = next(i for i, (e, _) in enumerate(events) if e == "model_selection_decision")
+        _require(all(i < decision_position for i, (_, f) in enumerate(events)
+                     if f.get("call_id") in selection_call_ids), "model selection decision ordering mismatch")
+        if receipt is not None:
+            _require(status != "failed" and receipt["selected_record_ids"] == selected
+                     and canonical(receipt["exclusions"]) == canonical(decision["exclusions"]),
+                     "model selection frozen decision mismatch")
+    elif completed and not partial:
+        _require(not successful and not model_receipt, "completed model selection decision missing")
+    elif completed and model_receipt:
+        data = _model_selection_json(completed[0]["result"]["text"], "retained model selection output invalid")
+        _require(type(data) is dict and set(data) == {"selected_record_ids"}
+                 and canonical(data["selected_record_ids"]) == canonical(receipt["selected_record_ids"]),
+                 "retained model selection output/receipt mismatch")
+    if partial:
+        if not inputs:
+            report["warnings"].append("expired_model_selection_input")
+        if not decisions:
+            report["warnings"].append("expired_model_selection_decision")
+        if graph is None:
+            report["warnings"].append("expired_model_selection_material_binding")
+    return True
 
 
 def _validate_bot_decision(decision, events, *, retrieval=None, context=None, partial=False):
+    provider = _transport_protocol(events)
     data = _bot_reply_data(decision["model_result"]["text"])
     _require(decision["action"] == data["action"] and decision["text"] == data["text"],
              "bot decision/provider output mismatch")
@@ -411,15 +1211,19 @@ def _validate_bot_decision(decision, events, *, retrieval=None, context=None, pa
     if context is not None:
         from .prompts import BOT_REPLY_SCHEMA
         _require(context.get("response_schema") == BOT_REPLY_SCHEMA, "bot reply context schema mismatch")
-        requests = [f for e, f in events if e == "http_request" and f.get("path") == "/responses"
+        path = _CLAUDE_GENERATE if provider == "anthropic" else "/responses"
+        requests = [f for e, f in events if e == "http_request" and f.get("path") == path
                     and (not calls or f["call_id"] == calls[0]["call_id"])]
         _require(len(requests) <= 1 and (partial or len(requests) == 1), "bot decision request evidence missing")
         if requests:
-            _validate_reply_request(context, requests[0]["payload"], bot=True, partial=partial)
+            _validate_reply_request(context, requests[0]["payload"], bot=True, partial=partial, provider=provider)
     return data
 
 
 def _validate_known_usage(events, end, *, partial=False):
+    provider = _transport_protocol(events)
+    if provider == "anthropic":
+        _require("known_usage" in end and "native_usage" in end and "response_id" in end, "native terminal usage receipt missing")
     # Older call receipts did not carry usage separately from a successful
     # result. Preserve them; new receipts bind failed/cancelled usage as well.
     if "known_usage" not in end:
@@ -427,18 +1231,35 @@ def _validate_known_usage(events, end, *, partial=False):
     known = end["known_usage"]
     _require(known is None or (validated_token_usage(known) == known
              and set(known) == {"input_tokens", "output_tokens"}), "known generation usage schema invalid")
+    if provider == "anthropic":
+        _require((known is None and end["native_usage"] is None)
+                 or (known is not None and _native_usage(end["native_usage"]) == known), "native terminal usage normalization mismatch")
+        _require(all(type(end.get(key)) is bool for key in ("generation_usage_received", "generation_request_started", "remote_usage_unknown")),
+                 "native usage receipt flags missing")
+    path = _CLAUDE_GENERATE if provider == "anthropic" else "/responses"
     responses = [fields for event, fields in events
-                 if event == "http_response" and fields.get("path") == "/responses"]
+                 if event == "http_response" and fields.get("path") == path]
     _require(len(responses) <= 1, "duplicate generation usage receipt")
     if responses:
+        if provider == "anthropic":
+            _require(end["generation_request_started"] is True, "native response without generation start")
         payload = responses[0]["payload"]
-        observed = validated_token_usage(payload.get("usage")) if isinstance(payload, dict) else None
+        validator = _native_usage if provider == "anthropic" else validated_token_usage
+        observed = validator(payload.get("usage")) if isinstance(payload, dict) else None
         _require(known == observed, "known generation usage/transport mismatch")
+        if provider == "anthropic":
+            expected_native = payload.get("usage") if observed is not None else None
+            _require(_native_json_bytes(end["native_usage"]) == _native_json_bytes(expected_native),
+                     "native generation usage metadata mismatch")
+            expected_id = payload.get("id") if isinstance(payload, dict) and isinstance(payload.get("id"), str) else None
+            _require(end["response_id"] == expected_id, "native terminal response identifier mismatch")
     elif known is not None and not partial:
         raise ValueError("known generation usage transport evidence missing")
+    if provider == "anthropic" and not responses:
+        _require("native_usage" in end and (partial or end["native_usage"] is None), "native usage without transport evidence")
     if known is not None and not partial:
         requests = [fields for event, fields in events
-                    if event == "http_request" and fields.get("path") == "/responses"]
+                    if event == "http_request" and fields.get("path") == path]
         _require(len(requests) == 1, "known generation usage request evidence missing")
     if "generation_usage_received" in end:
         _require(type(end["generation_usage_received"]) is bool
@@ -468,14 +1289,136 @@ def _declared_input_limit(start):
     return effective, True
 
 
+def _validate_native_call(events, start, end):
+    _require(all(fields["trace_id"] == start["trace_id"] and fields["call_id"] == start["call_id"] for _, fields in events),
+             "native call identity binding mismatch")
+    effective_limit, modern = _declared_input_limit(start)
+    _require(type(start["budget"]["output_tokens"]) is int and start["budget"]["output_tokens"] > 0
+             and type(start["budget"]["seconds"]) in (int, float) and math.isfinite(start["budget"]["seconds"])
+             and start["budget"]["seconds"] > 0, "native stage budget invalid")
+    _require(modern and type(start.get("usage_receipt_version")) is int and start["usage_receipt_version"] == 1
+             and "known_usage" in end, "native usage/input receipt contract missing")
+    _validate_known_usage(events, end)
+    requests = [fields for event, fields in events if event == "http_request"]
+    responses = [fields for event, fields in events if event == "http_response"]
+    _require([fields["path"] for fields in requests] in ([], [_CLAUDE_COUNT], [_CLAUDE_COUNT, _CLAUDE_GENERATE])
+             and [fields["path"] for fields in responses] in ([], [_CLAUDE_COUNT], [_CLAUDE_COUNT, _CLAUDE_GENERATE]),
+             "native transport order/duplicates invalid")
+    _require(all(any(request["path"] == response["path"] for request in requests) for response in responses),
+             "native response request evidence missing")
+    _require(len({request["client_request_id"] for request in requests}) == len(requests), "duplicate native client request identity")
+    for response in responses:
+        request = next(fields for fields in requests if fields["path"] == response["path"])
+        _require(isinstance(request.get("client_request_id"), str) and bool(request["client_request_id"])
+                 and response.get("client_request_id") == request["client_request_id"], "native transport request identifier mismatch")
+    for fields in requests:
+        _native_request(fields["payload"], start=start, generation=fields["path"] == _CLAUDE_GENERATE)
+    if len(requests) == 2:
+        _require({key: value for key, value in requests[1]["payload"].items() if key not in {"max_tokens", "stream"}}
+                 == requests[0]["payload"], "native count/generation input mismatch")
+    gates = [fields for event, fields in events if event == "input_gate"]
+    _require(len(gates) <= 1, "duplicate native input gate")
+    if gates:
+        gate = gates[0]
+        _require(type(gate["input_tokens"]) is int and gate["input_tokens"] >= 0
+                 and type(gate["limit"]) is int and gate["limit"] == effective_limit
+                 and type(gate.get("stage_limit")) is int and gate["stage_limit"] == start["budget"]["input_tokens"]
+                 and type(gate["admitted"]) is bool and gate["admitted"] == (gate["input_tokens"] <= effective_limit),
+                 "native effective input gate mismatch")
+        _require(bool(responses) and responses[0]["path"] == _CLAUDE_COUNT
+                 and isinstance(responses[0]["payload"], dict)
+                 and type(responses[0]["payload"].get("input_tokens")) is int
+                 and responses[0]["payload"]["input_tokens"] == gate["input_tokens"], "native count receipt mismatch")
+    _require(len(requests) < 2 or (len(gates) == 1 and gates[0]["admitted"] is True), "native generation bypassed input gate")
+    if end.get("status") != "completed":
+        return "failed"
+    _require(len(requests) == len(responses) == 2 and len(gates) == 1 and gates[0]["admitted"] is True,
+             "native completed call transport evidence missing")
+    result = end["result"]
+    _require(end["response_id"] == result["response_id"], "native result/terminal response identifier mismatch")
+    _require(type(result["input_tokens"]) is int and 0 <= result["input_tokens"] <= effective_limit
+             and type(result["output_tokens"]) is int and 0 <= result["output_tokens"] <= start["budget"]["output_tokens"],
+             "native result token cap mismatch")
+    _native_result(responses[1]["payload"], result, model=start["model"], schema=start["response_schema"])
+    _require(type(result["elapsed_seconds"]) in (int, float) and math.isfinite(result["elapsed_seconds"])
+             and 0 <= result["elapsed_seconds"] < start["budget"]["seconds"], "native call time budget mismatch")
+    return "complete"
+
+
+def _validate_native_partial_call(events):
+    """Verify surviving native bytes; expired admission never becomes a new cap."""
+    ends = [fields for event, fields in events if event in {"call_end", "call_rejected"}]
+    _require(len(ends) <= 1, "duplicate retained native call end")
+    if ends:
+        _validate_known_usage(events, ends[0], partial=True)
+    _require(len({fields["trace_id"] for _, fields in events}) == 1, "retained native call trace mismatch")
+    requests, responses, request_fields, response_fields = {}, {}, {}, {}
+    for event, fields in events:
+        if event not in {"http_request", "http_response"}:
+            continue
+        target = requests if event == "http_request" else responses
+        _require(fields["path"] not in target and isinstance(fields["payload"], dict), "duplicate/invalid retained native transport")
+        target[fields["path"]] = fields["payload"]
+        (request_fields if event == "http_request" else response_fields)[fields["path"]] = fields
+        if event == "http_request":
+            _native_request(fields["payload"], generation=fields["path"] == _CLAUDE_GENERATE)
+    _require(len({fields["client_request_id"] for fields in request_fields.values()}) == len(request_fields),
+             "duplicate retained native client request identity")
+    for path in set(request_fields) & set(response_fields):
+        _require(request_fields[path]["client_request_id"] == response_fields[path]["client_request_id"],
+                 "retained native request identifier mismatch")
+    if len(requests) == 2:
+        _require({key: value for key, value in requests[_CLAUDE_GENERATE].items() if key not in {"max_tokens", "stream"}}
+                 == requests[_CLAUDE_COUNT], "retained native count/generation input mismatch")
+    gates = [fields for event, fields in events if event == "input_gate"]
+    _require(len(gates) <= 1, "duplicate retained native input gate")
+    if gates:
+        gate = gates[0]
+        _require(type(gate["input_tokens"]) is int and gate["input_tokens"] >= 0
+                 and type(gate["limit"]) is int and gate["limit"] > 0
+                 and type(gate["admitted"]) is bool and gate["admitted"] == (gate["input_tokens"] <= gate["limit"]),
+                 "retained native input gate invalid")
+        if "stage_limit" in gate:
+            _require(type(gate["stage_limit"]) is int and gate["stage_limit"] > 0
+                     and gate["limit"] <= gate["stage_limit"], "retained native input cap invalid")
+        _require(_CLAUDE_GENERATE not in requests or gate["admitted"] is True, "retained native generation bypassed gate")
+        if _CLAUDE_COUNT in responses:
+            _require(type(responses[_CLAUDE_COUNT].get("input_tokens")) is int
+                     and responses[_CLAUDE_COUNT]["input_tokens"] == gate["input_tokens"], "retained native count receipt mismatch")
+    if ends and ends[0].get("status") == "completed":
+        result = ends[0]["result"]
+        _require(isinstance(result["text"], str) and bool(result["text"].strip())
+                 and all(type(result[key]) is int and result[key] >= 0 for key in ("input_tokens", "output_tokens"))
+                 and isinstance(result["response_id"], str) and type(result["elapsed_seconds"]) in (int, float)
+                 and math.isfinite(result["elapsed_seconds"]) and result["elapsed_seconds"] >= 0, "retained native result invalid")
+        _require(ends[0]["known_usage"] is not None
+                 and all(result[key] == ends[0]["known_usage"][key] for key in ("input_tokens", "output_tokens")),
+                 "retained native result/terminal usage mismatch")
+        _require(bool(result["response_id"]) and ends[0]["response_id"] == result["response_id"],
+                 "retained native terminal response identifier mismatch")
+        if gates:
+            _require(result["input_tokens"] <= gates[0]["limit"], "retained native input usage cap mismatch")
+        if _CLAUDE_GENERATE in requests:
+            _require(result["output_tokens"] <= requests[_CLAUDE_GENERATE]["max_tokens"], "retained native output cap mismatch")
+        if _CLAUDE_GENERATE in responses:
+            model = requests.get(_CLAUDE_GENERATE, requests.get(_CLAUDE_COUNT, {})).get("model")
+            _native_result(responses[_CLAUDE_GENERATE], result, model=model)
+    return "retention_partial"
+
+
 def _validate_call(events):
     starts = [f for e, f in events if e == "call_start"]
     ends = [f for e, f in events if e in {"call_end", "call_rejected"}]
     _require(len(starts) == 1 and len(ends) <= 1, "call lifecycle mismatch")
+    _require(all(f.get("trace_id") == starts[0]["trace_id"]
+                 and f.get("stage") in (None, starts[0]["stage"]) for _, f in events),
+             "call event stage/trace mismatch")
     if not ends:
         return "incomplete"
     start, end = starts[0], ends[0]
     _require(start["stage"] == end["stage"] and start["trace_id"] == end["trace_id"], "call stage/trace mismatch")
+    if _transport_protocol(events) == "anthropic":
+        return _validate_native_call(events, start, end)
     effective_input_limit, modern_input_gate = _declared_input_limit(start)
     if "usage_receipt_version" in start:
         _require(type(start["usage_receipt_version"]) is int and start["usage_receipt_version"] == 1
@@ -543,6 +1486,8 @@ def _validate_call(events):
 
 def _validate_partial_call(events):
     """Check available transport receipts without inventing expired budgets."""
+    if _transport_protocol(events) == "anthropic":
+        return _validate_native_partial_call(events)
     ends = [f for e, f in events if e in {"call_end", "call_rejected"}]
     _require(len(ends) <= 1, "duplicate retained call end")
     if ends:
@@ -633,8 +1578,82 @@ def _validate_unbound_answer(record):
              "retained answer claims unevaluated support")
 
 
-def _validate_partial_turn(events, report):
-    stages = {"memory_observation": 1, "retrieval_record": 2, "reply_context": 3,
+def _validate_npmi_execution(events, report, *, start=None, partial=False):
+    """Validate the initial retrieval once, before version/retention dispatch.
+
+    Later native requery rounds have their own frozen receipts and must not be
+    accumulated into the counters bound to this initial graph. A retained
+    suffix can lose the declaration, but cannot contradict an available one.
+    """
+    telemetry_events = [f for e, f in events if e == "npmi_retrieval"]
+    declaration = start.get("npmi_telemetry_version") if start is not None else None
+    declared = start is not None and "npmi_telemetry_version" in start
+    if not telemetry_events and not declared:
+        return
+    _require(sum(e == "turn_start" for e, _ in events) <= 1, "duplicate NPMI turn start")
+    _require(len(telemetry_events) <= 1, "duplicate NPMI telemetry")
+    if start is not None:
+        _require(type(declaration) is int and declaration == 1, "NPMI telemetry declaration invalid")
+        # While a turn is still inside its initial lookup/selection, the
+        # finally receipt has not yet been written. Any initial result or
+        # terminal event requires it, including a retained start.
+        downstream = {"memory_observation", "retrieval_record", "knowledge_retrieved", "reply_context",
+                      "bot_reply_decision", "answer_generated", "delivery_start", "answer_delivered", "turn_end",
+                      "requery_action", "requery_retrieval", "requery_evidence", "requery_stop"}
+        if any(e in downstream or f.get("stage") in {"reply", "summary", "query"} for e, f in events):
+            _require(len(telemetry_events) == 1, "NPMI telemetry missing")
+    else:
+        _require(partial, "NPMI telemetry declaration missing")
+        report["warnings"].append("expired_npmi_declaration")
+    if not telemetry_events:
+        return
+    fields = telemetry_events[0]
+    _require(type(fields.get("trace_id")) is str and fields["trace_id"]
+             and fields["trace_id"] == report["trace_id"], "NPMI telemetry trace mismatch")
+    event_id = fields.get("event_id")
+    _require(type(event_id) is str and event_id, "NPMI telemetry event invalid")
+    if start is not None:
+        _require(event_id == start["message_id"], "NPMI telemetry event mismatch")
+    stages = {"turn_start": -2, "model_selection_input": -1, "model_selection_decision": 0,
+              "npmi_retrieval": 0.5, "memory_observation": 1, "retrieval_record": 2,
+              "reply_context": 3, "bot_reply_decision": 4, "answer_generated": 5,
+              "delivery_start": 6, "answer_delivered": 7, "turn_end": 8}
+    present = [stages[e] for e, _ in events if e in stages]
+    _require(present == sorted(present), "NPMI telemetry stage ordering mismatch")
+    graphs = [f["audit"] for e, f in events if e == "memory_observation"]
+    graphs.extend(f["record"]["graph_audit"] for e, f in events if e == "retrieval_record")
+    # A retained active bundle contains the frozen initial round even when
+    # its observation/retrieval events are no longer in the retention window.
+    graphs.extend(f["bundle"]["rounds"][0]["record"]["graph_audit"]
+                  for e, f in events if e == "requery_evidence")
+    graph = graphs[0] if graphs else None
+    if graph is not None:
+        _require(all(g == graph for g in graphs), "NPMI initial graph mismatch")
+        _require(event_id == graph["event_id"], "NPMI telemetry graph event mismatch")
+        validate_graph_audit(graph)
+    else:
+        _require(not any(e == "turn_end" and f.get("status") in {"delivered", "skipped"}
+                         for e, f in events) or partial, "NPMI telemetry initial graph missing")
+        if start is None:
+            report["warnings"].append("expired_npmi_event_binding")
+    telemetry = fields["telemetry"]
+    validate_npmi_telemetry(telemetry, graph=graph)
+    _require(telemetry["retrieval_calls"] <= 1, "NPMI initial retrieval count mismatch")
+    if telemetry["path"] == "not_entered":
+        _require(telemetry["retrieval_calls"] == 0 and not any(telemetry["counters"].values())
+                 and all(not any(item.values()) for item in telemetry["stages"].values()),
+                 "NPMI not-entered counters mismatch")
+    else:
+        _require(telemetry["retrieval_calls"] == 1, "NPMI retrieval path count mismatch")
+    _require((telemetry["status"] == "completed" and telemetry["error_type"] is None)
+             or (telemetry["status"] == "failed" and type(telemetry["error_type"]) is str
+                 and telemetry["error_type"].isidentifier()),
+             "NPMI telemetry error declaration mismatch")
+
+
+def _validate_partial_turn(events, report, *, start=None):
+    stages = {"model_selection_input": -1, "model_selection_decision": 0,
+              "memory_observation": 1, "retrieval_record": 2, "reply_context": 3,
               "bot_reply_decision": 4, "answer_generated": 5, "delivery_start": 6,
               "answer_delivered": 7, "turn_end": 8}
     present = [stages[e] for e, _ in events if e in stages]
@@ -659,6 +1678,9 @@ def _validate_partial_turn(events, report):
             _require(context["retrieval_sha256"] == digest(retrieval), "retained context link mismatch")
             data = json.loads(context["messages"][0]["content"].split("\n", 1)[1])
             _require(data["memory_citations"] == retrieval["model_materials"], "retained model materials mismatch")
+    _validate_model_selection(events, report, start=start,
+                              graph=retrieval["graph_audit"] if retrieval is not None
+                              else observation["audit"] if observation else None, partial=True)
     for stage in ("answer_generated", "answer_delivered"):
         response = by_event.get(stage)
         if response:
@@ -706,11 +1728,63 @@ def _validate_partial_turn(events, report):
     if by_event.get("delivery_start") and generated:
         _require(by_event["delivery_start"]["text"] == generated["record"]["text"], "retained delivery start output mismatch")
     if context:
-        requests = [f for e, f in events if e == "http_request" and f["path"] == "/responses"]
+        provider = _transport_protocol(events)
+        path = _CLAUDE_GENERATE if provider == "anthropic" else "/responses"
+        requests = [f for e, f in events if e == "http_request" and f["path"] == path]
         reply_call_ids = {f["call_id"] for e, f in events if e == "call_end" and f.get("stage") == "reply"}
         for request in requests:
             if request["call_id"] in reply_call_ids:
-                _validate_reply_request(context, request["payload"], bot=bot_data is not None, partial=True)
+                _validate_reply_request(context, request["payload"], bot=bot_data is not None, partial=True, provider=provider)
+
+
+def _validate_failure_notices(events, report=None, *, partial=False):
+    """Bind the versioned public notice to the internal failed-turn reason.
+
+    Unmarked historical receipts keep their original contract. A retained
+    suffix checks available text and explicitly declines a missing end binding.
+    """
+    from .user_notices import NOTICE_POLICY, user_notice
+
+    starts = [f for e, f in events if e == "turn_start"]
+    notices = [(e, f) for e, f in events if e in {
+        "failure_notice_delivered", "failure_notice_unknown", "failure_notice_skipped"}]
+    markers = [f["notice_policy"] for e, f in events
+               if e in {"turn_start", "failure_notice_delivered"} and "notice_policy" in f]
+    if not markers:
+        return
+    _require(all(marker == NOTICE_POLICY for marker in markers), "unknown failure notice policy")
+    _require(all(start.get("notice_policy") == NOTICE_POLICY for start in starts),
+             "failure notice turn policy missing or downgraded")
+    _require(len(notices) <= 1, "duplicate failure notice outcome")
+    if not notices:
+        return
+    ends = [f for e, f in events if e == "turn_end"]
+    _require(len(ends) <= 1, "duplicate failure notice turn end")
+    if ends:
+        _require(ends[0].get("status") == "failed", "failure notice without failed turn")
+        end_at = next(i for i, (e, _) in enumerate(events) if e == "turn_end")
+        notice_at = next(i for i, (e, _) in enumerate(events) if e == notices[0][0])
+        _require(end_at < notice_at, "failure notice precedes failed turn end")
+    else:
+        _require(partial, "failure notice failed turn end missing")
+        if report is not None:
+            report.setdefault("warnings", []).append("expired_failure_notice_binding")
+    event, notice = notices[0]
+    if event != "failure_notice_delivered":
+        return
+    _require(notice.get("notice_policy") == NOTICE_POLICY,
+             "failure notice policy missing or downgraded")
+    reason = notice.get("reason")
+    _require(isinstance(reason, str) and bool(reason), "failure notice reason missing")
+    if ends:
+        _require(reason == ends[0].get("code"), "failure notice reason mismatch")
+    receipt = notice.get("receipt")
+    _require(isinstance(receipt, dict) and set(receipt) == {"ids", "text"},
+             "failure notice receipt schema mismatch")
+    _require(isinstance(receipt["ids"], (list, tuple)) and bool(receipt["ids"])
+             and all(isinstance(identity, str) and bool(identity) for identity in receipt["ids"]),
+             "failure notice receipt identifiers invalid")
+    _require(receipt["text"] == user_notice(reason), "failure notice text mismatch")
 
 
 def verify_runs(paths: list[Path]):
@@ -730,6 +1804,17 @@ def verify_runs(paths: list[Path]):
         for item in read_records(path):
             fields = item["fields"]
             trace = fields.get("trace_id")
+            if item["event"] == "npmi_retrieval" and (type(trace) is not str or not trace):
+                issues.append({"trace_id": None, "reason": "NPMI telemetry trace missing"})
+                continue
+            if item["event"] in {"requery_ledger_io_failure", "requery_ledger_io_recovered"} or "ledger_io_failure" in fields:
+                try:
+                    _validate_ledger_io_fields([(item["event"], fields)])
+                except ValueError as error:
+                    issues.append({"trace_id": trace if type(trace) is str else None,
+                                   "reason": str(error)})
+                    if type(trace) is not str or not trace:
+                        continue
             if trace is not None and (not isinstance(trace, str) or not trace):
                 issues.append({"trace_id": None, "reason": "invalid trace identifier"})
                 continue
@@ -776,17 +1861,21 @@ def verify_runs(paths: list[Path]):
                         _require(end['input_tokens'] == call['result']['input_tokens']
                                  and end['output_tokens'] == call['result']['output_tokens'], 'diagnostic usage mismatch')
                     elif start['kind'] == 'retrieval_reply':
-                        _validate_partial_turn(events, {'warnings': []})
+                        diagnostic_checks = {'warnings': []}
+                        _validate_partial_turn(events, diagnostic_checks)
+                        from .richard_chat_audit import is_richard_trace
+                        if is_richard_trace(events):
+                            _require(not diagnostic_checks['warnings'], 'Richard diagnostic selection evidence incomplete')
                         retrieved = next(f['record'] for e, f in events if e == 'retrieval_record')
-                        context = next(f['messages'] for e, f in events if e == 'reply_context')
-                        request = next(f['payload'] for e, f in events if e == 'http_request' and f['path'] == '/responses')
-                        _require(request['input'] == context, 'diagnostic actual model context mismatch')
+                        provider = _transport_protocol(events)
+                        path = _CLAUDE_GENERATE if provider == 'anthropic' else '/responses'
+                        context_fields = next(f for e, f in events if e == 'reply_context')
+                        request = next(f['payload'] for e, f in events if e == 'http_request' and f['path'] == path)
+                        _validate_reply_request(context_fields, request, provider=provider)
                         generated = next(f for e, f in events if e == 'answer_generated')
                         call = next(f for e, f in events if e == 'call_end')
                         _require(generated['model_result'] == call['result']
                                  and generated['record']['text'] == call['result']['text'], 'diagnostic generated text mismatch')
-                        context_fields = next(f for e, f in events if e == 'reply_context')
-                        _require(request['instructions'] == context_fields['instructions'], 'diagnostic instructions mismatch')
                         _require(end['input_tokens'] == call['result']['input_tokens']
                                  and end['output_tokens'] == call['result']['output_tokens'], 'diagnostic reply usage mismatch')
                         validate_answer(generated['record'], retrieved)
@@ -797,16 +1886,28 @@ def verify_runs(paths: list[Path]):
                     issues.append({'trace_id': trace, 'reason': str(error) if type(error) is ValueError else 'diagnostic schema invalid'})
                 continue
             # Passive label traces do not have conversation stages.
-            is_turn = any(e in {"memory_observation", "retrieval_record", "knowledge_retrieved", "reply_context",
-                                 "bot_reply_decision", "answer_generated", "delivery_start", "answer_delivered", "turn_end"}
-                          or f.get("stage") in {"reply", "summary"} for e, f in events)
+            is_turn = any(e in {"npmi_retrieval", "model_selection_input", "model_selection_decision",
+                                  "memory_observation", "retrieval_record", "knowledge_retrieved", "reply_context",
+                                 "bot_reply_decision", "answer_generated", "delivery_start", "answer_delivered", "turn_end",
+                                 "requery_action", "requery_retrieval", "requery_evidence", "requery_stop",
+                                 "requery_ledger_io_failure", "requery_ledger_io_recovered"}
+                          or f.get("stage") in {"reply", "summary", "selection", "query"} for e, f in events)
             if not is_turn:
                 continue
             report = {"trace_id": trace, "status": "retention_partial", "warnings": ["expired_turn_start"]}
             reports.append(report)
             try:
                 _require(trace in partial_traces, "turn start missing without retention evidence")
-                _validate_partial_turn(events, report)
+                _validate_npmi_execution(events, report, partial=True)
+                _validate_ledger_io_fields(events)
+                _validate_failure_notices(events, report, partial=True)
+                if any(e in {"requery_action", "requery_retrieval", "requery_evidence", "requery_stop",
+                             "requery_ledger_io_failure", "requery_ledger_io_recovered"}
+                       or f.get("stage") == "query" or "bundle_sha256" in f for e, f in events):
+                    from .requery_records import verify_active_turn
+                    verify_active_turn(events, report=report, partial=True)
+                else:
+                    _validate_partial_turn(events, report)
                 _require(not any(c["status"] == "invalid" for c in call_reports if c["trace_id"] == trace),
                          "retained turn has invalid call evidence")
             except (ValueError, KeyError, TypeError, IndexError, AttributeError, OverflowError, ZeroDivisionError) as error:
@@ -815,11 +1916,46 @@ def verify_runs(paths: list[Path]):
             continue
         report = {"trace_id": trace, "status": "legacy", "warnings": []}
         reports.append(report)
+        try:
+            _validate_npmi_execution(events, report, start=starts[0], partial=trace in partial_traces)
+        except (ValueError, KeyError, TypeError, IndexError, AttributeError, OverflowError, ZeroDivisionError) as error:
+            report["status"] = "invalid"
+            issues.append({"trace_id": trace, "reason": str(error) if type(error) is ValueError else "NPMI record schema invalid"})
+            continue
+        if (any(event == "requery_ledger_io_recovered" for event, _ in events)
+                and starts[0].get("run_record_version") != 3):
+            report["status"] = "invalid"
+            issues.append({"trace_id": trace, "reason": "ledger I/O recovery active turn declaration missing"})
+            continue
+        if starts[0].get("run_record_version") == 3:
+            try:
+                from .requery_records import verify_active_turn
+                _require(len(starts) == 1, "duplicate active turn start")
+                _validate_ledger_io_fields(events)
+                _validate_failure_notices(events, report, partial=trace in partial_traces)
+                verify_active_turn(events, starts[0], report, partial=trace in partial_traces)
+                _require(not any(c["status"] == "invalid" for c in call_reports if c["trace_id"] == trace),
+                         "active turn has invalid call evidence")
+            except (ValueError, KeyError, TypeError, IndexError, AttributeError, OverflowError, ZeroDivisionError) as error:
+                report["status"] = "invalid"
+                issues.append({"trace_id": trace, "reason": str(error) if type(error) is ValueError else "active record schema invalid"})
+            continue
         if starts[0].get("run_record_version") != 1:
             continue
         report["status"] = "incomplete"
         try:
             _require(len(starts) == 1, "duplicate turn start")
+            _validate_ledger_io_fields(events)
+            _validate_failure_notices(events, report, partial=trace in partial_traces)
+            if trace in partial_traces and (starts[0].get("model_selection_policy") is not None
+                    or any(e in {"model_selection_input", "model_selection_decision"}
+                           or f.get("stage") == "selection" for e, f in events)):
+                _validate_partial_turn(events, report, start=starts[0])
+                _require(not any(c["status"] == "invalid" for c in call_reports if c["trace_id"] == trace),
+                         "retained turn has invalid call evidence")
+                report["status"] = "retention_partial"
+                report["warnings"].append("retained_model_selection_contract")
+                continue
             ends = [f for e, f in events if e == "turn_end"]
             retrievals = [f for e, f in events if e == "retrieval_record"]
             generated = [f for e, f in events if e == "answer_generated"]
@@ -834,7 +1970,8 @@ def verify_runs(paths: list[Path]):
             is_bot = starts[0]["input"].get("author_is_bot", False)
             _require(type(is_bot) is bool, "turn bot author flag invalid")
             _require(not decisions or is_bot, "bot decision has no bot author declaration")
-            stage_order = {"turn_start": 0, "memory_observation": 1, "retrieval_record": 2,
+            stage_order = {"turn_start": -2, "model_selection_input": -1, "model_selection_decision": 0,
+                           "memory_observation": 1, "retrieval_record": 2,
                            "reply_context": 3, "bot_reply_decision": 4, "answer_generated": 5,
                            "delivery_start": 6, "answer_delivered": 7, "turn_end": 8}
             stages = [stage_order[e] for e, _ in events if e in stage_order]
@@ -869,6 +2006,9 @@ def verify_runs(paths: list[Path]):
                     raise ValueError("delivery without generated answer")
             else:
                 _require(not generated and not delivered and not decisions, "answer/decision without retrieval")
+            _validate_model_selection(events, report, start=starts[0],
+                                      graph=retrieval["graph_audit"] if retrievals
+                                      else observations[0]["audit"] if observations else None)
             bot_data = None
             if decisions:
                 _require(len(retrievals) == len(model_inputs) == 1, "bot decision missing input evidence")
@@ -909,9 +2049,11 @@ def verify_runs(paths: list[Path]):
                 _require(generated[0]["model_result"] == calls[0]["result"], "generated model receipt mismatch")
                 _require(not any(c["status"] != "complete" for c in call_reports if c["trace_id"] == trace),
                          "delivered turn has incomplete/failed call evidence")
-                requests = [f for e, f in events if e == "http_request" and f["call_id"] == calls[0]["call_id"] and f["path"] == "/responses"]
+                provider = _transport_protocol(events)
+                path = _CLAUDE_GENERATE if provider == "anthropic" else "/responses"
+                requests = [f for e, f in events if e == "http_request" and f["call_id"] == calls[0]["call_id"] and f["path"] == path]
                 _require(len(requests) == 1, "actual adaptor input mismatch")
-                _validate_reply_request(model_inputs[0], requests[0]["payload"], bot=is_bot)
+                _validate_reply_request(model_inputs[0], requests[0]["payload"], bot=is_bot, provider=provider)
                 report["status"] = "complete"
             elif ends[0]["status"] == "skipped":
                 _require(is_bot and bot_data is not None and bot_data["action"] == "skip"
@@ -1138,13 +2280,14 @@ def validate_graph_audit(audit, retrieval=None):
                  and candidate["effective_score"] == sum(e["effective_score"] for e in evidence)
                  and candidate["static_score"] == sum(e["static_score"] for e in evidence)
                  and candidate["dynamic_score"] == round(sum(e["dynamic_score"] for e in evidence), 6), "ranking arithmetic mismatch")
+    selected_candidates = _validate_selection_contract(audit, retrieval)
     if retrieval is None:
         return
     materials = retrieval["materials"]
     _require(selection["selected_record_ids"] == [m["record_id"] for m in materials]
-             == [c["record_id"] for c in ranked[:3]], "selected ranking mismatch")
+             == [c["record_id"] for c in selected_candidates], "selected ranking mismatch")
     _require(len(selection["selected"]) == len(materials), "selected receipt mismatch")
-    for material, selected, candidate in zip(materials, selection["selected"], ranked):
+    for material, selected, candidate in zip(materials, selection["selected"], selected_candidates):
         if concept:
             from .relevance import metadata_factor, contains
             inputs = candidate['relevance_inputs']

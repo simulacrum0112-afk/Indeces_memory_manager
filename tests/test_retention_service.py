@@ -67,6 +67,9 @@ class RetentionServiceTests(unittest.IsolatedAsyncioTestCase):
         self.store.close.side_effect = lambda: self.order.append("store_close")
         self.lease.close.side_effect = lambda: self.order.append("lease_close")
         self.bridge.run = AsyncMock()
+        self.observer = Mock()
+        self.observer.start.return_value = "synthetic observer disabled"
+        self.observer.close.side_effect = lambda: self.order.append("observer_close")
 
     def patched_service(self, *, interval=0.001):
         stack = ExitStack()
@@ -80,10 +83,11 @@ class RetentionServiceTests(unittest.IsolatedAsyncioTestCase):
         stack.enter_context(patch.object(console, "InstanceLock", side_effect=acquire))
         stack.enter_context(patch.object(console, "ScratchLog", side_effect=scratch))
         stack.enter_context(patch.object(console, "Store", return_value=self.store))
-        stack.enter_context(patch.object(console, "OpenAIAdapter", return_value=self.adapter))
+        stack.enter_context(patch.object(console, "create_model_adapter", return_value=self.adapter))
         stack.enter_context(patch.object(console, "Runtime", return_value=Mock(graph=object())))
         stack.enter_context(patch.object(console, "KnowledgeService", return_value=self.knowledge))
         stack.enter_context(patch.object(console, "DiscordBridge", return_value=self.bridge))
+        self.observer_factory = stack.enter_context(patch.object(console, "ObserverServer", return_value=self.observer))
         stack.enter_context(patch.object(console, "RETENTION_MAINTENANCE_SECONDS", interval))
         self.output = stack.enter_context(redirect_stdout(io.StringIO()))
         return stack
@@ -94,6 +98,9 @@ class RetentionServiceTests(unittest.IsolatedAsyncioTestCase):
     def assert_cleanup(self):
         for resource in (self.bridge, self.knowledge, self.adapter):
             resource.close.assert_awaited_once()
+        self.observer_factory.assert_called_once_with(self.config)
+        self.observer.start.assert_called_once_with()
+        self.observer.close.assert_called_once_with()
         self.store.close.assert_called_once()
         self.lease.close.assert_called_once()
         self.assertTrue(self.scratch.closed)

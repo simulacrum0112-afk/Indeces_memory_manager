@@ -44,7 +44,7 @@ class ObserverServiceTests(unittest.IsolatedAsyncioTestCase):
         stack.enter_context(patch.object(console, "InstanceLock", return_value=self.lease))
         stack.enter_context(patch.object(console, "ScratchLog", return_value=self.scratch))
         stack.enter_context(patch.object(console, "Store", return_value=self.store))
-        stack.enter_context(patch.object(console, "OpenAIAdapter", return_value=self.adapter))
+        stack.enter_context(patch.object(console, "create_model_adapter", return_value=self.adapter))
         stack.enter_context(patch.object(console, "Runtime", return_value=Mock(graph=object())))
         stack.enter_context(patch.object(console, "KnowledgeService", return_value=self.knowledge))
         stack.enter_context(patch.object(console, "DiscordBridge", return_value=self.bridge))
@@ -172,7 +172,7 @@ class ObserverStandaloneTests(unittest.TestCase):
         self.addCleanup(lease.close)
         with patch.object(observer, "ObserverServer", return_value=self.observer), \
                 patch.object(observer, "prepare_scratch_directory") as prepare, \
-                patch.object(console, "OpenAIAdapter") as adapter, patch.object(console, "DiscordBridge") as bridge, \
+                patch.object(console, "create_model_adapter") as adapter, patch.object(console, "DiscordBridge") as bridge, \
                 redirect_stdout(io.StringIO()) as output:
             observer.observe(self.config)
         prepare.assert_called_once_with(self.config.scratch_dir)

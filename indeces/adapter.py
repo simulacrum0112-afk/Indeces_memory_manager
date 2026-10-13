@@ -253,7 +253,11 @@ class OpenAIAdapter:
         if schema is not None:
             common["text"]["format"] = {"type": "json_schema", "name": stage, "strict": True, "schema": schema}
         try:
-            async with asyncio.timeout(budget.seconds):
+            # Translate the remaining original stage ceiling to the loop clock.
+            # Synchronous admission work must not start a second full budget;
+            # the two monotonic clocks need not share an absolute origin.
+            timeout_deadline = asyncio.get_running_loop().time() + max(0.0, progress.deadline - time.monotonic())
+            async with asyncio.timeout_at(timeout_deadline):
                 async with self._lock:
                     progress.slot_wait_seconds = time.monotonic() - progress.slot_wait_started
                     progress.phase = "slot_acquired"
@@ -323,8 +327,13 @@ class OpenAIAdapter:
                     result = ModelResult(text, inp, out, str(data.get("id", "")), elapsed)
         except asyncio.CancelledError as error:
             progress.annotate_error(error)
-            self._record_end(progress, audit, trace_id=trace_id, call_id=call_id, stage=stage,
-                             status="cancelled", elapsed_seconds=time.monotonic() - started)
+            try:
+                self._record_end(progress, audit, trace_id=trace_id, call_id=call_id, stage=stage,
+                                 status="cancelled", elapsed_seconds=time.monotonic() - started)
+            except BaseException:
+                # A failed terminal sink must not replace caller cancellation.
+                # Keep its original object/usage receipt; never retry either sink.
+                pass
             raise
         except (TimeoutError, GovernedError) as error:
             code = error.code if isinstance(error, GovernedError) else "stage_timeout"

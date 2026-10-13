@@ -19,6 +19,7 @@ from indeces.contracts import DeliveryReceipt, FailureNotice, GovernedError, Inc
 from indeces.run_records import verify_runs
 from indeces.runtime import Runtime
 from indeces.scratch import ScratchLog, canonical, verify
+from indeces.user_notices import user_notice
 from tests.test_run_records import RecordFixture
 
 
@@ -225,7 +226,8 @@ class ContextProjectionRuntimeTests(RecordFixture, unittest.IsolatedAsyncioTestC
                 self.assertEqual(requests, [])
                 self.assertEqual(len(deliveries), 1)
                 self.assertIsInstance(deliveries[0], FailureNotice)
-                self.assertIn("fixed_context_too_large", deliveries[0].text)
+                self.assertEqual(deliveries[0].text, user_notice("fixed_context_too_large"))
+                self.assertNotIn("fixed_context_too_large", deliveries[0].text)
                 self.assertEqual(self.fields(entries, "turn_start")[0]["input"]["text"], text)
                 self.assertEqual(self.fields(entries, "turn_start")[0]["input"]["raw_text"], current.raw_text)
                 self.assertEqual(self.fields(entries, "retrieval_record")[0]["record"]["query"], text)

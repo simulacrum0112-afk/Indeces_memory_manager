@@ -17,7 +17,7 @@ import time
 import uuid
 
 from .adapter import OpenAIAdapter
-from .config import Budget, load_config
+from .config import Budget, load_config, guard_trial_maintenance
 from .context import encode
 from .contracts import GovernedError, validated_token_usage
 from .credentials import load_openai_key, validate_api_key
@@ -68,13 +68,18 @@ class BoundedReingest:
     """Caller owns InstanceLock for this object's entire lifetime."""
 
     def __init__(self, config, db, graph, adapter, scratch, *, initialize=True):
+        self._read_only = not initialize and adapter is None
+        if initialize:
+            guard_trial_maintenance(config)
+            if getattr(config.adapter, "provider", "openai") != "openai":
+                raise ValueError("claude_paid_maintenance_unsupported")
         validate_runtime_paths(config)
         if config.knowledge.chunk_characters != 400:
             raise ValueError("maintenance requires the unchanged 400-character baseline")
         budget = config.adapter.budgets["label"]
-        if (budget.input_tokens, budget.output_tokens, budget.reasoning) != (4096, 512, "medium"):
+        if not self._read_only and (budget.input_tokens, budget.output_tokens, budget.reasoning) != (4096, 512, "medium"):
             raise ValueError("maintenance requires the unchanged label baseline")
-        if config.adapter.model != "gpt-6.1-sol" or config.adapter.verbosity != "high":
+        if not self._read_only and (config.adapter.model != "gpt-6.1-sol" or config.adapter.verbosity != "high"):
             raise ValueError("maintenance requires the unchanged model/verbosity baseline")
         self.config, self.db, self.graph = config, db, graph
         self.adapter, self.scratch = adapter, scratch
@@ -481,6 +486,11 @@ class BoundedReingest:
         self._assert_old(document["batch_id"])
 
     async def run(self, batch_id, *, phase="pilot", resume_known=False):
+        if self._read_only:
+            raise ValueError("maintenance_read_only")
+        guard_trial_maintenance(self.config)
+        if getattr(self.config.adapter, "provider", "openai") != "openai":
+            raise ValueError("claude_paid_maintenance_unsupported")
         if phase not in {"pilot", "complete"}:
             raise ValueError("phase must be pilot or complete")
         self._assert_old(batch_id)
@@ -542,6 +552,10 @@ class BoundedReingest:
 
 async def maintenance(config_path, *, source_ids=None, batch_id=None, phase="pilot", operator_confirmed=False, resume_known=False):
     config = load_config(config_path)
+    if phase != "status":
+        guard_trial_maintenance(config)
+        if getattr(config.adapter, "provider", "openai") != "openai":
+            raise ValueError("claude_paid_maintenance_unsupported")
     validate_runtime_paths(config)
     lease = InstanceLock(config.state_dir)
     db = adapter = scratch = None

@@ -27,6 +27,16 @@ class DeliveryReceipt:
     text: str
 
 
+class ConfirmedDeliveryPersistenceError(RuntimeError):
+    """Delivery happened; required local recording failed and work must stop."""
+
+    def __init__(self, message_id: str, receipt_ids: tuple[str, ...], *, receipt: DeliveryReceipt | None = None):
+        self.message_id = message_id
+        self.receipt_ids = receipt_ids
+        self.receipt = receipt
+        super().__init__("confirmed_delivery_persistence_failed")
+
+
 @dataclass(frozen=True)
 class FailureNotice:
     """A fixed failure receipt, never a model answer or continuation prompt."""

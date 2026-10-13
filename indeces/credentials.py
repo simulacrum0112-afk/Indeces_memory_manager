@@ -21,6 +21,9 @@ _MAGIC = b"INDECES-DISCORD-DPAPI\x00\x01"
 _ENTROPY = b"Indeces_memory_manager.discord.credentials.v1"
 _OPENAI_MAGIC = b"INDECES-OPENAI-DPAPI\x00\x01"
 _OPENAI_ENTROPY = b"Indeces_memory_manager.openai.credentials.v1"
+_ANTHROPIC_MAGIC = b"INDECES-ANTHROPIC-DPAPI\x00\x01"
+_ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1"
+_ANTHROPIC_ENTROPY = b"Indeces_memory_manager.anthropic.https://api.anthropic.com/v1.credentials.v1"
 _MAX_CIPHERTEXT = 64 * 1024
 _CODES = frozenset({
     "invalid_token", "invalid_guild_id", "invalid_api_key", "unsupported_platform",
@@ -45,6 +48,10 @@ def secret_path(config_path: Path) -> Path:
 
 def openai_secret_path(config_path: Path) -> Path:
     return Path(config_path).with_suffix(".openai.secret")
+
+
+def anthropic_secret_path(config_path: Path) -> Path:
+    return Path(config_path).with_suffix(".anthropic.secret")
 
 
 def prompt_secret(prompt: str) -> str:
@@ -155,6 +162,14 @@ def _protect_openai(data: bytes) -> bytes:
 
 def _unprotect_openai(data: bytes) -> bytes:
     return _crypt(data, protect=False, entropy=_OPENAI_ENTROPY)
+
+
+def _protect_anthropic(data: bytes) -> bytes:
+    return _crypt(data, protect=True, entropy=_ANTHROPIC_ENTROPY)
+
+
+def _unprotect_anthropic(data: bytes) -> bytes:
+    return _crypt(data, protect=False, entropy=_ANTHROPIC_ENTROPY)
 
 
 def _check_secret_path(path: Path) -> None:
@@ -373,6 +388,119 @@ def load_openai_key(config_path: Path) -> str | None:
         if (not isinstance(raw, dict) or set(raw) != {"version", "provider", "api_key"}
                 or type(raw["version"]) is not int or raw["version"] != 1
                 or raw["provider"] != "openai"):
+            raise CredentialError("credential_corrupt")
+        key = validate_api_key(raw["api_key"])
+        if key != raw["api_key"]:
+            raise CredentialError("credential_corrupt")
+    except CredentialError as error:
+        failure = "credential_corrupt" if error.code == "invalid_api_key" else error.code
+    except (UnicodeError, json.JSONDecodeError, TypeError, RecursionError):
+        failure = "credential_corrupt"
+    except OSError:
+        failure = "credential_read_failed"
+    except Exception:
+        failure = "credential_unprotect_failed"
+    finally:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+    if failure is not None:
+        raise CredentialError(failure)
+    return key
+
+
+def _check_anthropic_secret_path(path: Path) -> None:
+    # The existing provider path check is provider-independent. Keep it intact
+    # for OpenAI while using the same regular-file and parent boundary here.
+    _check_openai_secret_path(path)
+
+
+def save_anthropic_key(config_path: Path, key: str) -> None:
+    """Save an official Anthropic key in a separate current-user DPAPI vault.
+
+    The endpoint is fixed in both DPAPI entropy and the encrypted payload.
+    Models can share this provider key; OpenAI ciphertext is never touched.
+    """
+    key = validate_api_key(key)
+    path = anthropic_secret_path(config_path)
+    temporary: str | None = None
+    fd: int | None = None
+    failure: str | None = None
+    try:
+        _check_anthropic_secret_path(path)
+        payload = json.dumps({"version": 1, "provider": "anthropic",
+                              "base_url": _ANTHROPIC_BASE_URL, "api_key": key},
+                             separators=(",", ":")).encode("utf-8")
+        ciphertext = _protect_anthropic(payload)
+        if not isinstance(ciphertext, bytes) or not 0 < len(ciphertext) <= _MAX_CIPHERTEXT:
+            raise CredentialError("credential_protect_failed")
+        fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+        stream = os.fdopen(fd, "wb")
+        fd = None
+        with stream:
+            stream.write(_ANTHROPIC_MAGIC + ciphertext)
+            stream.flush()
+            os.fsync(stream.fileno())
+        _check_anthropic_secret_path(path)
+        os.replace(temporary, path)
+        temporary = None
+    except CredentialError as error:
+        failure = error.code
+    except Exception:
+        failure = "credential_save_failed"
+    finally:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        if temporary is not None:
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
+    if failure is not None:
+        raise CredentialError(failure)
+
+
+def load_anthropic_key(config_path: Path) -> str | None:
+    """Load only the official Anthropic provider's bounded encrypted payload."""
+    path = anthropic_secret_path(config_path)
+    failure: str | None = None
+    key = None
+    fd: int | None = None
+    try:
+        _check_anthropic_secret_path(path)
+        flags = (os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+                 | getattr(os, "O_NONBLOCK", 0))
+        try:
+            fd = os.open(path, flags)
+        except FileNotFoundError:
+            return None
+        stream = os.fdopen(fd, "rb")
+        fd = None
+        with stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode):
+                raise CredentialError("credential_unsafe_path")
+            _check_anthropic_secret_path(path)
+            current = path.lstat()
+            if (info.st_dev, info.st_ino) != (current.st_dev, current.st_ino):
+                raise CredentialError("credential_unsafe_path")
+            contents = stream.read(len(_ANTHROPIC_MAGIC) + _MAX_CIPHERTEXT + 1)
+        if (not contents.startswith(_ANTHROPIC_MAGIC)
+                or not 0 < len(contents) - len(_ANTHROPIC_MAGIC) <= _MAX_CIPHERTEXT):
+            raise CredentialError("credential_corrupt")
+        plaintext = _unprotect_anthropic(contents[len(_ANTHROPIC_MAGIC):])
+        if not isinstance(plaintext, bytes) or not 0 < len(plaintext) <= 16 * 1024:
+            raise CredentialError("credential_corrupt")
+        raw = json.loads(plaintext.decode("utf-8"), object_pairs_hook=_unique_object,
+                         parse_constant=_reject_json_constant)
+        if (not isinstance(raw, dict) or set(raw) != {"version", "provider", "base_url", "api_key"}
+                or type(raw["version"]) is not int or raw["version"] != 1
+                or raw["provider"] != "anthropic" or raw["base_url"] != _ANTHROPIC_BASE_URL):
             raise CredentialError("credential_corrupt")
         key = validate_api_key(raw["api_key"])
         if key != raw["api_key"]:

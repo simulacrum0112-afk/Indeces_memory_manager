@@ -35,7 +35,7 @@ class MaintenanceTests(unittest.IsolatedAsyncioTestCase):
         knowledge = SimpleNamespace(retry_failed=lambda *args, **kwargs: {"queued": [], "blocked": [], "unchanged": []}, close=knowledge_close)
         with patch("indeces.config.load_config", return_value=config), patch("indeces.ingest.InstanceLock", return_value=lease), \
              patch("indeces.ingest.Store", return_value=store), patch("indeces.ingest.MemoryGraph"), \
-             patch("indeces.ingest.ScratchLog", return_value=scratch), patch("indeces.ingest.OpenAIAdapter", return_value=SimpleNamespace(close=adapter_close)), \
+             patch("indeces.ingest.ScratchLog", return_value=scratch), patch("indeces.ingest.create_model_adapter", return_value=SimpleNamespace(close=adapter_close)), \
              patch("indeces.ingest.KnowledgeService", return_value=knowledge):
             task = asyncio.create_task(retry_ingestion(config, Path("unused"), key="synthetic-maintenance-key"))
             await asyncio.wait_for(entered.wait(), timeout=5)
@@ -79,7 +79,7 @@ class MaintenanceTests(unittest.IsolatedAsyncioTestCase):
             async def close():
                 pass
             replacement.close = close
-            with patch("indeces.ingest.OpenAIAdapter", return_value=replacement):
+            with patch("indeces.ingest.create_model_adapter", return_value=replacement):
                 result = await retry_ingestion(config, path, paths=["failed.md"], key="synthetic-maintenance-key")
                 second = await retry_ingestion(config, path, paths=["failed.md"], key="synthetic-maintenance-key")
             self.assertEqual(len(replacement.calls), 1)

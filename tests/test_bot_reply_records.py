@@ -23,6 +23,7 @@ from indeces.run_records import answer_record, verify_runs
 from indeces.runtime import Runtime
 from indeces.scratch import ScratchLog, verify
 from indeces.store import Store
+from indeces.user_notices import user_notice
 
 
 class BotReplyRecordTests(unittest.IsolatedAsyncioTestCase):
@@ -291,7 +292,8 @@ class BotReplyRecordTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(report["counts"]["skipped"], 0)
         self.assertEqual(report["issues"], [])
         self.assertEqual(len(deliveries), 1)
-        self.assertIn("invalid_bot_reply_decision", deliveries[0])
+        self.assertEqual(deliveries[0], user_notice("invalid_bot_reply_decision"))
+        self.assertNotIn("invalid_bot_reply_decision", deliveries[0])
         self.assertNotIn("<@", deliveries[0])
         self.assertEqual(self.event(entries, "failure_notice_delivered")["receipt"]["text"], deliveries[0])
         self.assertNotIn("bot_reply_decision", {item["event"] for item in entries})

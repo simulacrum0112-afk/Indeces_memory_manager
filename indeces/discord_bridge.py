@@ -15,7 +15,8 @@ import time
 from typing import Any
 
 from .bot_conversations import BotConversationGate, ROUND_LIMIT
-from .contracts import DeliveryReceipt, FailureNotice, GovernedError, IncomingMessage
+from .config import controlled_session_enabled
+from .contracts import ConfirmedDeliveryPersistenceError, DeliveryReceipt, FailureNotice, GovernedError, IncomingMessage
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -105,6 +106,7 @@ class DiscordBridge:
 
     def __init__(self, config: Any, runtime: Any, scratch: Any, *, bot_gate: BotConversationGate | None = None) -> None:
         self.config = config.discord
+        self._controlled_session = controlled_session_enabled(config)
         self._queue_wait_seconds = config.runtime.queue_wait_seconds
         self.runtime = runtime
         self.scratch = scratch
@@ -119,6 +121,7 @@ class DiscordBridge:
         self._shutdown_requested = False
         self._shutdown_lock = asyncio.Lock()
         self._shutdown_task: asyncio.Task[None] | None = None
+        self._shutdown_error: BaseException | None = None
         self._worker_failed = asyncio.Event()
         self._worker_error: BaseException | None = None
         self._delivery_audit_error: Exception | None = None
@@ -127,6 +130,8 @@ class DiscordBridge:
         """Admit one selected message without blocking the Gateway event loop."""
         incoming = select_messages(message, bot_id, self.config)
         if incoming is None:
+            return False
+        if not self._session_active():
             return False
         if not self._accepting or self._worker is None or self._worker.done():
             self.scratch.write("discord_message_rejected", message_id=incoming.message_id, reason="not_running")
@@ -172,6 +177,47 @@ class DiscordBridge:
         self._queue.put_nowait(_Envelope(incoming, message, bot_round=admission.round))
         return True
 
+    def _session_active(self) -> bool:
+        if not self._controlled_session:
+            return True
+        check = getattr(self.runtime, "session_stop_error", None)
+        try:
+            error = check() if callable(check) else GovernedError("session_lifecycle_required")
+            if error is not None and not isinstance(error, BaseException):
+                raise TypeError("invalid controlled-session stop result")
+        except BaseException as failure:
+            error = failure
+        if error is None:
+            return True
+        # Close intake and signal the owner before any fallible diagnostic.
+        self._accepting = False
+        if self._worker_error is None:
+            self._worker_error = error
+        self._worker_failed.set()
+        while True:
+            try:
+                pending = self._queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+            try:
+                self.scratch.write("discord_message_dropped",
+                    message_id=pending.incoming.message_id,
+                    channel_id=pending.incoming.channel_id,
+                    reason="controlled_session_stopped")
+            except BaseException:
+                pass
+            finally:
+                self._queue.task_done()
+        try:
+            self.scratch.write("controlled_session_stopped",
+                code=getattr(error, "code", type(error).__name__),
+                stop_error_remote_usage_unknown=getattr(error, "remote_usage_unknown", False),
+                session_usage_unknown=getattr(self.runtime, "session_usage_unknown", None),
+                intake_closed=True)
+        except BaseException:
+            pass
+        return False
+
     def _fail_intake(self, error: Exception, message_id: str) -> None:
         self._accepting = False
         self._worker_error = error
@@ -189,6 +235,7 @@ class DiscordBridge:
             raise RuntimeError("Discord worker is already running")
         self._shutdown_requested = False
         self._shutdown_task = None
+        self._shutdown_error = None
         self._worker_failed.clear()
         self._worker_error = None
         self._delivery_audit_error = None
@@ -200,7 +247,7 @@ class DiscordBridge:
         if worker is not self._worker or self._shutdown_requested:
             return
         self._accepting = False
-        error = None if worker.cancelled() else worker.exception()
+        error = self._worker_error if worker.cancelled() else worker.exception()
         self._worker_error = error or RuntimeError("Discord worker stopped unexpectedly")
         self._worker_failed.set()
         # The sink that caused the worker to stop may itself be unavailable.
@@ -210,7 +257,11 @@ class DiscordBridge:
     async def _consume(self) -> None:
         while not self._shutdown_requested:
             envelope = await self._queue.get()
+            if not self._session_active():
+                self._queue.task_done()
+                raise self._worker_error
             incoming = envelope.incoming
+            confirmed_receipt = None
             try:
                 wait_seconds = time.monotonic() - envelope.queued_at
                 if wait_seconds >= self._queue_wait_seconds:
@@ -227,14 +278,48 @@ class DiscordBridge:
                 self.scratch.write("discord_runtime_started", message_id=incoming.message_id)
 
                 async def deliver(text: str | FailureNotice, _envelope: _Envelope = envelope) -> DeliveryReceipt:
-                    return await self._deliver(_envelope, text)
+                    nonlocal confirmed_receipt
+                    confirmed_receipt = await self._deliver(_envelope, text)
+                    return confirmed_receipt
 
                 await self.runtime.process(incoming, deliver)
                 self.scratch.write("discord_runtime_finished", message_id=incoming.message_id)
-            except asyncio.CancelledError:
-                self.scratch.write("discord_runtime_cancelled", message_id=incoming.message_id, reason="shutdown")
+            except asyncio.CancelledError as error:
+                if getattr(error, "confirmed_delivery_receipt", None) is not None:
+                    self._accepting = False
+                    self._worker_error = error
+                    self._worker_failed.set()
+                    try:
+                        self.scratch.write("discord_runtime_cancelled", message_id=incoming.message_id, reason="shutdown")
+                    except Exception:
+                        pass
+                else:
+                    self.scratch.write("discord_runtime_cancelled", message_id=incoming.message_id, reason="shutdown")
+                raise
+            except ConfirmedDeliveryPersistenceError as error:
+                # Close intake before any diagnostic write: that sink may be
+                # the original fault, and a confirmed send cannot be undone.
+                self._accepting = False
+                self._worker_error = error
+                self._worker_failed.set()
+                try:
+                    self.scratch.write("discord_runtime_failed", message_id=incoming.message_id,
+                                       error_type=type(error).__name__, error=str(error))
+                except Exception:
+                    pass
                 raise
             except Exception as error:
+                if confirmed_receipt is not None:
+                    failure = ConfirmedDeliveryPersistenceError(incoming.message_id, tuple(confirmed_receipt.message_ids), receipt=confirmed_receipt)
+                    self._accepting = False
+                    self._worker_error = failure
+                    self._worker_failed.set()
+                    try:
+                        self.scratch.write("discord_runtime_failed", message_id=incoming.message_id,
+                                           error_type=type(failure).__name__, error=str(failure))
+                    except Exception:
+                        pass
+                    raise failure from error
                 self.scratch.write(
                     "discord_runtime_failed", message_id=incoming.message_id,
                     error_type=type(error).__name__, error=str(error),
@@ -242,10 +327,16 @@ class DiscordBridge:
                 _LOGGER.exception("Discord runtime failed for message %s", incoming.message_id)
             finally:
                 self._queue.task_done()
+                confirmed_receipt = None
             if self._delivery_audit_error is not None:
                 # Return the confirmed receipt to Runtime before stopping the
                 # transport. A local audit failure cannot undo remote delivery.
                 raise RuntimeError("Discord confirmed-delivery audit failed") from self._delivery_audit_error
+            # Runtime has settled its original turn, including at most its
+            # original failure notice. Do not reinterpret that receipt as
+            # a persistence fault when stopping the remaining session.
+            if not self._session_active():
+                raise self._worker_error
 
     async def _deliver(self, envelope: _Envelope, text: str | FailureNotice) -> DeliveryReceipt:
         if self._shutdown_requested:
@@ -326,28 +417,42 @@ class DiscordBridge:
         except Exception as error:
             self._delivery_audit_error = error
             self._accepting = False
-            _LOGGER.error("Discord delivery confirmed; audit failed (%s); message intake closed",
-                          type(error).__name__)
+            try:
+                _LOGGER.error("Discord delivery confirmed; audit failed (%s); message intake closed",
+                              type(error).__name__)
+            except Exception:
+                # A diagnostic failure cannot erase a confirmed remote receipt.
+                pass
         return receipt
 
     async def _shutdown_worker(self) -> None:
-        # All callers share one physical cleanup. Cancelling a caller must not
-        # release the service's resources while the consumer still owns them.
+        # All callers share one physical cleanup. An interrupted caller waits
+        # for that cleanup and then retains its first cancellation object.
         if self._shutdown_task is None:
             self._shutdown_task = asyncio.create_task(self._shutdown_worker_impl(), name="indeces-discord-shutdown")
-        interrupted = False
+        interrupted: BaseException | None = None
         while not self._shutdown_task.done():
             try:
                 await asyncio.shield(self._shutdown_task)
-            except asyncio.CancelledError:
-                interrupted = True
-            except Exception:
-                break
+            except asyncio.CancelledError as error:
+                if not self._shutdown_task.cancelled() and interrupted is None:
+                    interrupted = error
+            except BaseException as error:
+                if self._shutdown_task.done():
+                    break
+                if interrupted is None:
+                    interrupted = error
+        cleanup_error = None
         try:
             self._shutdown_task.result()
-        finally:
-            if interrupted:
-                raise asyncio.CancelledError
+        except BaseException as error:
+            if self._shutdown_error is None:
+                self._shutdown_error = error
+            cleanup_error = self._shutdown_error
+        if interrupted is not None:
+            raise interrupted
+        if cleanup_error is not None:
+            raise cleanup_error
 
     async def _shutdown_worker_impl(self) -> None:
         async with self._shutdown_lock:
@@ -366,12 +471,13 @@ class DiscordBridge:
                         "discord_message_dropped", message_id=envelope.incoming.message_id,
                         channel_id=envelope.incoming.channel_id, reason="shutdown_before_processing",
                     )
-                except Exception as error:
+                except BaseException as error:
                     audit_errors.append(error)
                 finally:
                     self._queue.task_done()
             if self._worker is None:
                 if audit_errors:
+                    self._shutdown_error = audit_errors[0]
                     raise audit_errors[0]
                 return
             worker = self._worker
@@ -382,9 +488,12 @@ class DiscordBridge:
                 if pending:
                     try:
                         self.scratch.write("discord_shutdown_incomplete", reason="worker_ignored_cancellation", timeout_seconds=timeout)
-                    except Exception as error:
+                    except BaseException as error:
                         audit_errors.append(error)
-                    _LOGGER.error("Discord worker did not stop within %.3f seconds; waiting for physical exit before releasing resources", timeout)
+                    try:
+                        _LOGGER.error("Discord worker did not stop within %.3f seconds; waiting for physical exit before releasing resources", timeout)
+                    except BaseException as error:
+                        audit_errors.append(error)
                     # This is a diagnostic checkpoint, not a hard preemption.
                     # Retain the storage lock and underlying resources until
                     # the actual worker exits, even if it ignores cancellation.
@@ -394,10 +503,11 @@ class DiscordBridge:
                 error = worker.exception()
                 try:
                     self.scratch.write("discord_worker_failed", error_type=type(error).__name__, error=str(error))
-                except Exception as audit_error:
+                except BaseException as audit_error:
                     audit_errors.append(audit_error)
             self._worker = None
             if audit_errors:
+                self._shutdown_error = audit_errors[0]
                 raise audit_errors[0]
 
     async def close(self) -> None:
@@ -427,11 +537,32 @@ class DiscordBridge:
                 if self.user is not None:
                     owner.enqueue(message, str(self.user.id))
 
+            async def __aexit__(self, exc_type, primary_error, traceback):
+                try:
+                    return await super().__aexit__(exc_type, primary_error, traceback)
+                except BaseException as error:
+                    if owner._shutdown_error is None:
+                        owner._shutdown_error = error
+                    if primary_error is None:
+                        raise
+                    # The context body owns its original operational failure.
+                    return False
+
             async def close(self) -> None:
+                cleanup_error = None
                 try:
                     await owner._shutdown_worker()
-                finally:
+                except BaseException as error:
+                    cleanup_error = error
+                try:
                     await super().close()
+                except BaseException as error:
+                    if cleanup_error is None:
+                        cleanup_error = error
+                if cleanup_error is not None:
+                    if owner._shutdown_error is None:
+                        owner._shutdown_error = cleanup_error
+                    raise cleanup_error
 
         # Mention-only content is available without privileged MESSAGE_CONTENT.
         intents = discord.Intents.none()
@@ -449,6 +580,7 @@ class DiscordBridge:
         self._worker_failed.clear()
         self._worker_error = None
         gateway_task = failure_task = None
+        escaping_primary = None
         try:
             async with client:
                 self.scratch.write("discord_connecting", guild_id=self.config.guild_id)
@@ -464,9 +596,17 @@ class DiscordBridge:
                         if not task.done():
                             task.cancel()
                     await asyncio.gather(gateway_task, failure_task, return_exceptions=True)
+        except BaseException as error:
+            escaping_primary = error
+            raise
         finally:
             try:
                 await self._shutdown_worker()
+            except BaseException as error:
+                if self._shutdown_error is None:
+                    self._shutdown_error = error
+                if escaping_primary is None:
+                    raise
             finally:
                 self._client = None
                 self._running = False

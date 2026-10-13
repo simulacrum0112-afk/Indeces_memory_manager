@@ -67,7 +67,7 @@ class ConsoleStartLockTests(unittest.TestCase):
                 vault.assert_not_called()
                 self.assertIn("stop the running instance", output.call_args.args[0])
             with patch.object(console, "load_discord_token") as token_read, \
-                    patch.object(console, "load_openai_key") as key_read, \
+                    patch("indeces.model_provider.load_openai_key") as key_read, \
                     patch.object(console, "prompt_secret") as nested_prompt:
                 with self.assertRaisesRegex(RuntimeError, "another Indeces instance"):
                     console.run(self.config, self.path)
@@ -78,7 +78,7 @@ class ConsoleStartLockTests(unittest.TestCase):
 
         with patch.dict(os.environ, {}, clear=True), \
                 patch.object(console, "load_discord_token", return_value=None), \
-                patch.object(console, "load_openai_key", return_value=None), \
+                patch("indeces.model_provider.load_openai_key", return_value=None), \
                 patch.object(console, "prompt_secret", side_effect=prompt), \
                 patch.object(console, "serve", new_callable=AsyncMock) as serve:
             console.run(self.config, self.path)
@@ -94,7 +94,7 @@ class ConsoleStartLockTests(unittest.TestCase):
         try:
             with patch.dict(os.environ, {}, clear=True), \
                     patch.object(console, "load_discord_token") as token_read, \
-                    patch.object(console, "load_openai_key") as key_read, \
+                    patch("indeces.model_provider.load_openai_key") as key_read, \
                     patch.object(console, "prompt_secret") as prompt, \
                     patch.object(console, "serve", new_callable=AsyncMock) as serve:
                 with self.assertRaisesRegex(RuntimeError, "another Indeces instance"):
@@ -114,7 +114,7 @@ class ConsoleStartLockTests(unittest.TestCase):
                 with self.subTest(interruption=type(interruption).__name__, stage=stage), \
                         patch.dict(os.environ, {}, clear=True), \
                         patch.object(console, "load_discord_token", return_value=None if stage == "token" else TOKEN), \
-                        patch.object(console, "load_openai_key", return_value=None), \
+                        patch("indeces.model_provider.load_openai_key", return_value=None), \
                         patch.object(console, "prompt_secret", side_effect=interruption), \
                         patch.object(console, "serve", new_callable=AsyncMock) as serve, \
                         redirect_stdout(io.StringIO()) as output:
@@ -129,7 +129,7 @@ class ConsoleStartLockTests(unittest.TestCase):
             with self.subTest(stage=stage), patch.dict(os.environ, {}, clear=True), \
                     patch.object(console, "load_discord_token", return_value=TOKEN,
                                  side_effect=error if stage == "token" else None), \
-                    patch.object(console, "load_openai_key", side_effect=error if stage == "key" else None), \
+                    patch("indeces.model_provider.load_openai_key", side_effect=error if stage == "key" else None), \
                     patch.object(console, "prompt_secret") as prompt, \
                     patch.object(console, "serve", new_callable=AsyncMock) as serve:
                 with self.assertRaises(CredentialError) as caught:
@@ -143,7 +143,7 @@ class ConsoleStartLockTests(unittest.TestCase):
         self.change_config()
         with patch.dict(os.environ, {}, clear=True), \
                 patch.object(console, "load_discord_token") as token_read, \
-                patch.object(console, "load_openai_key") as key_read, \
+                patch("indeces.model_provider.load_openai_key") as key_read, \
                 patch.object(console, "prompt_secret") as prompt, \
                 patch.object(console, "serve", new_callable=AsyncMock) as serve:
             with self.assertRaises(RuntimeError) as caught:
@@ -164,7 +164,7 @@ class ConsoleStartLockTests(unittest.TestCase):
 
         with patch.dict(os.environ, {}, clear=True), \
                 patch.object(console, "load_discord_token", return_value=TOKEN), \
-                patch.object(console, "load_openai_key", return_value=None), \
+                patch("indeces.model_provider.load_openai_key", return_value=None), \
                 patch.object(console, "prompt_secret", side_effect=prompt), \
                 patch.object(console, "serve", new_callable=AsyncMock) as serve:
             with self.assertRaises(RuntimeError) as caught:

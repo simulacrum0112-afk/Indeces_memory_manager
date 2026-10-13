@@ -13,7 +13,7 @@ import time
 import uuid
 
 from .contracts import GovernedError, validated_token_usage
-from .config import PdfConfig
+from .config import PdfConfig, controlled_session_enabled, guard_trial_maintenance
 from .knowledge_directory import RESERVED_ROOT_DIRECTORIES, SUPPORTED_SUFFIXES
 from .context import encode
 from . import pdf_import
@@ -32,6 +32,10 @@ def _console_notice(message):
 
 class KnowledgeService:
     def __init__(self, config, store, graph, adapter, scratch):
+        if controlled_session_enabled(config):
+            from .session_budget import SessionBudgetAdapter
+            if type(adapter) is not SessionBudgetAdapter:
+                raise GovernedError("session_adapter_required")
         self.config, self.store, self.graph, self.adapter, self.scratch = config, store, graph, adapter, scratch
         self.scope = f"{config.discord.guild_id}:knowledge"
         self.root = validate_knowledge_root(config)
@@ -41,6 +45,8 @@ class KnowledgeService:
         self._convert_serial = asyncio.Lock()
         self.pdf_limits = getattr(config, "pdf", None) or PdfConfig()
         self._tasks = []
+        self._filesystem_tasks = set()
+        self._close_task = None
         self._errors = {}
         self._closing = False
         self.background_error = None
@@ -810,6 +816,7 @@ class KnowledgeService:
         usage, elapsed time and source identity are preserved. Unknown remote
         usage cannot be retried through this bounded operation.
         """
+        guard_trial_maintenance(self.config)
         self._check_root()
         if path is not None and (not isinstance(path, str) or not path or Path(path).is_absolute()
                                  or ".." in Path(path).parts):
@@ -1109,16 +1116,29 @@ class KnowledgeService:
                                                                   "invalid_input_token_count", "model_slot_timeout"}))
         return True
 
+    async def _filesystem_call(self, function, *args):
+        # Cancelling to_thread's asyncio waiter cannot stop its running thread.
+        # Keep that job alive and owned until close has joined the actual read.
+        task = asyncio.create_task(asyncio.to_thread(function, *args))
+        self._filesystem_tasks.add(task)
+        try:
+            return await asyncio.shield(task)
+        finally:
+            if task.done():
+                self._filesystem_tasks.discard(task)
+                if not task.cancelled():
+                    task.exception()
+
     async def _watch(self):
         while True:
             try:
-                files = await asyncio.to_thread(self._scan_files)
+                files = await self._filesystem_call(self._scan_files)
                 self.scan_once(prepared=("begin", files))
                 seen = set()
                 for path in files:
                     seen.add(path.relative_to(self.root).as_posix())
                     try:
-                        snapshot = await asyncio.to_thread(self._snapshot_file, path)
+                        snapshot = await self._filesystem_call(self._snapshot_file, path)
                     except (OSError, UnicodeError, GovernedError) as error:
                         self.scan_once(prepared=("file", (path, None, error)))
                     else:
@@ -1169,9 +1189,11 @@ class KnowledgeService:
                 pending.cancel()
 
     def start(self):
-        if self._tasks:
+        guard_trial_maintenance(self.config)
+        if self._tasks or (self._close_task is not None and not self._close_task.done()):
             raise RuntimeError("knowledge service already started")
         self._closing = False
+        self._close_task = None
         self.background_error = None
         self._tasks = [asyncio.create_task(self._watch(), name="indeces-knowledge-watch"),
                        asyncio.create_task(self._label_worker(), name="indeces-passive-label"),
@@ -1180,8 +1202,29 @@ class KnowledgeService:
             task.add_done_callback(self._background_done)
 
     async def close(self):
-        self._closing = True
-        for task in self._tasks:
-            task.cancel()
-        await asyncio.gather(*self._tasks, return_exceptions=True)
-        self._tasks = []
+        async def finish_close():
+            await asyncio.gather(*self._tasks, return_exceptions=True)
+            filesystem_tasks = tuple(self._filesystem_tasks)
+            if filesystem_tasks:
+                await asyncio.gather(*filesystem_tasks, return_exceptions=True)
+                self._filesystem_tasks.difference_update(filesystem_tasks)
+            self._tasks = []
+
+        if self._close_task is None:
+            self._closing = True
+            for task in self._tasks:
+                task.cancel()
+            self._close_task = asyncio.create_task(finish_close())
+        cleanup = self._close_task
+        cancellation = None
+        # Repeated caller cancellation must not cancel a tracking future while
+        # its thread still owns a file handle. Cleanup is cooperative I/O;
+        # preserve cancellation, but deliver it only after those jobs finish.
+        while not cleanup.done():
+            try:
+                await asyncio.shield(cleanup)
+            except asyncio.CancelledError as error:
+                cancellation = error
+        cleanup.result()
+        if cancellation is not None:
+            raise cancellation

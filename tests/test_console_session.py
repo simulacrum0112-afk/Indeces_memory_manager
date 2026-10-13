@@ -149,7 +149,7 @@ class ConsoleSessionTests(unittest.TestCase):
             started.set()
             await asyncio.Event().wait()
         with redirect_stdout(io.StringIO()) as output, \
-                patch.object(console, "load_openai_key", return_value="console-synthetic-api-key-offline-only"), \
+                patch("indeces.model_provider.load_openai_key", return_value="console-synthetic-api-key-offline-only"), \
                 patch.dict(console.os.environ, {}, clear=True), \
                 patch("indeces.ingest.retry_ingestion", side_effect=maintenance) as retry, \
                 patch.object(console, "serve") as gateway, patch.object(console, "load_discord_token") as token:

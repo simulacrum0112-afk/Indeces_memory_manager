@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from contextlib import closing
 from dataclasses import asdict
 import json
 import logging
@@ -12,15 +13,18 @@ import sqlite3
 import sys
 
 from . import __version__
-from .adapter import OpenAIAdapter
 from .api_key_wizard import configure_api_key
-from .config import PdfConfig, load_config
-from .credentials import (CredentialError, load_discord_token, load_openai_key,
-                          openai_secret_path, prompt_secret, secret_path,
-                          validate_api_key, validate_token)
+from .config import PdfConfig, load_config, controlled_session_enabled, guard_trial_maintenance
+from .contracts import GovernedError
+from .credentials import (CredentialError, load_discord_token,
+                          anthropic_secret_path, openai_secret_path, prompt_secret, secret_path,
+                          validate_token)
 from .discord_bridge import DiscordBridge
 from .discord_wizard import configure_discord
 from .knowledge import KnowledgeService
+from .model_provider import ModelProviderError, create_model_adapter, credential_reference, resolve_model_key
+from .model_profiles import effective_profiles
+from .model_wizard import configure_model
 from .knowledge_directory import prepare_knowledge_directory, show_knowledge_directory
 from .knowledge_progress import show_knowledge_progress
 from .path_policy import PathPolicyError, validate_config_path, validate_runtime_paths, validate_managed_path
@@ -31,6 +35,7 @@ from .runtime import Runtime
 from .run_records import verify_runs
 from .scratch import ScratchLog, retention_checkpoint, verify
 from .store import Store
+from .session_budget import SessionBudgetAdapter, SessionBudgetLedger, SessionPriceEnvelope
 from .console_instance import COMMANDS as CONSOLE_COMMANDS, route_existing
 
 
@@ -61,16 +66,149 @@ async def _maintain_scratch(scratch):
             raise
 
 
+def _check_model_start_config(config):
+    """Decline unsupported Claude requery before local or remote effects."""
+    if (getattr(config.adapter, "provider", "openai") == "anthropic" and
+            any(getattr(config.runtime, key, False) for key in
+                ("active_requery_enabled", "path_requery_loop_enabled"))):
+        raise GovernedError("claude_requery_unsupported", remote_usage_unknown=False)
+
+
+def checked_session_envelope(config):
+    """Default closed; price attestations remain an operator-reviewed input."""
+    if not controlled_session_enabled(config):
+        return None
+    # This ledger's transport/audit/price contract remains OpenAI-specific.
+    # Reject Claude before ledger, credentials, HTTP or any model construction.
+    if getattr(config.adapter, "provider", "openai") != "openai":
+        raise GovernedError("session_provider_unsupported")
+    settings = config.session_budget
+    if settings.allow_real_calls is not True:
+        raise GovernedError("session_permission_required")
+    if settings.count_fee_verified is not True or not settings.count_fee_reference.strip():
+        # The count endpoint has no verified fee contract in this candidate.
+        raise GovernedError("session_count_fee_unverified")
+    if not settings.session_id.strip():
+        raise GovernedError("session_identity_required")
+    if any(getattr(config.runtime, name, False) for name in (
+            "active_requery_enabled", "path_requery_loop_enabled", "communicability_enabled", "path_hypotheses_enabled")):
+        raise GovernedError("session_extra_stages_forbidden")
+    try:
+        envelope = SessionPriceEnvelope(**{name: getattr(settings, name)
+                                          for name in SessionPriceEnvelope.__dataclass_fields__})
+        from decimal import Decimal, localcontext
+        if len(settings.ceiling_usd) > 64:
+            raise ValueError("invalid ceiling")
+        with localcontext() as context:
+            context.prec = 128
+            ceiling = Decimal(settings.ceiling_usd)
+            scaled = ceiling * 1_000_000_000
+            if (not ceiling.is_finite() or not 0 < ceiling <= 5
+                    or scaled != scaled.to_integral_value()):
+                raise ValueError("invalid ceiling")
+    except (ValueError, TypeError, ArithmeticError):
+        raise GovernedError("session_price_unverified") from None
+    if envelope.expired():
+        raise GovernedError("session_price_expired")
+    if (envelope.model != config.adapter.model
+            or envelope.base_url != config.adapter.base_url):
+        raise GovernedError("session_price_mismatch")
+    return envelope
+
+
+def create_runtime(config, store, adapter, scratch, *, selector=None):
+    """Construct the configured path or use an explicitly preloaded policy."""
+    if controlled_session_enabled(config) and type(adapter) is not SessionBudgetAdapter:
+        raise GovernedError("session_adapter_required")
+    if selector is not None:
+        # Trusted programmatic injection uses the existing Runtime contract.
+        # None always selects configured behavior; falsey policy objects count.
+        # serve never supplies an override and retains all configuration gates.
+        return Runtime(config, store, adapter, scratch, selector=selector)
+    selector = None
+    richard_enabled = getattr(config.runtime, "richard_selection_enabled", False)
+    if type(richard_enabled) is not bool:
+        raise ValueError("runtime.richard_selection_enabled must be a boolean")
+    richard_chat_enabled = getattr(config.runtime, "richard_chat_enabled", False)
+    if type(richard_chat_enabled) is not bool:
+        raise ValueError("runtime.richard_chat_enabled must be a boolean")
+    if richard_chat_enabled and richard_enabled:
+        raise ValueError("Richard chat and legacy Richard selection are mutually exclusive")
+    if richard_chat_enabled:
+        if config.runtime.model_selection_enabled is not True:
+            raise ValueError("Richard chat requires model_selection_enabled=true")
+        algorithm = getattr(config.runtime, "richard_chat_algorithm", "alpha")
+        if type(algorithm) is not str or algorithm not in ("alpha", "beta"):
+            raise ValueError("runtime.richard_chat_algorithm must be alpha or beta")
+        if store.db.in_transaction:
+            raise ValueError("Richard graph must load outside a SQLite transaction")
+        paths = []
+        for key in ("richard_graph_zip", "richard_source_zip"):
+            value = getattr(config.runtime, key, "")
+            if type(value) is not str or not value.strip() or "\0" in value:
+                raise ValueError("Richard chat requires both pinned ZIP paths")
+            path = Path(value)
+            if not path.is_absolute():
+                path = config.knowledge_dir.parent / path
+            paths.append(validate_managed_path(path, key))
+        from .richard_v11_data import load_release
+        from .richard_v11_ranker import FrozenRanker
+        from .richard_chat_binding import NativeEvidenceBinder
+        from .richard_chat_selection import RichardChatSelector
+        # Loading and binding precede Runtime and any selection model call.
+        graph = load_release(*paths)
+        ranker = FrozenRanker(graph)
+        binder = NativeEvidenceBinder(graph, store.db)
+        selector = RichardChatSelector(adapter, scratch, config.adapter.budgets["selection"],
+            ranker=ranker, binder=binder, graph_identity=graph.identity_sha256,
+            algorithm=algorithm)
+    elif richard_enabled:
+        if config.runtime.model_selection_enabled:
+            raise ValueError("Richard selection requires model_selection_enabled=false")
+        if store.db.in_transaction:
+            raise ValueError("Richard graph must load outside a SQLite transaction")
+        from .richard_data import load_release
+        from .richard_selector import RichardGraphSelector
+        paths = []
+        for key in ("richard_graph_zip", "richard_source_zip"):
+            value = getattr(config.runtime, key, "")
+            if type(value) is not str or not value.strip() or "\0" in value:
+                raise ValueError("Richard selection requires both pinned ZIP paths")
+            path = Path(value)
+            if not path.is_absolute():
+                path = config.knowledge_dir.parent / path
+            paths.append(validate_managed_path(path, key))
+        # Both archives and derived graph bytes are pinned and reconstructed;
+        # bundled code is never extracted or imported. Loading precedes Runtime.
+        selector = RichardGraphSelector(load_release(*paths), mode="opt_in")
+    elif config.runtime.model_selection_enabled:
+        from .model_selection import ModelNPMILabelSelector
+        selector = ModelNPMILabelSelector(adapter, scratch, config.adapter.budgets["selection"])
+    return Runtime(config, store, adapter, scratch, selector=selector)
+
+
 async def serve(config, key, token, *, lease=None, knowledge_ready=None):
+    _check_model_start_config(config)
+    envelope = checked_session_envelope(config)
     validate_runtime_paths(config)
     if not config.discord.guild_id:
         raise ValueError("set discord.guild_id before starting")
     owns_lease = lease is None
     if owns_lease:
         lease = InstanceLock(config.state_dir)
-    scratch = store = adapter = bridge = knowledge = observer = None
+    scratch = store = adapter = raw_adapter = session_ledger = bridge = knowledge = observer = None
     maintenance_task = gateway_task = None
     try:
+        if envelope is not None:
+            ledger_path = validate_managed_path(config.state_dir / "controlled-session-budget.sqlite3", "session budget ledger")
+            session_ledger = SessionBudgetLedger(ledger_path, session_id=config.session_budget.session_id,
+                envelope=envelope, ceiling_usd=config.session_budget.ceiling_usd)
+            session_state = session_ledger.snapshot()
+            if session_state["halted"]:
+                unknown = any(call["status"] == "unknown" or
+                              (call["generation_intents"] and call["usage"] is None)
+                              for call in session_state["calls"])
+                raise GovernedError("session_halted", remote_usage_unknown=unknown)
         try:
             scratch = ScratchLog(config.scratch_dir)
         except Exception as error:
@@ -88,20 +226,56 @@ async def serve(config, key, token, *, lease=None, knowledge_ready=None):
         interrupted = store.recover()
         if interrupted:
             scratch.write("restart_recovery", interrupted_turns=interrupted, automatically_replayed=False)
-        adapter = OpenAIAdapter(config.adapter, scratch, key)
-        runtime = Runtime(config, store, adapter, scratch)
+        raw_adapter = create_model_adapter(config.adapter, scratch, key)
+        adapter = SessionBudgetAdapter(raw_adapter, session_ledger) if session_ledger is not None else raw_adapter
+        runtime = create_runtime(config, store, adapter, scratch)
+        selection_enabled = (config.runtime.model_selection_enabled
+                             and getattr(runtime, "model_selector", None) is not None)
+        richard_enabled = getattr(config.runtime, "richard_selection_enabled", False)
+        richard_chat_enabled = getattr(config.runtime, "richard_chat_enabled", False)
         knowledge = KnowledgeService(config, store, runtime.graph, adapter, scratch)
         if knowledge_ready is not None:
             knowledge_ready(knowledge)
         bridge = DiscordBridge(config, runtime, scratch)
         scratch.write("service_start", version=__version__, guild_id=config.discord.guild_id,
+                      model_provider=config.adapter.provider, model=config.adapter.model,
                       stage_budgets={k: asdict(v) for k, v in config.adapter.budgets.items()},
                       knowledge_limits=asdict(config.knowledge), model_concurrency=1, chat_labelling=False,
+                       evidence_selection=("richard_chat_v11" if richard_chat_enabled else
+                                           "richard_npmi_association" if richard_enabled else
+                                           "model_npmi_labels_v1" if selection_enabled
+                                          else config.runtime.retrieval_policy),
+                      model_selection_enabled=selection_enabled,
+                      **({"controlled_session_enabled": True,
+                          "session_budget_usd": config.session_budget.ceiling_usd,
+                          "session_budget_id": config.session_budget.session_id,
+                          "knowledge_background_enabled": False}
+                         if session_ledger is not None else {}),
+                       **({"richard_selection_policy": {
+                               "id": runtime.graph.selector.policy_id,
+                               "version": runtime.graph.selector.policy_version},
+                           "richard_graph_identity_sha256": runtime.graph.selector.graph.identity_sha256,
+                           "richard_selection_scope": "initial_native_eligible_candidates_only"}
+                          if richard_enabled else {}),
+                      **({"richard_chat_enabled": True,
+                          "richard_chat_algorithm": runtime.model_selector.algorithm,
+                          "richard_chat_policy": {
+                              "id": runtime.model_selector.policy_id,
+                              "version": runtime.model_selector.policy_version},
+                          "richard_chat_graph_identity_sha256": runtime.model_selector.graph_identity,
+                          "richard_chat_scope": "initial_native_eligible_candidates_only",
+                          "richard_chat_ranker_called": False,
+                          "richard_chat_ranker_applied": False,
+                          "richard_chat_call_evidence": "per_turn_richard_chat_selection_receipt"}
+                         if richard_chat_enabled else {}),
                       pdf_limits=asdict(getattr(config, "pdf", PdfConfig())), pdf_model_calls=0,
                       scratch_retention_seconds=RETENTION_SECONDS,
                       scratch_maintenance_seconds=RETENTION_MAINTENANCE_SECONDS)
         print(f"{config.name} {__version__}: one Discord connection; model={config.adapter.model}; scratch={scratch.path}")
-        print("Knowledge PDF updates trigger local Markdown conversion, then background labels. Use the knowledge panel for progress. Chat labelling is closed. stop/Ctrl+C stops the owned service.")
+        if session_ledger is not None:
+            print("Controlled session: shared persistent budget; selection and reply only. Knowledge workers and maintenance calls are closed. stop/Ctrl+C stops the owned service.")
+        else:
+            print("Knowledge PDF updates trigger local Markdown conversion, then background labels. Use the knowledge panel for progress. Chat labelling is closed. stop/Ctrl+C stops the owned service.")
         print("PDF text extraction has physical page provenance; OCR is closed and academic layout is not verified.")
         print("Scratch retains a rolling 24-hour window; cleanup runs at startup and every 60 seconds while the service runs.")
         try:
@@ -116,7 +290,8 @@ async def serve(config, key, token, *, lease=None, knowledge_ready=None):
                     pass
             observer = None
             print(f"Observer unavailable: {type(error).__name__}; use the observe panel.", flush=True)
-        knowledge.start()
+        if session_ledger is None:
+            knowledge.start()
         maintenance_task = asyncio.create_task(_maintain_scratch(scratch), name="indeces-scratch-retention")
         gateway_task = asyncio.create_task(bridge.run(token), name="indeces-discord-gateway")
         done, _ = await asyncio.wait({maintenance_task, gateway_task}, return_when=asyncio.FIRST_COMPLETED)
@@ -147,12 +322,17 @@ async def serve(config, key, token, *, lease=None, knowledge_ready=None):
                 await asyncio.to_thread(observer.close)
             except BaseException as error:
                 cleanup_errors.append(error)
-        for resource in (bridge, knowledge, adapter):
+        for resource in (bridge, knowledge, raw_adapter):
             if resource is not None:
                 try:
                     await resource.close()
                 except BaseException as error:
                     cleanup_errors.append(error)
+        if session_ledger is not None:
+            try:
+                session_ledger.close()
+            except BaseException as error:
+                cleanup_errors.append(error)
         if scratch is not None:
             try:
                 scratch.write("service_stop")
@@ -187,14 +367,17 @@ def initialize(path):
     if not example.exists():
         raise FileNotFoundError("use config.example.toml from the repository checkout")
     shutil.copyfile(example, path)
-    print(f"Created {path}. Use discord for the bridge and apikey for OpenAI credentials, then start.")
+    print(f"Created {path}. Use model to choose OpenAI or Claude, discord for the bridge, and apikey for the selected provider's encrypted key. Then use start.")
 
 
 def status(config, config_path=None):
     validate_runtime_paths(config)
     if config_path is not None:
         config_path = validate_config_path(config_path)
-    print(f"{config.name} {__version__}; model {config.adapter.model}; one model request slot")
+    print(f"{config.name} {__version__}; provider {config.adapter.provider}; model {config.adapter.model}; one model request slot")
+    print(f"Configured endpoint: {config.adapter.base_url}; credential reference: {credential_reference(config.adapter)}; authentication is checked only at start.")
+    for provider, profile in effective_profiles(config).items():
+        print(f"Model profile {provider}: model={profile['model']}; endpoint={profile['base_url']}; efforts={profile['efforts']}")
     print(f"Discord guild={config.discord.guild_id or '<not configured>'}; channels={config.discord.channel_ids or 'all explicitly mentioned channels'}")
     print(f"Knowledge: {config.knowledge_dir}; scratch: {config.scratch_dir}")
     print(f"Active supported-file limit: {config.knowledge.max_files}; root _staging is storage only. Use knowledge to open the material directory.")
@@ -203,8 +386,14 @@ def status(config, config_path=None):
     if config_path is not None:
         print(f"Saved Discord credential file: {'present (checked at start)' if secret_path(config_path).exists() else 'absent'}")
         print(f"Saved OpenAI credential file: {'present (checked at start)' if openai_secret_path(config_path).exists() else 'absent'}")
-    print(f"Model output verbosity: {config.adapter.verbosity}")
-    print("Chat labelling: CLOSED; passive knowledge-update labelling: ENABLED while service runs")
+        print(f"Saved Claude credential file: {'present (checked at start)' if anthropic_secret_path(config_path).exists() else 'absent'}")
+        print("Each provider uses its own environment key, encrypted saved key, then private session input; no cross-provider fallback.")
+    if config.adapter.provider == "openai":
+        print(f"Model output verbosity: {config.adapter.verbosity}")
+    else:
+        print("Claude effort: output_config.effort=high; no fixed thinking token budget; stage output caps are unchanged.")
+    print("Chat labelling: CLOSED; passive knowledge-update labelling: " +
+          ("CLOSED for controlled session" if controlled_session_enabled(config) else "ENABLED while service runs"))
     pdf = getattr(config, "pdf", PdfConfig())
     print(f"PDF -> Markdown: local worker; bytes={pdf.max_file_bytes}; pages={pdf.max_pages}; "
           f"Markdown bytes={pdf.max_markdown_bytes}; seconds={pdf.seconds}; model calls=0; OCR=CLOSED")
@@ -214,7 +403,7 @@ def status(config, config_path=None):
     database = config.state_dir / "memory.sqlite3"
     validate_managed_path(database, "status database")
     if database.exists():
-        with sqlite3.connect(database.as_uri() + "?mode=ro", uri=True) as db:
+        with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)) as db:
             tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             if "knowledge_versions" in tables:
                 print("Knowledge versions:", dict(db.execute("SELECT status,count(*) FROM knowledge_versions GROUP BY status")))
@@ -224,6 +413,7 @@ def status(config, config_path=None):
 
 
 def run(config, config_path=None):
+    _check_model_start_config(config)
     validate_runtime_paths(config)
     if not config.discord.guild_id:
         raise ValueError("use discord setup to configure the Guild ID first")
@@ -245,6 +435,8 @@ def run(config, config_path=None):
 
 
 def _check_start_config(config, config_path):
+    _check_model_start_config(config)
+    checked_session_envelope(config)
     if config_path is not None and load_config(config_path) != config:
         print("Startup cancelled: configuration changed; start again. No connection was made.")
         raise RuntimeError("configuration changed during startup; start again")
@@ -266,14 +458,15 @@ def _startup_credentials(config, config_path):
     """Called on the input-owning main thread while the runtime lease is held."""
     _check_start_config(config, config_path)
     try:
+        key = None
+        if config.adapter.provider == "anthropic":
+            key = resolve_model_key(config.adapter, config_path, prompt=prompt_secret)
         token = os.environ.get("DISCORD_BOT_TOKEN")
         if not token and config_path is not None:
             token = load_discord_token(config_path, config.discord.guild_id)
         token = validate_token(token or prompt_secret("Discord bot token (session only, not saved): "))
-        key = os.environ.get("OPENAI_API_KEY")
-        if not key and config_path is not None:
-            key = load_openai_key(config_path)
-        key = validate_api_key(key or prompt_secret("OpenAI API key (session only, not saved; use apikey to save): "))
+        if key is None:
+            key = resolve_model_key(config.adapter, config_path, prompt=prompt_secret)
     except (EOFError, KeyboardInterrupt):
         print("Startup cancelled; no connection was made.")
         return None
@@ -394,7 +587,7 @@ def main():
     logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
     try:
         args.config = validate_config_path(args.config)
-        if args.config.exists() and args.command not in {"apikey", "discord"}:
+        if args.config.exists() and args.command not in {"apikey", "discord", "model"}:
             # Validate before routing to an older Console or writing credentials.
             load_config(args.config)
         if not args.once and not args.headless:
@@ -418,8 +611,8 @@ def main():
             from .console_session import run_console
             run_console(args.config, args.command + (" " + args.path if args.path else ""))
             return
-        if args.command in {"discord", "apikey"}:
-            if not {"discord": configure_discord, "apikey": configure_api_key}[args.command](args.config):
+        if args.command in {"discord", "apikey", "model"}:
+            if not {"discord": configure_discord, "apikey": configure_api_key, "model": configure_model}[args.command](args.config):
                 raise SystemExit(2)
             return
         config = load_config(args.config)
@@ -440,7 +633,10 @@ def main():
         print(f"Path rejected: {error.code}. Indeces knowledge must use the project's knowledge directory; OneDrive and links are forbidden.")
         raise SystemExit(2) from None
     except CredentialError as error:
-        print(f"Credential error: {error.code}. Use discord setup for the Bot token, or apikey for the OpenAI key, before starting.")
+        print(f"Credential error: {error.code}. Use discord setup for the Bot token, or apikey for the selected provider's encrypted API key.")
+        raise SystemExit(2) from None
+    except ModelProviderError as error:
+        print(f"Model setup blocked: {error}. No connection was made.")
         raise SystemExit(2) from None
     except Exception as error:
         print(f"Startup failed: {type(error).__name__}. Check configuration and local file permissions.")

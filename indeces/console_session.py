@@ -14,9 +14,10 @@ import time
 from .console_instance import ConsoleInstance, route_existing
 from .credentials import CredentialError
 from .contracts import GovernedError
+from .model_provider import ModelProviderError
 
 
-HELP = "discord | apikey | knowledge | start | status | npmi | scratch | observe | logs | audit | retry | service | stop | home | refresh | quit"
+HELP = "discord | apikey | knowledge | start | status | model | npmi | scratch | observe | logs | audit | retry | service | stop | home | refresh | quit"
 
 
 class ServiceTask:
@@ -352,6 +353,7 @@ class ConsoleSession:
                 print("复用现有服务任务；未重启、未建立第二个 Gateway。")
             self._service_panel()
             return
+        console._check_model_start_config(config)
         if not config.discord.guild_id:
             raise ValueError("use discord setup to configure the Guild ID first")
         lease = console.InstanceLock(config.state_dir)
@@ -381,6 +383,7 @@ class ConsoleSession:
 
     def _retry(self, config, path):
         from . import console
+        console.guard_trial_maintenance(config)
         if self.service is not None and self.service.active:
             if self.service.kind == "knowledge_retry":
                 print("复用运行中的知识重试任务；本次没有追加目标或重新执行任务。任务完成后可再次 retry 指定其他项。")
@@ -393,8 +396,7 @@ class ConsoleSession:
         lease = console.InstanceLock(config.state_dir)
         try:
             console._check_start_config(config, self.path)
-            key = console.os.environ.get("OPENAI_API_KEY") or console.load_openai_key(self.path)
-            key = console.validate_api_key(key or console.prompt_secret("OpenAI API key (session only; failed knowledge retry, no Discord): "))
+            key = console.resolve_model_key(config.adapter, self.path, prompt=console.prompt_secret)
             console._check_start_config(config, self.path)
             async def maintenance(config, key, unused, *, lease, knowledge_ready):
                 return await retry_ingestion(config, self.path, paths=[path] if path else None,
@@ -443,7 +445,7 @@ class ConsoleSession:
             print("Commands: " + HELP)
             return True
         self.panel = ("service" if command in {"start", "stop", "retry"} else
-                      "home" if command in {"discord", "apikey", "init"} else command)
+                      "home" if command in {"discord", "apikey", "model", "init"} else command)
         # Control the task we already own even when its config was moved or
         # externally edited. Loading a new TOML is irrelevant to cancellation.
         if command == "stop":
@@ -462,8 +464,11 @@ class ConsoleSession:
         if command == "check":
             console.offline_check(self.path)
             return True
-        if command in {"discord", "apikey"}:
-            {"discord": console.configure_discord, "apikey": console.configure_api_key}[command](self.path)
+        if command in {"discord", "apikey", "model"}:
+            if self.service is not None and self.service.active:
+                print("Configuration setup unavailable: stop the service owned by this Console first. No model selection or credential was changed.")
+                return True
+            {"discord": console.configure_discord, "apikey": console.configure_api_key, "model": console.configure_model}[command](self.path)
             return True
         config = console.load_config(self.path)
         if command == "start":
@@ -512,7 +517,9 @@ class ConsoleSession:
         try:
             return self.dispatch(command)
         except CredentialError as error:
-            print(f"Credential error: {error.code}. Use discord setup for the Bot token, or apikey for the OpenAI key.")
+            print(f"Credential error: {error.code}. Use discord setup for the Bot token, or apikey for the selected provider's encrypted API key.")
+        except ModelProviderError as error:
+            print(f"Model setup blocked: {error}. No connection was made.")
         except Exception as error:
             print(f"Command failed: {type(error).__name__}. Check configuration and scratch records.")
         finally:
@@ -574,7 +581,7 @@ class ConsoleSession:
                         except queue.Empty:
                             break
                         verb = command.split(" ", 1)[0]
-                        needs_input = (verb in {"discord", "apikey"} or
+                        needs_input = (verb in {"discord", "apikey", "model"} or
                             verb in {"start", "retry"} and (self.service is None or not self.service.active))
                         if needs_input and self.reader.busy:
                             self._pending.append(command)

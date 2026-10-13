@@ -18,7 +18,7 @@ import threading
 import time
 
 
-COMMANDS = frozenset({"console", "init", "discord", "apikey", "knowledge", "start",
+COMMANDS = frozenset({"console", "init", "discord", "apikey", "model", "knowledge", "start",
                       "status", "npmi", "check", "scratch", "observe", "logs", "audit",
                       "retry", "service", "stop"})
 MAX_MESSAGE = 2048

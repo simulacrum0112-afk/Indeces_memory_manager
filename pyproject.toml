@@ -4,13 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "indeces-memory-manager"
-version = "0.15.0"
+version = "0.17.0.dev19+prunecandidate1"
 description = "A single Discord headless runtime with governed Hebbian memory and audited model calls"
 requires-python = ">=3.12"
 dependencies = ["discord.py==2.7.1", "pypdf==6.19.0"]
 
+[project.optional-dependencies]
+prune = ["numpy==2.3.5"]
+
 [project.scripts]
 indeces = "indeces.console:main"
+indeces-manual = "indeces.manual_trial.__main__:main"
+indeces-richard = "indeces.richard_pilot:main"
 
 [tool.setuptools.packages.find]
 include = ["indeces*"]

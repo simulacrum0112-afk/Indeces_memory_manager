@@ -39,7 +39,7 @@ class PathEntrypointTests(unittest.TestCase):
                 with patch.object(console, "InstanceLock") as lease, \
                         patch.object(console, "ScratchLog") as scratch, \
                         patch.object(console, "Store") as store, \
-                        patch.object(console, "OpenAIAdapter") as adapter, \
+                        patch.object(console, "create_model_adapter") as adapter, \
                         self.assertRaises(PathPolicyError):
                     asyncio.run(console.serve(bad, "unused", "unused"))
                 for resource in (lease, scratch, store, adapter):
@@ -51,7 +51,7 @@ class PathEntrypointTests(unittest.TestCase):
                 patch.object(console, "ScratchLog"), \
                 patch.object(console, "prepare_knowledge_directory", side_effect=knowledge_directory.KnowledgeDirectoryError("rejected")), \
                 patch.object(console, "Store") as store, \
-                patch.object(console, "OpenAIAdapter") as adapter, \
+                patch.object(console, "create_model_adapter") as adapter, \
                 redirect_stdout(io.StringIO()), self.assertRaises(knowledge_directory.KnowledgeDirectoryError):
             asyncio.run(console.serve(self.config, "unused", "unused"))
         store.assert_not_called()
@@ -63,7 +63,7 @@ class PathEntrypointTests(unittest.TestCase):
             console.run(bad, self.path)
         lease.assert_not_called()
         with patch.object(ingest, "InstanceLock") as lease, \
-                patch.object(ingest, "load_openai_key") as key, self.assertRaises(PathPolicyError):
+                patch("indeces.model_provider.load_openai_key") as key, self.assertRaises(PathPolicyError):
             asyncio.run(ingest.retry_ingestion(bad, self.path))
         lease.assert_not_called()
         key.assert_not_called()

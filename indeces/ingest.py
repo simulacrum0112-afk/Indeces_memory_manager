@@ -6,11 +6,10 @@ per-version accounting remain unchanged. Console runs this as an owned task.
 from __future__ import annotations
 
 import asyncio
-import os
 import sys
 
-from .adapter import OpenAIAdapter
-from .credentials import load_openai_key, validate_api_key
+from .config import guard_trial_maintenance
+from .model_provider import create_model_adapter, resolve_model_key
 from .knowledge import KnowledgeService
 from .lock import InstanceLock
 from .memory import MemoryGraph
@@ -20,6 +19,7 @@ from .store import Store
 
 
 async def retry_ingestion(config, config_path, *, paths=None, key=None, lease=None, knowledge_ready=None):
+    guard_trial_maintenance(config)
     validate_runtime_paths(config)
     if not config.discord.guild_id:
         raise ValueError("configure a Guild before retrying its knowledge")
@@ -35,15 +35,11 @@ async def retry_ingestion(config, config_path, *, paths=None, key=None, lease=No
         from .config import load_config
         if load_config(config_path) != config:
             raise ValueError("configuration changed before maintenance acquired its lease")
-        if key is None:
-            key = os.environ.get("OPENAI_API_KEY", "").strip() or load_openai_key(config_path)
-        if not key:
-            raise ValueError("OpenAI key unavailable; use apikey or OPENAI_API_KEY")
-        key = validate_api_key(key)
+        key = resolve_model_key(config.adapter, config_path, supplied_key=key)
         store = Store(config.state_dir)
         graph = MemoryGraph(store.db)
         scratch = ScratchLog(config.scratch_dir)
-        adapter = OpenAIAdapter(config.adapter, scratch, key)
+        adapter = create_model_adapter(config.adapter, scratch, key)
         knowledge = KnowledgeService(config, store, graph, adapter, scratch)
         if knowledge_ready is not None:
             knowledge_ready(knowledge)

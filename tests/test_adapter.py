@@ -270,16 +270,19 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         adapter, scratch = self.adapter(transport, seconds=15.0)
         configured = adapter.config.budgets["label"]
         timeouts = []
-        original_timeout = asyncio.timeout
+        original_timeout = asyncio.timeout_at
 
-        def tracked_timeout(seconds):
-            timeouts.append(seconds)
-            return original_timeout(seconds)
+        def tracked_timeout(deadline):
+            timeouts.append(deadline - asyncio.get_running_loop().time())
+            return original_timeout(deadline)
 
-        with patch("indeces.adapter.asyncio.timeout", side_effect=tracked_timeout):
+        with patch("indeces.adapter.asyncio.timeout_at", side_effect=tracked_timeout):
             await self.invoke(adapter, "label", budget_override=Budget(100, 20, 45.0))
             await self.invoke(adapter, "label")
-        self.assertEqual(timeouts, [45.0, 15.0])
+        for remaining, configured_seconds in zip(timeouts, (45.0, 15.0), strict=True):
+            self.assertGreater(remaining, 0)
+            self.assertLessEqual(remaining, configured_seconds)
+            self.assertLess(configured_seconds - remaining, 1.0)
         self.assertIs(adapter.config.budgets["label"], configured)
         self.assertEqual([row["budget"]["seconds"] for row in scratch.select("call_start")], [45.0, 15.0])
         self.assertEqual([payload["max_output_tokens"] for path, payload in transport.requests if path == "/responses"],
@@ -569,10 +572,10 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         requests = []
         cancelled = asyncio.Event()
         timeouts = []
-        original_timeout = asyncio.timeout
+        original_timeout = asyncio.timeout_at
 
-        def tracked_timeout(seconds):
-            timeout = original_timeout(seconds)
+        def tracked_timeout(deadline):
+            timeout = original_timeout(deadline)
             timeouts.append(timeout)
             return timeout
 
@@ -591,7 +594,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             return {"input_tokens": 10} if path.endswith("input_tokens") else completed()
 
         adapter, scratch = self.adapter(transport, seconds=5.0, threshold=1)
-        with patch("indeces.adapter.asyncio.timeout", side_effect=tracked_timeout):
+        with patch("indeces.adapter.asyncio.timeout_at", side_effect=tracked_timeout):
             await self.assert_code(adapter, "stage_timeout")
             self.assertTrue(cancelled.is_set())
             self.assertTrue(timeouts[0].expired())
@@ -639,10 +642,10 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_generation_timeout_preserves_unknown_usage_and_provider_circuit(self):
         requests = []
         timeouts = []
-        original_timeout = asyncio.timeout
+        original_timeout = asyncio.timeout_at
 
-        def tracked_timeout(seconds):
-            timeout = original_timeout(seconds)
+        def tracked_timeout(deadline):
+            timeout = original_timeout(deadline)
             timeouts.append(timeout)
             return timeout
 
@@ -657,7 +660,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.Event().wait()
 
         adapter, scratch = self.adapter(transport, seconds=5.0, threshold=1)
-        with patch("indeces.adapter.asyncio.timeout", side_effect=tracked_timeout):
+        with patch("indeces.adapter.asyncio.timeout_at", side_effect=tracked_timeout):
             await self.assert_code(adapter, "stage_timeout")
         self.assertTrue(timeouts[0].expired())
         end = scratch.select("call_end")[0]

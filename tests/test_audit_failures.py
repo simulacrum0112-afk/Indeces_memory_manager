@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 from indeces import console
 from indeces.config import AdapterConfig, Budget, DiscordConfig, KnowledgeConfig, RuntimeConfig
-from indeces.contracts import DeliveryReceipt, IncomingMessage, ModelResult
+from indeces.contracts import ConfirmedDeliveryPersistenceError, DeliveryReceipt, IncomingMessage, ModelResult
 from indeces.run_records import validate_graph_audit, verify_runs
 from indeces.runtime import Runtime
 from indeces.scratch import ScratchLog, read_records, verify
@@ -67,7 +67,7 @@ class AuditFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_confirmed_receipt_is_not_overwritten_after_turn_end_audit_failure(self):
         runtime, adapter = self.runtime(FailureScratch("turn_end"))
-        with redirect_stdout(io.StringIO()) as output:
+        with redirect_stdout(io.StringIO()) as output, self.assertRaises(ConfirmedDeliveryPersistenceError):
             await runtime.process(self.message, self.deliver)
         turn = self.store.db.execute("SELECT status,delivered,receipt FROM turns").fetchone()
         self.assertEqual(turn["status"], "delivered")
@@ -80,7 +80,7 @@ class AuditFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_confirmed_receipt_is_preserved_when_citation_receipt_write_fails(self):
         runtime, _ = self.runtime(FailureScratch("answer_delivered"))
-        with redirect_stdout(io.StringIO()):
+        with redirect_stdout(io.StringIO()), self.assertRaises(ConfirmedDeliveryPersistenceError):
             await runtime.process(self.message, self.deliver)
         self.assertEqual(self.store.db.execute("SELECT status FROM turns").fetchone()[0], "delivered")
         self.assertEqual(len(self.sent), 1)
@@ -145,7 +145,7 @@ class CleanupFailureTests(unittest.IsolatedAsyncioTestCase):
                 if fail == "bridge_close":
                     bridge.close.side_effect = OSError()
                 with patch.object(console, "InstanceLock", return_value=lease), patch.object(console, "ScratchLog", return_value=scratch), \
-                        patch.object(console, "Store", return_value=store), patch.object(console, "OpenAIAdapter", return_value=adapter), \
+                        patch.object(console, "Store", return_value=store), patch.object(console, "create_model_adapter", return_value=adapter), \
                         patch.object(console, "Runtime", return_value=SimpleNamespace(graph=object())), \
                         patch.object(console, "KnowledgeService", return_value=knowledge), patch.object(console, "DiscordBridge", return_value=bridge), \
                         patch.object(console, "prepare_knowledge_directory"), \

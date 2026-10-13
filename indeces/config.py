@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import math
 import os
 from pathlib import Path
 import tomllib
 
 from .identity import AGENT_NAME, normalize_agent_name
-from .path_policy import validate_config_path, validate_knowledge_root, validate_runtime_paths
+from .path_policy import (validate_config_path, validate_knowledge_root,
+                          validate_managed_path, validate_runtime_paths)
 
 
 @dataclass(frozen=True)
@@ -46,6 +47,69 @@ class RuntimeConfig:
     summary_max_bytes: int = 4096
     low_watermark: float = 0.70
     retrieval_policy: str = 'concept_v1'
+    model_selection_enabled: bool = True
+    richard_selection_enabled: bool = False
+    richard_graph_zip: str = ""
+    richard_source_zip: str = ""
+    active_requery_enabled: bool = False
+    active_requery_max_rounds: int = 2
+    active_requery_max_calls: int = 6
+    active_requery_input_tokens: int = 32768
+    active_requery_output_tokens: int = 4096
+    active_requery_seconds: float = 60.0
+    active_requery_cost_usd: float = 0.0
+    active_requery_allow_real_calls: bool = False
+    active_requery_input_usd_per_million: float = 0.0
+    active_requery_output_usd_per_million: float = 0.0
+    communicability_enabled: bool = False
+    path_hypotheses_enabled: bool = False
+    path_requery_loop_enabled: bool = False
+    richard_chat_enabled: bool = False
+    richard_chat_algorithm: str = "alpha"
+
+    def __post_init__(self):
+        if type(self.model_selection_enabled) is not bool:
+            raise ValueError("runtime.model_selection_enabled must be a boolean")
+        if type(self.richard_selection_enabled) is not bool:
+            raise ValueError("runtime.richard_selection_enabled must be a boolean")
+        if type(self.richard_chat_enabled) is not bool:
+            raise ValueError("runtime.richard_chat_enabled must be a boolean")
+        if type(self.richard_chat_algorithm) is not str or self.richard_chat_algorithm not in ("alpha", "beta"):
+            raise ValueError("runtime.richard_chat_algorithm must be alpha or beta")
+        if self.richard_chat_enabled and self.richard_selection_enabled:
+            raise ValueError("Richard chat and legacy Richard selection are mutually exclusive")
+        for key in ("richard_graph_zip", "richard_source_zip"):
+            value = getattr(self, key)
+            if type(value) is not str or "\0" in value or (value and not value.strip()):
+                raise ValueError(f"runtime.{key} must be a path string")
+        if self.richard_selection_enabled:
+            if self.model_selection_enabled:
+                raise ValueError("Richard selection requires model_selection_enabled=false")
+            if not self.richard_graph_zip or not self.richard_source_zip:
+                raise ValueError("Richard selection requires both pinned ZIP paths")
+        if self.richard_chat_enabled:
+            if not self.model_selection_enabled:
+                raise ValueError("Richard chat requires model_selection_enabled=true")
+            if not self.richard_graph_zip or not self.richard_source_zip:
+                raise ValueError("Richard chat requires both pinned ZIP paths")
+        for key in ("active_requery_enabled", "active_requery_allow_real_calls", "communicability_enabled",
+                    "path_hypotheses_enabled", "path_requery_loop_enabled"):
+            if type(getattr(self, key)) is not bool:
+                raise ValueError(f"runtime.{key} must be a boolean")
+        for key, upper in (("active_requery_max_rounds", 4), ("active_requery_max_calls", 12),
+                           ("active_requery_input_tokens", 65536), ("active_requery_output_tokens", 8192)):
+            value = getattr(self, key)
+            if type(value) is not int or not 1 <= value <= upper:
+                raise ValueError(f"invalid runtime.{key}")
+        if (type(self.active_requery_seconds) not in (int, float)
+                or not 0 < self.active_requery_seconds <= 130
+                or not math.isfinite(self.active_requery_seconds)):
+            raise ValueError("invalid active requery deadline")
+        for key in ("active_requery_cost_usd", "active_requery_input_usd_per_million",
+                    "active_requery_output_usd_per_million"):
+            value = getattr(self, key)
+            if type(value) not in (int, float) or not 0 <= value <= 1000 or not math.isfinite(value):
+                raise ValueError(f"invalid runtime.{key}")
 
 
 @dataclass(frozen=True)
@@ -56,8 +120,36 @@ class AdapterConfig:
     failure_threshold: int = 3
     cooldown_seconds: float = 30.0
     verbosity: str = "high"
+    provider: str = "openai"
 
     def __post_init__(self):
+        # A separate post-retrieval selection call keeps the three established
+        # stage budgets intact. Older configuration files need no rewrite.
+        if "selection" not in self.budgets:
+            budgets = dict(self.budgets)
+            label = budgets.get("label", Budget(4096, 512, 15.0))
+            reply = budgets.get("reply", label)
+            budgets["selection"] = Budget(min(4096, label.input_tokens),
+                min(512, label.output_tokens), min(15.0, label.seconds), reply.reasoning)
+            object.__setattr__(self, "budgets", budgets)
+        # Separate action planning, never a renamed post-retrieval selector.
+        if "query" not in self.budgets:
+            budgets = dict(self.budgets)
+            reply = budgets.get("reply", budgets.get("label", Budget(4096, 512, 15.0)))
+            budgets["query"] = Budget(min(4096, reply.input_tokens), min(512, reply.output_tokens),
+                                      min(15.0, reply.seconds), reply.reasoning)
+            object.__setattr__(self, "budgets", budgets)
+        if not isinstance(self.provider, str) or self.provider not in {"openai", "anthropic"}:
+            raise ValueError("unsupported model provider")
+        if self.provider == "anthropic":
+            if self.model not in {"claude-opus-5-5", "claude-fable-5-1"}:
+                raise ValueError("Claude requires claude-opus-5-5 or claude-fable-5-1")
+            if not isinstance(self.base_url, str) or self.base_url.rstrip("/") != "https://api.anthropic.com/v1":
+                raise ValueError("Claude native Messages requires an explicit official Anthropic endpoint")
+            if any(b.reasoning != "high" for b in self.budgets.values()):
+                raise ValueError("Claude requires explicit high effort for every stage")
+            if any(b.input_tokens + b.output_tokens > 1_000_000 for b in self.budgets.values()):
+                raise ValueError("Claude input plus output exceeds model context")
         if not isinstance(self.verbosity, str) or self.verbosity not in {"low", "medium", "high"}:
             raise ValueError("invalid output verbosity")
         if self.model == "gpt-6.1-sol" and any(b.reasoning == "none" for b in self.budgets.values()):
@@ -116,6 +208,47 @@ class PdfConfig:
 
 
 @dataclass(frozen=True)
+class SessionBudgetConfig:
+    enabled: bool = False
+    allow_real_calls: bool = False
+    session_id: str = ""
+    ceiling_usd: str = "5.00"
+    model: str = ""
+    base_url: str = ""
+    input_usd_per_million: str = ""
+    output_usd_per_million: str = ""
+    per_call_usd: str = ""
+    reference: str = ""
+    valid_until_utc: str = ""
+    count_fee_verified: bool = False
+    count_fee_reference: str = ""
+
+    def __post_init__(self):
+        for name in ("enabled", "allow_real_calls", "count_fee_verified"):
+            if type(getattr(self, name)) is not bool:
+                raise ValueError(f"session_budget.{name} must be a boolean")
+        for name in set(self.__dataclass_fields__) - {"enabled", "allow_real_calls", "count_fee_verified"}:
+            value = getattr(self, name)
+            if type(value) is not str or len(value) > 256 or "\0" in value:
+                raise ValueError(f"session_budget.{name} must be a bounded string")
+            value.encode("utf-8")
+
+
+def controlled_session_enabled(config):
+    settings = getattr(config, "session_budget", None)
+    enabled = getattr(settings, "enabled", False)
+    if type(enabled) is not bool:
+        raise ValueError("session_budget.enabled must be a boolean")
+    return enabled
+
+
+def guard_trial_maintenance(config):
+    if controlled_session_enabled(config):
+        from .contracts import GovernedError
+        raise GovernedError("session_maintenance_forbidden")
+
+
+@dataclass(frozen=True)
 class Config:
     name: str
     state_dir: Path
@@ -126,6 +259,8 @@ class Config:
     adapter: AdapterConfig
     knowledge: KnowledgeConfig
     pdf: PdfConfig = field(default_factory=PdfConfig)
+    session_budget: SessionBudgetConfig = field(default_factory=SessionBudgetConfig)
+    model_profiles: dict = field(default_factory=dict)
 
 
 def _keys(data, allowed):
@@ -145,17 +280,19 @@ def load_config(path: Path) -> Config:
     path = validate_config_path(path)
     with path.open("rb") as stream:
         raw = tomllib.load(stream)
-    _keys(raw, {"name", "state_dir", "scratch_dir", "knowledge_dir", "discord", "runtime", "adapter", "knowledge", "pdf"})
+    _keys(raw, {"name", "state_dir", "scratch_dir", "knowledge_dir", "discord", "runtime", "adapter", "knowledge", "pdf", "session_budget", "model_profiles"})
     d = raw["discord"]
     r = raw.get("runtime", {})
     a = raw["adapter"]
     k = raw.get("knowledge", {})
     p = raw.get("pdf", {})
+    s = raw.get("session_budget", {})
     _keys(d, {"guild_id", "channel_ids", "queue_capacity", "delivery_seconds"})
     _keys(r, RuntimeConfig.__dataclass_fields__)
     _keys(a, AdapterConfig.__dataclass_fields__)
     _keys(k, KnowledgeConfig.__dataclass_fields__)
     _keys(p, PdfConfig.__dataclass_fields__)
+    _keys(s, SessionBudgetConfig.__dataclass_fields__)
     if not isinstance(d.get("guild_id"), str):
         raise ValueError("guild_id must be a numeric string")
     guild_id = snowflake(d["guild_id"]) if d["guild_id"] else ""
@@ -164,10 +301,14 @@ def load_config(path: Path) -> Config:
         raise ValueError("channel_ids must be numeric strings")
     dc = DiscordConfig(**{**d, "guild_id": guild_id, "channel_ids": tuple(snowflake(x) for x in channels)})
     rc = RuntimeConfig(**r)
+    if rc.richard_selection_enabled or rc.richard_chat_enabled:
+        rc = replace(rc, **{key: str(validate_managed_path(path.parent / getattr(rc, key), key))
+                            for key in ("richard_graph_zip", "richard_source_zip")})
     if rc.retrieval_policy not in ('legacy_v1', 'concept_v1'):
         raise ValueError('invalid retrieval policy')
     kc = KnowledgeConfig(**k)
     pc = PdfConfig(**p)
+    sc = SessionBudgetConfig(**s)
     if type(dc.queue_capacity) is not int or not 1 <= dc.queue_capacity <= 256:
         raise ValueError("invalid queue capacity")
     for seconds in (dc.delivery_seconds, rc.turn_seconds, rc.queue_wait_seconds, rc.local_seconds, a.get("cooldown_seconds", 30)):
@@ -177,14 +318,18 @@ def load_config(path: Path) -> Config:
         raise ValueError("invalid summary bound")
     if type(rc.low_watermark) not in (float, int) or not 0 < rc.low_watermark < 1:
         raise ValueError("invalid low watermark")
-    if a["model"] != "gpt-6.1-sol" or a["base_url"].rstrip("/") != "https://api.openai.com/v1":
+    if not isinstance(a.get("base_url"), str) or not a["base_url"]:
+        raise ValueError("an explicit provider endpoint is required")
+    if a.get("provider", "openai") == "openai" and (a["model"] != "gpt-6.1-sol" or a["base_url"].rstrip("/") != "https://api.openai.com/v1"):
         raise ValueError("this adaptor supports official OpenAI gpt-6.1-sol only; migrate the model explicitly")
     if type(a.get("failure_threshold", 3)) is not int or not 1 <= a.get("failure_threshold", 3) <= 20:
         raise ValueError("invalid circuit failure threshold")
     budgets = a["budgets"]
-    if set(budgets) != {"label", "summary", "reply"}:
-        raise ValueError("exactly label, summary and reply budgets required")
+    if not {"label", "summary", "reply"} <= set(budgets) or set(budgets) - {"label", "summary", "reply", "selection", "query"}:
+        raise ValueError("label, summary and reply budgets required; selection and query are optional")
     ac = AdapterConfig(**{**a, "budgets": {k: Budget(**v) for k, v in budgets.items()}})
+    from .model_profiles import validate_profiles
+    profiles = validate_profiles(raw.get("model_profiles"), ac)
     name = raw.get("name", AGENT_NAME)
     if not isinstance(name, str) or not name.strip() or len(name) > 80:
         raise ValueError("invalid agent name")
@@ -192,8 +337,8 @@ def load_config(path: Path) -> Config:
     def directory(key):
         value = Path(raw.get(key, key.removesuffix("_dir")))
         return path.parent / value
-    config = Config(name, directory("state_dir"), directory("scratch_dir"), directory("knowledge_dir"), dc, rc, ac, kc, pc)
+    config = Config(name, directory("state_dir"), directory("scratch_dir"), directory("knowledge_dir"), dc, rc, ac, kc, pc, sc, profiles)
     validate_runtime_paths(config)
     knowledge_dir = validate_knowledge_root(config, expected=path.parent / "knowledge")
     return Config(name, Path(os.path.abspath(config.state_dir)), Path(os.path.abspath(config.scratch_dir)),
-                  knowledge_dir, dc, rc, ac, kc, pc)
+                  knowledge_dir, dc, rc, ac, kc, pc, sc, profiles)

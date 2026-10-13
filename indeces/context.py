@@ -30,12 +30,20 @@ def history_cost(rows):
 
 
 def compaction_prefix(rows, capacity, low_watermark):
-    if history_cost(rows) <= capacity:
+    remaining_cost = history_cost(rows)
+    if remaining_cost <= capacity:
         return []
     interactions = groups(rows)
     prefix = []
-    while interactions and history_cost([r for g in interactions for r in g]) > int(capacity * low_watermark):
-        prefix.extend(interactions.pop(0))
+    for index, interaction in enumerate(interactions):
+        if remaining_cost <= int(capacity * low_watermark):
+            break
+        prefix.extend(interaction)
+        if index + 1 < len(interactions):
+            # Nonempty JSON lists concatenate with one comma in place of two
+            # brackets. Row overhead is additive too: cost(A+B)=cost(A)+cost(B)-1.
+            # Reuse only this invocation's integer cost; retain no history cache.
+            remaining_cost -= history_cost(interaction) - 1
     return prefix
 
 

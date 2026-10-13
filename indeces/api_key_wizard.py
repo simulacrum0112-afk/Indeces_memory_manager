@@ -1,4 +1,4 @@
-"""Local OpenAI credential setup. No provider or Discord requests are made."""
+"""Local provider credential setup. No provider or Discord requests are made."""
 from __future__ import annotations
 
 import os
@@ -8,9 +8,10 @@ import tempfile
 
 from .config import load_config
 from .path_policy import validate_config_path
-from .credentials import (CredentialError, _check_openai_secret_path, load_openai_key,
-                          openai_secret_path, prompt_secret, save_openai_key,
-                          validate_api_key)
+from .credentials import (CredentialError, _check_openai_secret_path,
+                          anthropic_secret_path, load_anthropic_key, load_openai_key,
+                          openai_secret_path, prompt_secret, save_anthropic_key,
+                          save_openai_key, validate_api_key)
 from .lock import InstanceLock
 
 
@@ -91,6 +92,23 @@ def configure_api_key(config_path: Path, input_fn=None, secret_fn=None, output=N
         path = validate_config_path(config_path)
         original = path.read_bytes()
         config = load_config(path)
+        if config.adapter.provider == "anthropic":
+            if (config.adapter.base_url.rstrip("/") != "https://api.anthropic.com/v1"
+                    or config.adapter.model not in {"claude-opus-5-5", "claude-fable-5-1"}):
+                raise ApiKeyWizardError("unsupported_provider_configuration")
+            provider = "Claude (Anthropic)"
+            environment = "ANTHROPIC_API_KEY"
+            vault_path = anthropic_secret_path
+            load_key = load_anthropic_key
+            save_key = save_anthropic_key
+        elif config.adapter.provider == "openai":
+            provider = "OpenAI"
+            environment = "OPENAI_API_KEY"
+            vault_path = openai_secret_path
+            load_key = load_openai_key
+            save_key = save_openai_key
+        else:
+            raise ApiKeyWizardError("unsupported_provider_configuration")
         try:
             lease = InstanceLock(config.state_dir)
         except RuntimeError:
@@ -98,19 +116,19 @@ def configure_api_key(config_path: Path, input_fn=None, secret_fn=None, output=N
             return False
         if path.read_bytes() != original:
             raise ApiKeyWizardError("configuration_changed_during_setup")
-        vault = openai_secret_path(path)
+        vault = vault_path(path)
         old_ciphertext = _vault_snapshot(vault)
         old_key = None
         if old_ciphertext is not None:
             try:
-                old_key = load_openai_key(path)
+                old_key = load_key(path)
             except CredentialError as error:
                 output(f"Saved API key unavailable: {error.code}. Supply a replacement key to repair setup.")
-        output("Indeces OpenAI API key wizard. Hidden input; no network validation or service startup.")
-        if os.environ.get("OPENAI_API_KEY"):
-            output("OPENAI_API_KEY is set: it takes priority over this saved key when starting. Remove it to use the saved key.")
+        output(f"Indeces {provider} API key wizard. Hidden input; no network validation or service startup.")
+        if os.environ.get(environment):
+            output(f"{environment} is set: it takes priority over this saved key when starting. Remove it to use the saved key.")
         while True:
-            key = secret_fn("OpenAI API key (hidden; Enter keeps saved key): ")
+            key = secret_fn(f"{provider} API key (hidden; Enter keeps saved key): ")
             if not key and old_key is not None:
                 key = old_key
                 break
@@ -121,7 +139,9 @@ def configure_api_key(config_path: Path, input_fn=None, secret_fn=None, output=N
                 output("Enter a nonempty API key without whitespace/control characters; it will stay hidden.")
         if path.read_bytes() != original or _vault_snapshot(vault) != old_ciphertext:
             raise ApiKeyWizardError("configuration_changed_during_setup")
-        output(f"Review: provider=OpenAI; model={config.adapter.model}; API key supplied (hidden).")
+        output(f"Review: provider={provider}; model={config.adapter.model}; API key supplied (hidden).")
+        if config.adapter.provider == "anthropic":
+            output("Official Anthropic API; effort=high. This key is shared only between the configured Claude models; the OpenAI key stays separate.")
         output("Save encrypted for the current Windows user. Public configuration and Discord token stay unchanged.")
         if input_fn("Save this API key? [y/N]: ").strip().lower() not in {"y", "yes"}:
             output("Cancelled; saved API key unchanged.")
@@ -129,7 +149,7 @@ def configure_api_key(config_path: Path, input_fn=None, secret_fn=None, output=N
         if path.read_bytes() != original or _vault_snapshot(vault) != old_ciphertext:
             raise ApiKeyWizardError("configuration_changed_during_setup")
         try:
-            save_openai_key(path, key)
+            save_key(path, key)
         except BaseException as error:
             try:
                 _restore_ciphertext(vault, old_ciphertext)
@@ -145,7 +165,7 @@ def configure_api_key(config_path: Path, input_fn=None, secret_fn=None, output=N
                 _receipt(output, "API key setup failed: credential_save_failed. Previous saved key restored.")
             return False
         committed = True
-        _receipt(output, "Saved OpenAI API key. Use start when ready; setup did not make a connection.")
+        _receipt(output, f"Saved {provider} API key. Use start when ready; setup did not make a connection.")
         return True
     except (EOFError, KeyboardInterrupt):
         if committed:

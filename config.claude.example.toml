@@ -1,0 +1,105 @@
+# Official Anthropic API example; use Console model/apikey for independent provider profiles and encrypted keys.
+# Copy to config.local.toml, or use the console's discord and apikey wizards.
+# Credentials are outside TOML; wizard storage uses Windows user DPAPI.
+name = "Indeces"
+state_dir = "state"
+scratch_dir = "scratch"
+knowledge_dir = "knowledge" # Only the project knowledge subdirectory; OneDrive and links are forbidden.
+
+[discord]
+guild_id = "" # Required: one Discord server, one bot connection.
+channel_ids = [] # Empty means all channels in this guild where explicitly @mentioned.
+queue_capacity = 16
+delivery_seconds = 10.0
+
+[runtime]
+turn_seconds = 130.0 # Approved summary deadline change; queue wait is independently bounded below.
+queue_wait_seconds = 120.0
+local_seconds = 5.0
+summary_max_bytes = 4096
+low_watermark = 0.70
+retrieval_policy = "concept_v1" # Explicit legacy_v1 restores the previous static selection policy.
+model_selection_enabled = true # false uses the existing deterministic retrieval policy without a selection model call.
+richard_selection_enabled = false # Initial terminal selection only; requires model_selection_enabled=false.
+richard_chat_enabled = false # Initial chat selection with frozen v1.1 ranking; requires model_selection_enabled=true and legacy Richard OFF.
+richard_chat_algorithm = "alpha" # Fixed configuration: alpha or beta; the model does not choose the algorithm.
+richard_graph_zip = "" # Explicit pinned v3.0.2 ZIP for chat, v3.0.1 for legacy selection; relative paths resolve beside this config.
+richard_source_zip = "" # Explicit pinned source ZIP; both required when Richard is enabled.
+# Activation, limitations and rollback: docs/COMBINED_RICHARD_ACTIVATION.md.
+
+# Opt-in DEV11 features. These flags stay OFF and do not migrate live state.
+# Real calls require separate budget approval, allow_real_calls and positive upper tariffs/cap.
+active_requery_enabled = false
+active_requery_max_rounds = 2
+active_requery_max_calls = 6 # Initial selection, any summary, planning and final reply share this cap.
+active_requery_input_tokens = 32768
+active_requery_output_tokens = 4096
+active_requery_seconds = 60.0 # Whole opted-in turn, including delivery; existing stage caps still apply.
+active_requery_allow_real_calls = false
+active_requery_cost_usd = 0.0 # Zero rejects real calls; set only after separate budget approval.
+active_requery_input_usd_per_million = 0.0
+active_requery_output_usd_per_million = 0.0
+communicability_enabled = false # Independent frozen-neighborhood diagnostic; never changes ranking or evidence.
+path_hypotheses_enabled = false # Bounded automatic candidates and frozen source binding; hypotheses only.
+path_requery_loop_enabled = false # Sourced clues affect static queries; configured real mode uses the same budget gates.
+# Isolated smoke entry and remaining limits: docs/PATH_REQUERY_REAL_ENTRY.md.
+
+[knowledge]
+poll_seconds = 0.5
+max_file_bytes = 8192 # UTF-8 .md/.markdown/.txt source bytes only; supported upper bound 1 MiB.
+max_files = 256 # Active supported files; root _staging is excluded.
+chunk_characters = 400
+version_seconds = 1080.0 # Approved cumulative bound; each label call retains its own 15-second bound.
+version_input_tokens = 196608
+version_output_tokens = 49152
+
+# PDF conversion is local and has its own limits. No OCR or model call.
+# These bounds do not increase the per-version labelling budgets above.
+[pdf]
+max_file_bytes = 16777216
+max_pages = 200
+max_markdown_bytes = 524288
+seconds = 30.0
+
+[adapter]
+provider = "anthropic"
+model = "claude-opus-5-5" # Alternative: claude-fable-5-1; no automatic fallback.
+base_url = "https://api.anthropic.com/v1"
+failure_threshold = 3
+cooldown_seconds = 30.0
+verbosity = "high" # Responses text.verbosity; visible detail stays within each output cap.
+
+# Each stage owns these limits; unused allowance cannot be borrowed.
+# Time includes a sequential input-count request and one generation request.
+[adapter.budgets.label]
+input_tokens = 4096
+output_tokens = 512
+seconds = 15.0
+reasoning = "high"
+
+# One model selection after retrieval, before the final three references.
+# Existing label/summary/reply budgets and the 130-second turn remain intact.
+[adapter.budgets.selection]
+input_tokens = 4096
+output_tokens = 512
+seconds = 15.0
+reasoning = "high"
+
+# Structured evidence actions; no thought transcript or general tool execution.
+[adapter.budgets.query]
+input_tokens = 4096
+output_tokens = 512
+seconds = 15.0
+reasoning = "high"
+
+[adapter.budgets.summary]
+input_tokens = 16384
+output_tokens = 2048
+seconds = 60.0
+reasoning = "high"
+
+[adapter.budgets.reply]
+input_tokens = 16384
+output_tokens = 2048
+seconds = 45.0
+reasoning = "high"
