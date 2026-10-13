@@ -22,9 +22,47 @@ receipts are provided by the operator outside this repository. Creating a fixtur
 ledger cannot enable live mode or reset an existing allowance.
 
 The ordinary OpenAI and text-only Claude routes retain their existing contracts.
-This add-on does not connect the tool loop to Console, Discord, background workers,
-or active/path requery. Claude's ordinary controlled-session wrapper remains
+Console now exposes a finite `prune` request. Discord, background workers and
+active/path requery retain their existing routes. Claude's ordinary controlled-session wrapper remains
 unsupported and refuses activation. A source update does not start a service.
+
+In the existing Console, select Anthropic / Claude Opus 5.5 / high with `model`
+and configure the key with `apikey`. Run `prune`, then enter the question, A seeds,
+optional B seeds, coarse/fine level and an exact target label. Seeds accept original
+node IDs separated by spaces/commas, or exact concept names separated by semicolons.
+Preparation validates the pinned graph and shows the protected seeds and candidate
+pool. The request uses the selected reply token and time limits across the entire
+tool loop; it does not renew those limits at each round. Other providers/models are
+rejected before credential resolution or HTTP. No additional paid seed selection
+is introduced.
+
+The operator supplies `<config-stem>.prune.local.json` beside the existing TOML
+configuration. Its four fields are `graph_dir`, `evidence_dir`, `binding` and `price`.
+The binding uses `ExistingGrantBinding`'s exact fields: the original ledger path and
+file identity, grant ID, original policy JSON, completed opening attempt, original
+opening charge, ceiling, and original receipt path/hash. The opening charge is the
+original receipt's charge; subsequent prune rows are accumulated by the ledger.
+The price uses `PrunePriceEnvelope`'s positive, model/endpoint-bound token prices and
+UTC expiry. Paths may be relative to the sidecar. This private file is ignored by
+Git and contains no API key. The Console cannot create a new live allowance, renew
+an expired tariff, discard pending charges or reopen a halted session.
+
+Financial reservation is separate from the selected local token limits. Each
+generation reserves the model's full 1,000,000-input-token bound plus its requested
+maximum output, because the token-count endpoint is an estimate. Verified usage
+settles that reservation before any local token-limit rejection. Unknown usage
+retains the full reservation and halts the session. Consequently, a remaining
+balance below that conservative hold blocks admission even for a small prompt.
+The limits and estimate behavior are documented in Anthropic's
+[models overview](https://platform.claude.com/docs/en/models/overview) and
+[token-counting guide](https://platform.claude.com/docs/en/build-with-claude/token-counting).
+
+`service` shows the answer, tool actions, this request's charge, cumulative charge,
+remaining allowance and pending reservation. `stop` or Ctrl+C cancels the current
+request and preserves any known charge or unknown reservation. While it runs,
+`start`, `retry`, model changes and key changes are blocked. The finite request
+does not start Discord, knowledge labelling or maintenance. Client cleanup precedes
+release of the ledger and Console instance leases.
 
 On Windows/Python 3.12, the exact private integration candidate passed the package's
 24 tests and 41 native-loop/accounting tests. One separately authorized real

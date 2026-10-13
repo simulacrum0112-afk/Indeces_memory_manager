@@ -13,6 +13,7 @@ dist/
 !.env.example
 .envrc
 config.local*.toml*
+*.prune.local.json
 *.local.toml*
 
 # Provider vaults, interrupted saves, private keys and local credential exports

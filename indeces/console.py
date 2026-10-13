@@ -607,7 +607,7 @@ def main():
                 print("未找到配置；npmi 只读检查不会创建配置或启动服务。")
                 return
             initialize(args.config)
-        if args.command in {"console", "start", "observe", "knowledge", "retry"} and not args.once and not args.headless:
+        if args.command in {"console", "start", "observe", "knowledge", "retry", "prune"} and not args.once and not args.headless:
             from .console_session import run_console
             run_console(args.config, args.command + (" " + args.path if args.path else ""))
             return

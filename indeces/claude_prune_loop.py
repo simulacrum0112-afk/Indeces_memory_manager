@@ -23,7 +23,7 @@ from .claude_adapter import (
     _GENERATE_PATH, _json_bytes, _validate_json,
 )
 from .contracts import GovernedError
-from .claude_prune_budget import PruneBudget
+from .claude_prune_budget import NATIVE_INPUT_RESERVATION, PruneBudget
 from ._vendor.npmi_prune import Graph, Session, BudgetExceeded, __version__
 from ._vendor.npmi_prune.core import PINNED_INDECES, PINNED_V302
 
@@ -366,7 +366,11 @@ class PruneToolLoop:
                             raise GovernedError("prune_total_token_limit")
                         effective_output = min(output_cap, remaining_output)
                         effective_input = min(input_cap, remaining_input, _CONTEXT - effective_output)
-                        permit = self.budget.reserve(f"{trace_id}:{round_no}", effective_input, effective_output)
+                        # Count estimates bound execution, not liability. Hold
+                        # the native context ceiling so a larger actual input
+                        # receipt can be settled before local-limit rejection.
+                        permit = self.budget.reserve(f"{trace_id}:{round_no}",
+                                                     NATIVE_INPUT_RESERVATION, effective_output)
                         call_id = uuid.uuid4().hex
                         progress = _PruneProgress(started, deadline=deadline)
                         progress.phase = "slot_acquired"

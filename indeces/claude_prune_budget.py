@@ -23,6 +23,11 @@ from .path_policy import validate_managed_path
 MODEL = "claude-opus-5-5"
 BASE_URL = "https://api.anthropic.com/v1"
 CEILING = 5_000_000_000
+# Native token counting is an estimate and can differ from billed input.
+# Reserve the documented Opus 5.5 input/context ceiling financially, while the
+# loop separately enforces the smaller configured execution/token limits.
+# This does not change existing rows, ledger schema or the caller's price.
+NATIVE_INPUT_RESERVATION = 1_000_000
 _SESSION_SQL = "CREATE TABLE session(id INTEGER PRIMARY KEY CHECK(id=1), policy TEXT NOT NULL, spent INTEGER NOT NULL CHECK(spent>=0))"
 _ATTEMPT_SQL = "CREATE TABLE attempt(id INTEGER PRIMARY KEY CHECK(id=1), maximum INTEGER NOT NULL, status TEXT NOT NULL, count_intents INTEGER NOT NULL, generation_intents INTEGER NOT NULL, usage TEXT, charge INTEGER, wire TEXT)"
 _META_SQL = "CREATE TABLE prune_meta(id INTEGER PRIMARY KEY CHECK(id=1), policy TEXT NOT NULL, halted TEXT, legacy_digest TEXT)"

@@ -17,7 +17,7 @@ from .contracts import GovernedError
 from .model_provider import ModelProviderError
 
 
-HELP = "discord | apikey | knowledge | start | status | model | npmi | scratch | observe | logs | audit | retry | service | stop | home | refresh | quit"
+HELP = "discord | apikey | knowledge | start | status | model | npmi | prune | scratch | observe | logs | audit | retry | service | stop | home | refresh | quit"
 
 
 class ServiceTask:
@@ -56,9 +56,11 @@ class ServiceTask:
                                knowledge_ready=lambda knowledge: setattr(self, "_knowledge", knowledge))
         try:
             self.result = asyncio.run(execute())
-        except asyncio.CancelledError:
+        except asyncio.CancelledError as error:
+            self.result = getattr(error, "budget_snapshot", None)
             self.state = "stopped"
         except BaseException as error:
+            self.result = getattr(error, "budget_snapshot", None)
             self.error = error.code if isinstance(error, (CredentialError, GovernedError)) else type(error).__name__
             self.state = "failed"
         else:
@@ -299,6 +301,13 @@ class ConsoleSession:
                 sys.stdout, sys.stderr = self._stdout, self._stderr
                 self._stdout = self._stderr = None
 
+    def _service_result(self):
+        result = self.service.result
+        if self.service.kind == "prune" and isinstance(result, dict):
+            from .console_prune import render_financial_status
+            return render_financial_status(result)
+        return result
+
     def _service_panel(self):
         state = self.service.state if self.service is not None else "not_started"
         kind = self.service.kind if self.service is not None else "none"
@@ -316,7 +325,7 @@ class ConsoleSession:
                 print(_terminal_text(line))
         if self.service is not None and self.service.result is not None:
             from .knowledge_progress import _terminal_text
-            print("任务结果：" + _terminal_text(self.service.result))
+            print("任务结果：" + _terminal_text(self._service_result()))
         for name, job in self.read_jobs.items():
             print(f"只读面板任务：{name}/{job.state}" + (f"；错误={job.error}" if job.error else ""))
 
@@ -347,7 +356,9 @@ class ConsoleSession:
     def _start(self, config):
         from . import console
         if self.service is not None and self.service.active:
-            if self.service.kind == "knowledge_retry":
+            if self.service.kind == "prune":
+                print("Prune is running. Finish or stop it before starting the Gateway.")
+            elif self.service.kind == "knowledge_retry":
                 print("当前知识维护任务仍在运行；复用任务状态，没有启动 Discord。维护完成后可显式 start。")
             else:
                 print("复用现有服务任务；未重启、未建立第二个 Gateway。")
@@ -383,6 +394,10 @@ class ConsoleSession:
 
     def _retry(self, config, path):
         from . import console
+        if self.service is not None and self.service.active and self.service.kind == "prune":
+            print("Prune is running. Stop it and wait for settlement before retrying knowledge work.")
+            self._service_panel()
+            return
         console.guard_trial_maintenance(config)
         if self.service is not None and self.service.active:
             if self.service.kind == "knowledge_retry":
@@ -410,6 +425,24 @@ class ConsoleSession:
             lease.close()
             raise
         print("知识重试任务在当前 Console 后台执行；未启动 Discord。knowledge/audit 查看进度，stop 请求停止。")
+
+    def _prune(self, config):
+        from . import console
+        from .console_prune import prepare_prune, execute_prune
+        if self.service is not None and self.service.active:
+            print("Finish or stop the current Console task before starting prune.")
+            self._service_panel()
+            return
+        lease = console.InstanceLock(config.state_dir)
+        try:
+            prepared = prepare_prune(config, self.path)
+            async def task(config, unused_key, unused_token, *, lease, knowledge_ready):
+                return await execute_prune(prepared, config)
+            self.service = ServiceTask(config, None, None, lease, task, kind="prune")
+        except BaseException:
+            lease.close()
+            raise
+        print("Prune started in this Console. service shows result and fees; stop/Ctrl+C cancels and settles this task.")
 
     def dispatch(self, command):
         from . import console
@@ -444,7 +477,7 @@ class ConsoleSession:
         if command not in console.CONSOLE_COMMANDS:
             print("Commands: " + HELP)
             return True
-        self.panel = ("service" if command in {"start", "stop", "retry"} else
+        self.panel = ("service" if command in {"start", "stop", "retry", "prune"} else
                       "home" if command in {"discord", "apikey", "model", "init"} else command)
         # Control the task we already own even when its config was moved or
         # externally edited. Loading a new TOML is irrelevant to cancellation.
@@ -473,6 +506,8 @@ class ConsoleSession:
         config = console.load_config(self.path)
         if command == "start":
             self._start(config)
+        elif command == "prune":
+            self._prune(config)
         elif command == "knowledge":
             self._knowledge_panel(config, directory=True, force=True)
         elif command == "observe":
@@ -520,6 +555,12 @@ class ConsoleSession:
             print(f"Credential error: {error.code}. Use discord setup for the Bot token, or apikey for the selected provider's encrypted API key.")
         except ModelProviderError as error:
             print(f"Model setup blocked: {error}. No connection was made.")
+        except GovernedError as error:
+            if command.split(" ", 1)[0].lower() == "prune":
+                from .knowledge_progress import _terminal_text
+                print("Prune blocked: " + _terminal_text(error.code) + ". Check model/high effort, apikey and the local prune session file.")
+            else:
+                print("Command failed: GovernedError. Check configuration and scratch records.")
         except Exception as error:
             print(f"Command failed: {type(error).__name__}. Check configuration and scratch records.")
         finally:
@@ -562,7 +603,7 @@ class ConsoleSession:
             print(f"服务任务状态：{self.service.state}" +
                   (f"；错误类型={self.service.error}" if self.service.error else ""), flush=True)
             if not self.service.active and self.service.result is not None:
-                print("任务结果：" + _terminal_text(self.service.result), flush=True)
+                print("任务结果：" + _terminal_text(self._service_result()), flush=True)
             self.reader.invalidate()
 
     def run(self, initial="console"):
@@ -581,7 +622,7 @@ class ConsoleSession:
                         except queue.Empty:
                             break
                         verb = command.split(" ", 1)[0]
-                        needs_input = (verb in {"discord", "apikey", "model"} or
+                        needs_input = (verb in {"discord", "apikey", "model", "prune"} or
                             verb in {"start", "retry"} and (self.service is None or not self.service.active))
                         if needs_input and self.reader.busy:
                             self._pending.append(command)
