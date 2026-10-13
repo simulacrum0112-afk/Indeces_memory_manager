@@ -20,7 +20,7 @@ import time
 
 COMMANDS = frozenset({"console", "init", "discord", "apikey", "model", "knowledge", "start",
                       "status", "npmi", "check", "scratch", "observe", "logs", "audit",
-                      "retry", "prune", "service", "stop"})
+                      "retry", "service", "stop"})
 MAX_MESSAGE = 2048
 
 

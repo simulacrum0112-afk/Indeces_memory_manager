@@ -141,6 +141,34 @@ def _caps(inp, out):
         raise _error("invalid_caps")
 
 
+def _price_policy(grant, opening, ceiling, original, price):
+    return _json({"schema": "native_prune_budget_v1", "grant": grant, "opening_nusd": opening,
+        "ceiling_nusd": ceiling, "offline_only": not original, "model": MODEL, "base_url": BASE_URL,
+        "input_nusd_per_token": price.input_nusd_per_token, "output_nusd_per_token": price.output_nusd_per_token,
+        "count_fee_nusd": 0, "service_tier": "standard", "inference_geo": "global",
+        "price_expiry": price.valid_until, "retries": 0})
+
+
+def _verify_existing_receipt(binding):
+    receipt_path = validate_managed_path(binding.receipt_path, "existing grant receipt")
+    receipt_bytes = receipt_path.read_bytes()
+    if hashlib.sha256(receipt_bytes).hexdigest() != binding.receipt_sha256:
+        raise ValueError("existing grant receipt changed")
+    receipt = json.loads(receipt_bytes)
+    attempt = binding.completed_attempt
+    expected = dict(zip(("maximum_nusd", "status", "count_intents", "generation_intents",
+        "usage", "charge_nusd", "generation_wire_sha256"), attempt[1:]))
+    expected["usage"] = json.loads(attempt[5])
+    ledger = receipt.get("ledger", {}) if type(receipt) is dict else {}
+    if (type(receipt) is not dict or receipt.get("success") is not True or type(ledger) is not dict
+            or ledger.get("grant") != binding.grant_id
+            or type(ledger.get("spent_or_worst_unknown_nusd")) is not int
+            or ledger["spent_or_worst_unknown_nusd"] != binding.opening_spent_nusd
+            or type(ledger.get("pending_nusd")) is not int or ledger["pending_nusd"] != 0
+            or _json(ledger.get("attempt")) != _json(expected)):
+        raise ValueError("existing grant receipt rejected")
+
+
 def _usage(native, known, inp_cap, out_cap, price):
     allowed = {"input_tokens", "output_tokens", "service_tier", "inference_geo",
                "cache_read_input_tokens", "cache_creation_input_tokens", "cache_creation",
@@ -190,27 +218,101 @@ class PruneBudget:
             raise ValueError("explicit existing-grant gate required")
         if type(price) is not PrunePriceEnvelope or datetime.now(timezone.utc) >= datetime.fromisoformat(price.valid_until):
             raise ValueError("a current trusted price envelope is required")
-        receipt_path = validate_managed_path(binding.receipt_path, "existing grant receipt")
-        receipt_bytes = receipt_path.read_bytes()
-        if hashlib.sha256(receipt_bytes).hexdigest() != binding.receipt_sha256:
-            raise ValueError("existing grant receipt changed")
-        receipt = json.loads(receipt_bytes)
-        attempt = binding.completed_attempt
-        expected_receipt_attempt = dict(zip(("maximum_nusd", "status", "count_intents", "generation_intents",
-            "usage", "charge_nusd", "generation_wire_sha256"), attempt[1:]))
-        expected_receipt_attempt["usage"] = json.loads(attempt[5])
-        ledger = receipt.get("ledger", {}) if type(receipt) is dict else {}
-        if (type(receipt) is not dict or receipt.get("success") is not True or type(ledger) is not dict
-                or ledger.get("grant") != binding.grant_id
-                or type(ledger.get("spent_or_worst_unknown_nusd")) is not int
-                or ledger["spent_or_worst_unknown_nusd"] != binding.opening_spent_nusd
-                or type(ledger.get("pending_nusd")) is not int or ledger["pending_nusd"] != 0
-                or _json(ledger.get("attempt")) != _json(expected_receipt_attempt)):
-            raise ValueError("existing grant receipt rejected")
+        _verify_existing_receipt(binding)
         result = cls.__new__(cls)
         result._initialize(binding.ledger_path, binding.grant_id, binding.opening_spent_nusd,
                            binding.ceiling_nusd, original=True, price=price, binding=binding)
         return result
+
+    @classmethod
+    def renew_existing_price(cls, binding, previous_price, new_price, *, offline_accepted=False):
+        """Extend a freshly verified unchanged tariff without reopening admission.
+
+        The caller must independently verify the official Standard/global rates
+        and free counting, then update its private sidecar after this receipt.
+        Only the canonical prune policy's expiry changes. An old sidecar stays
+        closed on policy mismatch; no grant, balance, history or halt is reset.
+        Changed tariffs need a separate historical price-epoch migration.
+        """
+        if offline_accepted is not True or type(binding) is not ExistingGrantBinding:
+            raise ValueError("explicit existing-grant gate required")
+        if type(previous_price) is not PrunePriceEnvelope or type(new_price) is not PrunePriceEnvelope:
+            raise ValueError("explicit trusted old and new price envelopes required")
+        # Revalidate values as well as types before any filesystem action.
+        for price in (previous_price, new_price):
+            PrunePriceEnvelope(price.input_nusd_per_token, price.output_nusd_per_token,
+                               price.valid_until, price.model, price.base_url)
+        old_tariff = (previous_price.input_nusd_per_token, previous_price.output_nusd_per_token,
+                      previous_price.model, previous_price.base_url)
+        new_tariff = (new_price.input_nusd_per_token, new_price.output_nusd_per_token,
+                      new_price.model, new_price.base_url)
+        new_expiry = datetime.fromisoformat(new_price.valid_until)
+        if (old_tariff != new_tariff or new_expiry <= datetime.fromisoformat(previous_price.valid_until)
+                or new_expiry <= datetime.now(timezone.utc)):
+            raise ValueError("only a future same-tariff expiry extension is supported")
+        _verify_existing_receipt(binding)
+        path = validate_managed_path(binding.ledger_path, "prune budget ledger")
+        if not path.is_file() or path.resolve() != binding.ledger_path:
+            raise ValueError("the existing original ledger is required")
+        metadata = path.stat()
+        if (metadata.st_dev, metadata.st_ino) != binding.ledger_identity:
+            raise ValueError("original ledger file identity changed")
+        old_policy = _price_policy(binding.grant_id, binding.opening_spent_nusd,
+                                   binding.ceiling_nusd, True, previous_price)
+        new_policy = _price_policy(binding.grant_id, binding.opening_spent_nusd,
+                                   binding.ceiling_nusd, True, new_price)
+        checker = cls.__new__(cls)
+        checker._original, checker._binding, checker._price = True, binding, previous_price
+        checker._opening, checker._ceiling, checker._policy = (
+            binding.opening_spent_nusd, binding.ceiling_nusd, old_policy)
+        with _writer_lease(path):
+            db = sqlite3.connect(path.as_uri() + "?mode=rw", timeout=0.0,
+                                 isolation_level=None, check_same_thread=False, uri=True)
+            checker._db = db
+            try:
+                db.execute("PRAGMA synchronous=FULL")
+                db.execute("BEGIN IMMEDIATE")
+                metadata = validate_managed_path(path, "prune budget ledger").stat()
+                if (metadata.st_dev, metadata.st_ino) != binding.ledger_identity:
+                    raise _error("state_changed")
+                # Renewal requires the already migrated exact four-table schema.
+                schema = [("table", "attempt", _ATTEMPT_SQL), ("table", "prune_meta", _META_SQL),
+                          ("table", "prune_rounds", _ROUNDS_SQL), ("table", "session", _SESSION_SQL)]
+                if checker._objects() != schema:
+                    raise _error("schema_changed")
+                checker._legacy = checker._check_legacy()
+                checker._validate()  # Accept an expired old snapshot only for validation.
+                halted = db.execute("SELECT halted FROM prune_meta WHERE id=1").fetchone()[0]
+                rows = db.execute("SELECT * FROM prune_rounds ORDER BY rowid").fetchall()
+                pending = sum(row[4] for row in rows if row[10] is None)
+                if halted is not None or pending or any(row[5] not in {"completed", "failed_known"} for row in rows):
+                    raise _error("renewal_requires_settled_unhalted")
+                before = (db.execute("SELECT * FROM session").fetchall(),
+                          db.execute("SELECT * FROM attempt").fetchall(), rows)
+                if new_expiry <= datetime.now(timezone.utc):
+                    raise _error("price_expired")
+                db.execute("UPDATE prune_meta SET policy=? WHERE id=1 AND policy=?", (new_policy, old_policy))
+                checker._price, checker._policy = new_price, new_policy
+                checker._validate()
+                after = (db.execute("SELECT * FROM session").fetchall(),
+                         db.execute("SELECT * FROM attempt").fetchall(),
+                         db.execute("SELECT * FROM prune_rounds ORDER BY rowid").fetchall())
+                if before != after or db.execute("SELECT halted FROM prune_meta WHERE id=1").fetchone()[0] is not None:
+                    raise _error("state_changed")
+                spent = before[0][0][2]
+                receipt = {"old_policy_sha256": hashlib.sha256(old_policy.encode()).hexdigest(),
+                           "new_policy_sha256": hashlib.sha256(new_policy.encode()).hexdigest(),
+                           "old_valid_until": previous_price.valid_until, "new_valid_until": new_price.valid_until,
+                           "spent_nusd": spent, "pending_nusd": pending, "ceiling_nusd": binding.ceiling_nusd,
+                           "round_count": len(rows)}
+                db.execute("COMMIT")
+                return receipt
+            except BaseException:
+                if db.in_transaction:
+                    db.execute("ROLLBACK")
+                raise
+            finally:
+                db.close()
 
     def _initialize(self, path, grant_id, opening, ceiling, *, original, price, binding=None):
         if type(opening) is not int or type(ceiling) is not int or not 0 <= opening <= ceiling <= CEILING or ceiling <= 0:
@@ -221,11 +323,7 @@ class PruneBudget:
         self._price, self._binding = price, binding
         self._grant, self._opening, self._ceiling, self._original = grant_id, opening, ceiling, original
         self._lock, self._closed, self._failed, self._db = threading.RLock(), False, None, None
-        self._policy = _json({"schema": "native_prune_budget_v1", "grant": grant_id, "opening_nusd": opening,
-            "ceiling_nusd": ceiling, "offline_only": not original, "model": MODEL, "base_url": BASE_URL,
-            "input_nusd_per_token": price.input_nusd_per_token, "output_nusd_per_token": price.output_nusd_per_token,
-            "count_fee_nusd": 0, "service_tier": "standard", "inference_geo": "global",
-            "price_expiry": price.valid_until, "retries": 0})
+        self._policy = _price_policy(grant_id, opening, ceiling, original, price)
         if not original:
             self._path.parent.mkdir(parents=True, exist_ok=True)
         elif not self._path.is_file() or self._path != binding.ledger_path.resolve():

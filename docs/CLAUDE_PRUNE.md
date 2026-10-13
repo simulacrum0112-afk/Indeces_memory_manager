@@ -1,79 +1,50 @@
-# Claude and npmi_prune
+# Claude and native Richard prune in production chat
 
-Version `0.17.0.dev19+prunecandidate1` adds an explicit native Claude tool loop for
-the unchanged `npmi_prune` v0.1.2 package. Install the optional dependency with
-`pip install '.[prune]'`. The offline CI dependency lock also includes NumPy
-2.3.5. Graph and evidence data are supplied separately and checked against the
-package's fixed v3.0.2 hashes; no graph or evaluation dataset is distributed here.
+Version `0.17.0.dev21+productionprune1` connects the frozen `npmi_prune`
+v0.1.2 implementation to the existing Discord conversation surface. Console is
+service administration: use its existing model/key setup and `start`. It does not
+accept chat questions and no longer offers a manual `prune` command.
 
-`create_offline_prune_loop` constructs the actual provider adapter and frozen
-Graph/Session with an injected transport. `PruneToolLoop` exposes one client tool
-with the package's `view`, `prune` and `answer` actions. It preserves ordered native
-assistant content, including signed thinking blocks, and appends the correlated
-tool result for the next Messages request. Calls are serial, counted against the
-complete prefix, bounded by token and time limits, and never automatically retried.
-An accepted final answer requires a successful tool answer with verified citations.
+Send an ordinary natural-language message through the existing Discord bot entry.
+The existing message handler admits the turn, Runtime forwards the question to
+`PruneQuestionService`, and the service performs a bounded native Claude JSON
+planning request. The host resolves returned literal concept names and target
+labels against the actual pinned graph; internal concept IDs are not requested
+from the user or exposed as planning catalog inputs. Unknown or ambiguous concepts
+and unsupported targets are rejected instead of inventing a mapping or answer.
 
-Live construction is explicit. It requires a precreated native client with retries
-disabled and an existing, positively priced, expiring financial binding. Accounting
-reserves maximum cost before each request, settles known usage, and retains unknown
-reservations while halting admission. Private grant identity, paths, credentials and
-receipts are provided by the operator outside this repository. Creating a fixture
-ledger cannot enable live mode or reset an existing allowance.
+A grounded plan creates the unchanged graph Session. The native continuation
+exposes the package's `view`, subtraction-only `prune`, and `answer` actions,
+preserves ordered native content and correlated tool results, and requires a
+successful verified answer receipt before returning text. Runtime returns that
+text to the original Discord handler for its ordinary send/persistence path.
+No user seed, graph-node, target prompt, or separate tool command is required.
 
-The ordinary OpenAI and text-only Claude routes retain their existing contracts.
-Console now exposes a finite `prune` request. Discord, background workers and
-active/path requery retain their existing routes. Claude's ordinary controlled-session wrapper remains
-unsupported and refuses activation. A source update does not start a service.
+The production profile is configured through `runtime.prune_profile_config`.
+The referenced existing Claude profile and adjacent private
+`<config-stem>.prune.local.json` supply pinned graph/evidence paths and the original
+financial binding. The native route supports Anthropic Claude Opus 5.5/high at the
+official endpoint. Unsupported profiles fail before a model request. Install the
+optional dependency with `pip install '.[prune]'`; graph data are supplied separately.
 
-In the existing Console, select Anthropic / Claude Opus 5.5 / high with `model`
-and configure the key with `apikey`. Run `prune`, then enter the question, A seeds,
-optional B seeds, coarse/fine level and an exact target label. Seeds accept original
-node IDs separated by spaces/commas, or exact concept names separated by semicolons.
-Preparation validates the pinned graph and shows the protected seeds and candidate
-pool. The request uses the selected reply token and time limits across the entire
-tool loop; it does not renew those limits at each round. Other providers/models are
-rejected before credential resolution or HTTP. No additional paid seed selection
-is introduced.
+Planning and continuation share one original cumulative financial ledger. Each
+native generation is counted, serial, bounded, and never retried. A conservative
+1,000,000-input-token financial reservation is distinct from smaller selected local
+execution caps. Verified model and Standard/global usage settle before semantic
+validation; missing or unverified usage retains the reservation and closes admission.
+Cancellation preserves its primary exception and known charge or unknown hold.
+The production route closes unbound background model stages and disables model
+knowledge workers, preventing an ordinary-adapter allowance bypass.
 
-The operator supplies `<config-stem>.prune.local.json` beside the existing TOML
-configuration. Its four fields are `graph_dir`, `evidence_dir`, `binding` and `price`.
-The binding uses `ExistingGrantBinding`'s exact fields: the original ledger path and
-file identity, grant ID, original policy JSON, completed opening attempt, original
-opening charge, ceiling, and original receipt path/hash. The opening charge is the
-original receipt's charge; subsequent prune rows are accumulated by the ledger.
-The price uses `PrunePriceEnvelope`'s positive, model/endpoint-bound token prices and
-UTC expiry. Paths may be relative to the sidecar. This private file is ignored by
-Git and contains no API key. The Console cannot create a new live allowance, renew
-an expired tariff, discard pending charges or reopen a halted session.
+The private sidecar has `graph_dir`, `evidence_dir`, `binding`, and `price` fields.
+Its binding names the original ledger/file identity, policy, completed opening
+attempt, opening charge, ceiling, and successful receipt/hash. Later charges stay
+in that ledger. Prices must be positive verified model/endpoint upper bounds with
+explicit UTC expiry. Renewal follows [the tariff renewal procedure](PRUNE_PRICE_RENEWAL.md);
+no ledger reset, pending-charge discard, or expiry bypass is allowed.
 
-Financial reservation is separate from the selected local token limits. Each
-generation reserves the model's full 1,000,000-input-token bound plus its requested
-maximum output, because the token-count endpoint is an estimate. Verified usage
-settles that reservation before any local token-limit rejection. Unknown usage
-retains the full reservation and halts the session. Consequently, a remaining
-balance below that conservative hold blocks admission even for a small prompt.
-The limits and estimate behavior are documented in Anthropic's
-[models overview](https://platform.claude.com/docs/en/models/overview) and
-[token-counting guide](https://platform.claude.com/docs/en/build-with-claude/token-counting).
-
-`service` shows the answer, tool actions, this request's charge, cumulative charge,
-remaining allowance and pending reservation. `stop` or Ctrl+C cancels the current
-request and preserves any known charge or unknown reservation. While it runs,
-`start`, `retry`, model changes and key changes are blocked. The finite request
-does not start Discord, knowledge labelling or maintenance. Client cleanup precedes
-release of the ledger and Console instance leases.
-
-On Windows/Python 3.12, the exact private integration candidate passed the package's
-24 tests and 41 native-loop/accounting tests. One separately authorized real
-Claude Opus 5.5/high trial completed `view`, one current-top-ten nonseed `prune`,
-`answer(none)`, then `DONE`: four generations and four token counts, no retries,
-21,658 input and 250 output tokens, and USD0.091632 in usage-based API token fees.
-It ended with no pending reservation. That trial returned no thinking blocks;
-signed-thinking preservation is covered by synthetic tests. Public extraction and
-package checks are recorded separately. These results do not establish fresh
-scientific accuracy, full solver equivalence, or a running Discord integration.
-
-Rollback restores the source and matching version together. Retain financial
-ledgers, pending reservations, delivery receipts and user configuration. Never
-replay a confirmed send or repeat a paid request to reconstruct a receipt.
+The frozen algorithm does not establish fresh scientific accuracy or full solver
+equivalence. Synthetic tests and earlier isolated native trials do not substitute
+for acceptance through the actual Discord message interface. Rollback restores
+matching source/version while retaining configuration, financial ledger, delivery
+receipts, and conversation history. Do not replay a confirmed send or paid request.

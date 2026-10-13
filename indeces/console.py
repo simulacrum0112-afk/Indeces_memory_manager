@@ -116,8 +116,10 @@ def checked_session_envelope(config):
     return envelope
 
 
-def create_runtime(config, store, adapter, scratch, *, selector=None):
+def create_runtime(config, store, adapter, scratch, *, selector=None, question_service=None):
     """Construct the configured path or use an explicitly preloaded policy."""
+    if question_service is not None:
+        return Runtime(config, store, adapter, scratch, question_service=question_service)
     if controlled_session_enabled(config) and type(adapter) is not SessionBudgetAdapter:
         raise GovernedError("session_adapter_required")
     if selector is not None:
@@ -196,7 +198,7 @@ async def serve(config, key, token, *, lease=None, knowledge_ready=None):
     owns_lease = lease is None
     if owns_lease:
         lease = InstanceLock(config.state_dir)
-    scratch = store = adapter = raw_adapter = session_ledger = bridge = knowledge = observer = None
+    scratch = store = adapter = raw_adapter = session_ledger = bridge = knowledge = observer = question_service = None
     maintenance_task = gateway_task = None
     try:
         if envelope is not None:
@@ -228,11 +230,16 @@ async def serve(config, key, token, *, lease=None, knowledge_ready=None):
             scratch.write("restart_recovery", interrupted_turns=interrupted, automatically_replayed=False)
         raw_adapter = create_model_adapter(config.adapter, scratch, key)
         adapter = SessionBudgetAdapter(raw_adapter, session_ledger) if session_ledger is not None else raw_adapter
-        runtime = create_runtime(config, store, adapter, scratch)
+        if getattr(config.runtime, "prune_profile_config", ""):
+            from .production_prune import PruneQuestionService as QuestionService, ClosedStageAdapter
+            question_service = QuestionService(config, Path(config.runtime.prune_profile_config), raw_adapter)
+            adapter = ClosedStageAdapter(config, question_service)
+        runtime = (create_runtime(config, store, adapter, scratch, question_service=question_service)
+                   if question_service is not None else create_runtime(config, store, adapter, scratch))
         selection_enabled = (config.runtime.model_selection_enabled
                              and getattr(runtime, "model_selector", None) is not None)
-        richard_enabled = getattr(config.runtime, "richard_selection_enabled", False)
-        richard_chat_enabled = getattr(config.runtime, "richard_chat_enabled", False)
+        richard_enabled = question_service is None and getattr(config.runtime, "richard_selection_enabled", False)
+        richard_chat_enabled = question_service is None and getattr(config.runtime, "richard_chat_enabled", False)
         knowledge = KnowledgeService(config, store, runtime.graph, adapter, scratch)
         if knowledge_ready is not None:
             knowledge_ready(knowledge)
@@ -241,11 +248,14 @@ async def serve(config, key, token, *, lease=None, knowledge_ready=None):
                       model_provider=config.adapter.provider, model=config.adapter.model,
                       stage_budgets={k: asdict(v) for k, v in config.adapter.budgets.items()},
                       knowledge_limits=asdict(config.knowledge), model_concurrency=1, chat_labelling=False,
-                       evidence_selection=("richard_chat_v11" if richard_chat_enabled else
+                       evidence_selection=("richard_npmi_prune_native" if question_service is not None else
+                                           "richard_chat_v11" if richard_chat_enabled else
                                            "richard_npmi_association" if richard_enabled else
                                            "model_npmi_labels_v1" if selection_enabled
                                           else config.runtime.retrieval_policy),
                       model_selection_enabled=selection_enabled,
+                      **({"native_prune_enabled": True, "knowledge_background_enabled": False}
+                         if question_service is not None else {}),
                       **({"controlled_session_enabled": True,
                           "session_budget_usd": config.session_budget.ceiling_usd,
                           "session_budget_id": config.session_budget.session_id,
@@ -272,7 +282,9 @@ async def serve(config, key, token, *, lease=None, knowledge_ready=None):
                       scratch_retention_seconds=RETENTION_SECONDS,
                       scratch_maintenance_seconds=RETENTION_MAINTENANCE_SECONDS)
         print(f"{config.name} {__version__}: one Discord connection; model={config.adapter.model}; scratch={scratch.path}")
-        if session_ledger is not None:
+        if question_service is not None:
+            print("Production chat: native Richard prune; original cumulative grant; background model calls closed.")
+        elif session_ledger is not None:
             print("Controlled session: shared persistent budget; selection and reply only. Knowledge workers and maintenance calls are closed. stop/Ctrl+C stops the owned service.")
         else:
             print("Knowledge PDF updates trigger local Markdown conversion, then background labels. Use the knowledge panel for progress. Chat labelling is closed. stop/Ctrl+C stops the owned service.")
@@ -290,7 +302,7 @@ async def serve(config, key, token, *, lease=None, knowledge_ready=None):
                     pass
             observer = None
             print(f"Observer unavailable: {type(error).__name__}; use the observe panel.", flush=True)
-        if session_ledger is None:
+        if session_ledger is None and question_service is None:
             knowledge.start()
         maintenance_task = asyncio.create_task(_maintain_scratch(scratch), name="indeces-scratch-retention")
         gateway_task = asyncio.create_task(bridge.run(token), name="indeces-discord-gateway")
@@ -322,7 +334,7 @@ async def serve(config, key, token, *, lease=None, knowledge_ready=None):
                 await asyncio.to_thread(observer.close)
             except BaseException as error:
                 cleanup_errors.append(error)
-        for resource in (bridge, knowledge, raw_adapter):
+        for resource in (bridge, knowledge, raw_adapter, question_service):
             if resource is not None:
                 try:
                     await resource.close()
@@ -459,14 +471,16 @@ def _startup_credentials(config, config_path):
     _check_start_config(config, config_path)
     try:
         key = None
+        key_config_path = (Path(config.runtime.prune_profile_config)
+                           if getattr(config.runtime, "prune_profile_config", "") else config_path)
         if config.adapter.provider == "anthropic":
-            key = resolve_model_key(config.adapter, config_path, prompt=prompt_secret)
+            key = resolve_model_key(config.adapter, key_config_path, prompt=prompt_secret)
         token = os.environ.get("DISCORD_BOT_TOKEN")
         if not token and config_path is not None:
             token = load_discord_token(config_path, config.discord.guild_id)
         token = validate_token(token or prompt_secret("Discord bot token (session only, not saved): "))
         if key is None:
-            key = resolve_model_key(config.adapter, config_path, prompt=prompt_secret)
+            key = resolve_model_key(config.adapter, key_config_path, prompt=prompt_secret)
     except (EOFError, KeyboardInterrupt):
         print("Startup cancelled; no connection was made.")
         return None
@@ -607,7 +621,7 @@ def main():
                 print("未找到配置；npmi 只读检查不会创建配置或启动服务。")
                 return
             initialize(args.config)
-        if args.command in {"console", "start", "observe", "knowledge", "retry", "prune"} and not args.once and not args.headless:
+        if args.command in {"console", "start", "observe", "knowledge", "retry"} and not args.once and not args.headless:
             from .console_session import run_console
             run_console(args.config, args.command + (" " + args.path if args.path else ""))
             return

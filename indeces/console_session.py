@@ -17,7 +17,7 @@ from .contracts import GovernedError
 from .model_provider import ModelProviderError
 
 
-HELP = "discord | apikey | knowledge | start | status | model | npmi | prune | scratch | observe | logs | audit | retry | service | stop | home | refresh | quit"
+HELP = "discord | apikey | knowledge | start | status | model | npmi | scratch | observe | logs | audit | retry | service | stop | home | refresh | quit"
 
 
 class ServiceTask:
@@ -426,24 +426,6 @@ class ConsoleSession:
             raise
         print("知识重试任务在当前 Console 后台执行；未启动 Discord。knowledge/audit 查看进度，stop 请求停止。")
 
-    def _prune(self, config):
-        from . import console
-        from .console_prune import prepare_prune, execute_prune
-        if self.service is not None and self.service.active:
-            print("Finish or stop the current Console task before starting prune.")
-            self._service_panel()
-            return
-        lease = console.InstanceLock(config.state_dir)
-        try:
-            prepared = prepare_prune(config, self.path)
-            async def task(config, unused_key, unused_token, *, lease, knowledge_ready):
-                return await execute_prune(prepared, config)
-            self.service = ServiceTask(config, None, None, lease, task, kind="prune")
-        except BaseException:
-            lease.close()
-            raise
-        print("Prune started in this Console. service shows result and fees; stop/Ctrl+C cancels and settles this task.")
-
     def dispatch(self, command):
         from . import console
         raw = command.strip()
@@ -477,7 +459,7 @@ class ConsoleSession:
         if command not in console.CONSOLE_COMMANDS:
             print("Commands: " + HELP)
             return True
-        self.panel = ("service" if command in {"start", "stop", "retry", "prune"} else
+        self.panel = ("service" if command in {"start", "stop", "retry"} else
                       "home" if command in {"discord", "apikey", "model", "init"} else command)
         # Control the task we already own even when its config was moved or
         # externally edited. Loading a new TOML is irrelevant to cancellation.
@@ -506,8 +488,6 @@ class ConsoleSession:
         config = console.load_config(self.path)
         if command == "start":
             self._start(config)
-        elif command == "prune":
-            self._prune(config)
         elif command == "knowledge":
             self._knowledge_panel(config, directory=True, force=True)
         elif command == "observe":
@@ -622,7 +602,7 @@ class ConsoleSession:
                         except queue.Empty:
                             break
                         verb = command.split(" ", 1)[0]
-                        needs_input = (verb in {"discord", "apikey", "model", "prune"} or
+                        needs_input = (verb in {"discord", "apikey", "model"} or
                             verb in {"start", "retry"} and (self.service is None or not self.service.active))
                         if needs_input and self.reader.busy:
                             self._pending.append(command)

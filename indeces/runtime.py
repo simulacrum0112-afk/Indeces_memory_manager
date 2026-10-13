@@ -14,7 +14,7 @@ from dataclasses import asdict
 from .adapter import reservation
 from .config import controlled_session_enabled
 from .context import compaction_prefix, encode, groups, history_cost, history_data, raw_capacity, reply_messages
-from .contracts import ConfirmedDeliveryPersistenceError, FailureNotice, GovernedError
+from .contracts import ConfirmedDeliveryPersistenceError, FailureNotice, GovernedError, ModelResult
 from .memory import MemoryGraph
 from .npmi_telemetry import NPMIRetrievalTelemetry
 from .run_records import answer_record, digest, freeze_retrieval, validate_ledger_io_failure
@@ -72,7 +72,7 @@ def bot_reply_data(text):
 
 
 class Runtime:
-    def __init__(self, config, store, adapter, scratch, *, selector=None):
+    def __init__(self, config, store, adapter, scratch, *, selector=None, question_service=None):
         if (getattr(config.adapter, "provider", "openai") == "anthropic" and
                 any(getattr(config.runtime, key, False) for key in
                     ("active_requery_enabled", "path_requery_loop_enabled"))):
@@ -87,6 +87,10 @@ class Runtime:
                 raise GovernedError("path_requery_requires_active_query", remote_usage_unknown=False)
             from .active_requery import _require_provider_authorization
             _require_provider_authorization(adapter, config.runtime)
+        if question_service is not None and any(getattr(config.runtime, key, False) for key in
+                ("active_requery_enabled", "path_requery_loop_enabled")):
+            raise GovernedError("question_service_requery_unsupported", remote_usage_unknown=False)
+        self.question_service = question_service
         self.config, self.store, self.adapter, self.scratch = config, store, adapter, scratch
         self.graph = MemoryGraph(store.db, self_marks=(config.name,),
                                  retrieval_policy=config.runtime.retrieval_policy,
@@ -98,6 +102,11 @@ class Runtime:
 
     def session_stop_error(self):
         """Expose terminal shared-session state without admitting a new turn."""
+        if self.question_service is not None:
+            checker = getattr(self.question_service, "session_stop_error", None)
+            error = checker() if callable(checker) else GovernedError("question_service_lifecycle_required", remote_usage_unknown=False)
+            self.session_usage_unknown = getattr(error, "remote_usage_unknown", None) if error is not None else False
+            return error
         if type(self.adapter) is not SessionBudgetAdapter:
             return None
         self.session_usage_unknown = None
@@ -229,6 +238,9 @@ class Runtime:
                 nonlocal npmi_recorded
                 if npmi_recorded:
                     return
+                if self.question_service is not None:
+                    npmi_recorded = True
+                    return
                 if npmi_telemetry.status == "not_started":
                     # Ledger/provider preparation can fail before any local
                     # retrieval begins. Preserve that absence without timing it.
@@ -249,9 +261,10 @@ class Runtime:
                 return active.final_fields(status) if active is not None and active.stop_reason else {}
 
             def halt_budget(code):
-                if turn_adapter is not None:
+                budget_owner = self.question_service if self.question_service is not None else turn_adapter
+                if budget_owner is not None:
                     try:
-                        turn_adapter.halt(code)
+                        budget_owner.halt(code)
                     except Exception as ledger_error:
                         print(f"[{self.config.name}] query budget stop persistence failed: {type(ledger_error).__name__}; trace={trace_id}", flush=True)
 
@@ -263,206 +276,245 @@ class Runtime:
                 return ConfirmedDeliveryPersistenceError(message.message_id, tuple(receipt.message_ids), receipt=receipt)
             try:
                 async with asyncio.timeout(turn_seconds):
-                    if type(self.adapter) is SessionBudgetAdapter:
-                        turn_identity = hashlib.sha256((message.scope + "\0" + message.message_id).encode("utf-8")).hexdigest()
-                        turn_adapter = self.adapter.begin_turn(turn_identity)
-                    if active_enabled:
-                        from .active_requery import ActiveRequery, TurnBudgetAdapter
-                        turn_adapter = TurnBudgetAdapter(self.adapter, self.config, self.scratch,
-                                                         trace_id, message.message_id, message.scope)
-                        active = ActiveRequery(self, turn_adapter, trace_id, message)
-                    started = time.monotonic()
-                    # sqlite is cooperatively interrupted during expensive scans;
-                    # graph methods also bound their lookup/expansion outputs.
-                    local_deadline_observed = False
-
-                    def local_progress():
-                        nonlocal local_deadline_observed
-                        local_deadline_observed |= time.monotonic() - started > self.config.runtime.local_seconds
-                        return int(local_deadline_observed)
-
-                    self.store.db.set_progress_handler(local_progress, 1000)
-                    try:
-                        local_phase = "retrieval"
-                        graph_audit = {}
+                    if self.question_service is not None:
+                        result = await self.question_service.answer(
+                            message, trace_id, seconds=max(0.0, turn_deadline - time.monotonic()))
+                        if (type(result) is not ModelResult or not isinstance(result.text, str)
+                                or type(result.input_tokens) is not int or result.input_tokens < 0
+                                or type(result.output_tokens) is not int or result.output_tokens < 0
+                                or not isinstance(result.response_id, str)
+                                or type(result.elapsed_seconds) not in (int, float)
+                                or not math.isfinite(result.elapsed_seconds) or result.elapsed_seconds < 0):
+                            raise GovernedError("invalid_question_service_result")
                         try:
-                            with npmi_telemetry:
-                                previous = self.store.db.execute("SELECT content FROM messages WHERE scope=? AND role='user' AND turn_id!=? ORDER BY seq DESC LIMIT 1", (message.scope, message.message_id)).fetchone()
-                                if self.model_selector is None:
-                                    records = self.graph.retrieve(self.knowledge_scope, [], message.text, time.time(),
-                                                                  event_id=message.message_id, audit=graph_audit,
-                                                                  ranking_mode="static", context_query=previous[0] if previous else '')
-                                else:
-                                    prepared = self.graph.prepare_retrieval(self.knowledge_scope, [], message.text,
-                                        time.time(), event_id=message.message_id,
-                                        context_query=previous[0] if previous else '')
-                                    if time.monotonic() - started > self.config.runtime.local_seconds:
-                                        raise GovernedError("local_memory_timeout")
-                                    # No SQLite transaction or local SQL deadline crosses
-                                    # the separately bounded, serial model selection call.
-                                    self.store.db.set_progress_handler(None, 0)
-                                    local_phase = "model_selection"
-                                    selection_started = time.monotonic()
-                                    primary_selection_error = None
-                                    try:
-                                        deadline_setter = getattr(self.model_selector, "set_deadlines", None)
-                                        if deadline_setter is not None:
-                                            if not callable(deadline_setter):
-                                                raise GovernedError("invalid_selection_deadline_contract", remote_usage_unknown=False)
-                                            deadline_setter(local_deadline=started + self.config.runtime.local_seconds,
-                                                            turn_deadline=turn_deadline)
-                                        with npmi_telemetry.suspended():
-                                            if turn_adapter is None:
-                                                decision = await self.model_selector.choose(prepared.request, trace_id)
-                                            else:
-                                                decision = await self.model_selector.choose(prepared.request, trace_id,
-                                                                                           adapter_override=turn_adapter)
-                                    except BaseException as selection_error:
-                                        primary_selection_error = selection_error
-                                        raise
-                                    finally:
-                                        try:
-                                            selection_elapsed = time.monotonic() - selection_started
-                                            local_work = getattr(self.model_selector, "last_local_seconds", 0.0)
-                                            if (type(local_work) not in (int, float) or not math.isfinite(local_work)
-                                                    or local_work < 0):
-                                                raise GovernedError("invalid_selection_local_timing", remote_usage_unknown=False)
-                                            local_work = min(local_work, selection_elapsed)
-                                            started += selection_elapsed - local_work
-                                            self.store.db.set_progress_handler(local_progress, 1000)
-                                            if hasattr(self.model_selector, "last_local_seconds"):
-                                                self.scratch.write("selection_local_work", trace_id=trace_id,
-                                                    elapsed_seconds=selection_elapsed, local_work_seconds=local_work,
-                                                    model_wait_seconds=selection_elapsed - local_work,
-                                                    local_seconds=self.config.runtime.local_seconds)
-                                        except Exception as timing_error:
-                                            if primary_selection_error is None:
-                                                raise
-                                            # Secondary timing/audit errors cannot replace the
-                                            # original failure, unknown usage or cancellation.
-                                            try:
-                                                print(f"[{self.config.name}] selection timing recording failed: {type(timing_error).__name__}; trace={trace_id}", flush=True)
-                                            except Exception:
-                                                pass
-                                    if time.monotonic() - started > self.config.runtime.local_seconds:
-                                        raise GovernedError("local_memory_timeout")
-                                    local_phase = "selection_commit"
-                                    records = self.graph.finish_retrieval(prepared, decision, audit=graph_audit)
-                        finally:
-                            record_initial_npmi(sys.exc_info()[1])
-                        local_phase = "memory_observation"
-                        # One immutable JSON snapshot binds the committed graph
-                        # receipt to both scratch and the recalled materials.
-                        # Reuse its bytes, never a hash cached on a mutable dict.
-                        audit_snapshot = CanonicalSnapshot(graph_audit)
-                        snapshot_writer = getattr(self.scratch, "write_snapshot", None)
-                        if callable(snapshot_writer):
-                            snapshot_writer("memory_observation", trace_id=trace_id,
-                                            snapshots={"audit": audit_snapshot},
-                                            audit_sha256=audit_snapshot.sha256)
-                        else:
-                            self.scratch.write("memory_observation", trace_id=trace_id, audit=graph_audit,
-                                               audit_sha256=audit_snapshot.sha256)
-                        local_phase = "freeze_retrieval"
-                        retrieval = freeze_retrieval(self.store.db, self.knowledge_scope, message.message_id,
-                                                     message.text, records, audit_snapshot)
-                        knowledge = retrieval["model_materials"]
-                    except sqlite3.OperationalError as error:
-                        # Only this deadline's actual VM interruption is a local
-                        # timeout. Locks, malformed SQL and external interrupts
-                        # must retain their distinct diagnostic code.
-                        sqlite_code = getattr(error, "sqlite_errorcode", None)
-                        if local_deadline_observed and type(sqlite_code) is int and sqlite_code == sqlite3.SQLITE_INTERRUPT:
-                            raise GovernedError("local_memory_timeout") from error
-                        raise
-                    finally:
-                        self.store.db.set_progress_handler(None, 0)
-                    if time.monotonic() - started > self.config.runtime.local_seconds:
-                        raise GovernedError("local_memory_timeout")
-                    local_phase = None
-                    retrieval_hash = digest(retrieval)
-                    self.scratch.write("retrieval_record", trace_id=trace_id, record=retrieval, record_sha256=retrieval_hash)
-                    self.scratch.write("knowledge_retrieved", trace_id=trace_id, input_marks=[],
-                                       query=message.text, records=knowledge, retrieval_sha256=retrieval_hash,
-                                       elapsed_seconds=time.monotonic() - started)
-                    if active is None:
-                        messages = await self._summary(message, knowledge, trace_id, adapter_override=turn_adapter)
-                        record_answer = lambda text: answer_record(text, retrieval)
-                        evidence_link = {"retrieval_sha256": retrieval_hash}
+                            result.text.encode("utf-8")
+                        except UnicodeEncodeError:
+                            raise GovernedError("invalid_question_service_result") from None
+                        safe_receipt = json.loads(json.dumps(self.question_service.last_receipt,
+                            ensure_ascii=False, allow_nan=False))
+                        receipt_digest = hashlib.sha256(json.dumps(safe_receipt, ensure_ascii=False,
+                            sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()
+                        evidence_link = {"answer_pipeline": "question_service", "prune_receipt_sha256": receipt_digest}
+                        self.scratch.write("native_prune_receipt", trace_id=trace_id,
+                                           **evidence_link, receipt=safe_receipt)
                         final_fields = {}
+                        record_answer = lambda text: {"schema": "question_service_answer_v1", "text": text,
+                            "prune_receipt_sha256": receipt_digest}
+                        if message.author_is_bot:
+                            decision = bot_reply_data(result.text)
+                            self.scratch.write("bot_reply_decision", trace_id=trace_id, **evidence_link,
+                                               **decision, model_result=asdict(result))
+                            if decision["action"] == "skip":
+                                self.store.fail(message.message_id, "skipped")
+                                self.scratch.write("turn_end", trace_id=trace_id, status="skipped",
+                                                   reason="bot_reply_skipped")
+                                return
+                            answer = decision["text"]
+                        else:
+                            answer = result.text
+                            if not answer.strip():
+                                raise GovernedError("invalid_question_service_result")
                     else:
-                        from .active_requery import context_with_bundle
-                        from .requery_records import answer_record_bundle
-                        active.append(retrieval, f"{message.message_id}:initial")
-                        messages = await self._summary(message, knowledge, trace_id, adapter_override=turn_adapter)
-                        bundle = await active.gather(messages)
-                        messages = context_with_bundle(messages, bundle,
-                            limitation=REPLY_LIMITATION if active.final_reply_mode == "no_new_evidence_consolidation" else None)
-                        record_answer = lambda text: answer_record_bundle(text, bundle)
-                        evidence_link = {"bundle_sha256": digest(bundle)}
-                        final_fields = {"final_origin": "bounded_stop" if active.fallback_text else "model",
-                                        "simulation": turn_adapter.mock, **active.final_fields()}
-                    if getattr(self.config.runtime, "communicability_enabled", False):
-                        # Independent frozen-data diagnostic. Never feed scores
-                        # into selection, model context, or base graph weights.
-                        from .communicability import CommunicabilityConfig, analyze_frozen_graph
-                        diagnostic_input = bundle if active is not None else retrieval
-                        diagnostic_config = CommunicabilityConfig(enabled=True)
+                        if type(self.adapter) is SessionBudgetAdapter:
+                            turn_identity = hashlib.sha256((message.scope + "\0" + message.message_id).encode("utf-8")).hexdigest()
+                            turn_adapter = self.adapter.begin_turn(turn_identity)
+                        if active_enabled:
+                            from .active_requery import ActiveRequery, TurnBudgetAdapter
+                            turn_adapter = TurnBudgetAdapter(self.adapter, self.config, self.scratch,
+                                                             trace_id, message.message_id, message.scope)
+                            active = ActiveRequery(self, turn_adapter, trace_id, message)
+                        started = time.monotonic()
+                        # sqlite is cooperatively interrupted during expensive scans;
+                        # graph methods also bound their lookup/expansion outputs.
+                        local_deadline_observed = False
+
+                        def local_progress():
+                            nonlocal local_deadline_observed
+                            local_deadline_observed |= time.monotonic() - started > self.config.runtime.local_seconds
+                            return int(local_deadline_observed)
+
+                        self.store.db.set_progress_handler(local_progress, 1000)
                         try:
-                            diagnostic = analyze_frozen_graph(diagnostic_input, config=diagnostic_config,
-                                deadline=min(turn_deadline, time.monotonic() + diagnostic_config.max_seconds))
-                        except Exception as diagnostic_error:
-                            diagnostic = {"schema": "communicability_offline_v1", "status": "unknown",
-                                          "reason": "diagnostic_error", "error_type": type(diagnostic_error).__name__,
-                                          "proof": False, "changes_selection": False, "changes_base_weights": False}
-                        self.scratch.write("communicability_diagnostic", trace_id=trace_id,
-                                           evidence_kind="bundle" if active is not None else "retrieval",
-                                           evidence_sha256=digest(diagnostic_input), receipt=diagnostic,
-                                           independent_diagnostic=True)
-                    if getattr(self.config.runtime, "path_hypotheses_enabled", False):
-                        from .path_hypotheses import PathHypothesesConfig, analyze_path_hypotheses
-                        path_input = bundle if active is not None else retrieval
-                        path_actions = active.query_actions if active is not None else []
-                        path_config = PathHypothesesConfig(enabled=True)
-                        try:
-                            path_receipt = analyze_path_hypotheses(path_input, path_actions, config=path_config,
-                                deadline=min(turn_deadline, time.monotonic() + path_config.max_seconds))
-                        except Exception as path_error:
-                            path_receipt = {"schema": "automatic_path_hypotheses_v1", "status": "unknown",
-                                            "reason": "diagnostic_error", "error_type": type(path_error).__name__,
-                                            "proof": False, "changes_selection": False,
-                                            "changes_base_weights": False}
-                        self.scratch.write("path_hypotheses_diagnostic", trace_id=trace_id,
-                            evidence_kind="bundle" if active is not None else "retrieval",
-                            evidence_sha256=digest(path_input), query_actions=deepcopy(path_actions),
-                            query_actions_sha256=digest(path_actions), receipt=path_receipt,
-                            independent_diagnostic=True)
-                    instructions = (prompts.bot_reply_instructions(self.config.name) if message.author_is_bot
-                                    else prompts.reply_instructions(self.config.name))
-                    if active is not None and active.final_reply_mode == "no_new_evidence_consolidation":
-                        instructions += FINAL_REPLY_INSTRUCTIONS
-                    schema_fields = {"response_schema": prompts.BOT_REPLY_SCHEMA} if message.author_is_bot else {}
-                    self.scratch.write("reply_context", trace_id=trace_id, **evidence_link,
-                                       instructions=instructions, messages=messages, **schema_fields, **final_fields,
-                                       **({"no_provider_reply": bool(active.fallback_text)} if active else {}))
-                    reply_adapter = turn_adapter if turn_adapter is not None else self.adapter
-                    if active is not None and active.fallback_text:
-                        result = None
-                        answer = active.fallback_text
-                    elif message.author_is_bot:
-                        result = await reply_adapter.call("reply", instructions, messages, trace_id, prompts.BOT_REPLY_SCHEMA)
-                        decision = bot_reply_data(result.text)
-                        self.scratch.write("bot_reply_decision", trace_id=trace_id, **evidence_link,
-                                           **decision, model_result=asdict(result))
-                        if decision["action"] == "skip":
-                            self.store.fail(message.message_id, "skipped")
-                            self.scratch.write("turn_end", trace_id=trace_id, status="skipped", reason="bot_reply_skipped",
-                                               **final_state_fields("model_skip"))
-                            return
-                        answer = decision["text"]
-                    else:
-                        result = await reply_adapter.call("reply", instructions, messages, trace_id)
-                        answer = result.text
+                            local_phase = "retrieval"
+                            graph_audit = {}
+                            try:
+                                with npmi_telemetry:
+                                    previous = self.store.db.execute("SELECT content FROM messages WHERE scope=? AND role='user' AND turn_id!=? ORDER BY seq DESC LIMIT 1", (message.scope, message.message_id)).fetchone()
+                                    if self.model_selector is None:
+                                        records = self.graph.retrieve(self.knowledge_scope, [], message.text, time.time(),
+                                                                      event_id=message.message_id, audit=graph_audit,
+                                                                      ranking_mode="static", context_query=previous[0] if previous else '')
+                                    else:
+                                        prepared = self.graph.prepare_retrieval(self.knowledge_scope, [], message.text,
+                                            time.time(), event_id=message.message_id,
+                                            context_query=previous[0] if previous else '')
+                                        if time.monotonic() - started > self.config.runtime.local_seconds:
+                                            raise GovernedError("local_memory_timeout")
+                                        # No SQLite transaction or local SQL deadline crosses
+                                        # the separately bounded, serial model selection call.
+                                        self.store.db.set_progress_handler(None, 0)
+                                        local_phase = "model_selection"
+                                        selection_started = time.monotonic()
+                                        primary_selection_error = None
+                                        try:
+                                            deadline_setter = getattr(self.model_selector, "set_deadlines", None)
+                                            if deadline_setter is not None:
+                                                if not callable(deadline_setter):
+                                                    raise GovernedError("invalid_selection_deadline_contract", remote_usage_unknown=False)
+                                                deadline_setter(local_deadline=started + self.config.runtime.local_seconds,
+                                                                turn_deadline=turn_deadline)
+                                            with npmi_telemetry.suspended():
+                                                if turn_adapter is None:
+                                                    decision = await self.model_selector.choose(prepared.request, trace_id)
+                                                else:
+                                                    decision = await self.model_selector.choose(prepared.request, trace_id,
+                                                                                               adapter_override=turn_adapter)
+                                        except BaseException as selection_error:
+                                            primary_selection_error = selection_error
+                                            raise
+                                        finally:
+                                            try:
+                                                selection_elapsed = time.monotonic() - selection_started
+                                                local_work = getattr(self.model_selector, "last_local_seconds", 0.0)
+                                                if (type(local_work) not in (int, float) or not math.isfinite(local_work)
+                                                        or local_work < 0):
+                                                    raise GovernedError("invalid_selection_local_timing", remote_usage_unknown=False)
+                                                local_work = min(local_work, selection_elapsed)
+                                                started += selection_elapsed - local_work
+                                                self.store.db.set_progress_handler(local_progress, 1000)
+                                                if hasattr(self.model_selector, "last_local_seconds"):
+                                                    self.scratch.write("selection_local_work", trace_id=trace_id,
+                                                        elapsed_seconds=selection_elapsed, local_work_seconds=local_work,
+                                                        model_wait_seconds=selection_elapsed - local_work,
+                                                        local_seconds=self.config.runtime.local_seconds)
+                                            except Exception as timing_error:
+                                                if primary_selection_error is None:
+                                                    raise
+                                                # Secondary timing/audit errors cannot replace the
+                                                # original failure, unknown usage or cancellation.
+                                                try:
+                                                    print(f"[{self.config.name}] selection timing recording failed: {type(timing_error).__name__}; trace={trace_id}", flush=True)
+                                                except Exception:
+                                                    pass
+                                        if time.monotonic() - started > self.config.runtime.local_seconds:
+                                            raise GovernedError("local_memory_timeout")
+                                        local_phase = "selection_commit"
+                                        records = self.graph.finish_retrieval(prepared, decision, audit=graph_audit)
+                            finally:
+                                record_initial_npmi(sys.exc_info()[1])
+                            local_phase = "memory_observation"
+                            # One immutable JSON snapshot binds the committed graph
+                            # receipt to both scratch and the recalled materials.
+                            # Reuse its bytes, never a hash cached on a mutable dict.
+                            audit_snapshot = CanonicalSnapshot(graph_audit)
+                            snapshot_writer = getattr(self.scratch, "write_snapshot", None)
+                            if callable(snapshot_writer):
+                                snapshot_writer("memory_observation", trace_id=trace_id,
+                                                snapshots={"audit": audit_snapshot},
+                                                audit_sha256=audit_snapshot.sha256)
+                            else:
+                                self.scratch.write("memory_observation", trace_id=trace_id, audit=graph_audit,
+                                                   audit_sha256=audit_snapshot.sha256)
+                            local_phase = "freeze_retrieval"
+                            retrieval = freeze_retrieval(self.store.db, self.knowledge_scope, message.message_id,
+                                                         message.text, records, audit_snapshot)
+                            knowledge = retrieval["model_materials"]
+                        except sqlite3.OperationalError as error:
+                            # Only this deadline's actual VM interruption is a local
+                            # timeout. Locks, malformed SQL and external interrupts
+                            # must retain their distinct diagnostic code.
+                            sqlite_code = getattr(error, "sqlite_errorcode", None)
+                            if local_deadline_observed and type(sqlite_code) is int and sqlite_code == sqlite3.SQLITE_INTERRUPT:
+                                raise GovernedError("local_memory_timeout") from error
+                            raise
+                        finally:
+                            self.store.db.set_progress_handler(None, 0)
+                        if time.monotonic() - started > self.config.runtime.local_seconds:
+                            raise GovernedError("local_memory_timeout")
+                        local_phase = None
+                        retrieval_hash = digest(retrieval)
+                        self.scratch.write("retrieval_record", trace_id=trace_id, record=retrieval, record_sha256=retrieval_hash)
+                        self.scratch.write("knowledge_retrieved", trace_id=trace_id, input_marks=[],
+                                           query=message.text, records=knowledge, retrieval_sha256=retrieval_hash,
+                                           elapsed_seconds=time.monotonic() - started)
+                        if active is None:
+                            messages = await self._summary(message, knowledge, trace_id, adapter_override=turn_adapter)
+                            record_answer = lambda text: answer_record(text, retrieval)
+                            evidence_link = {"retrieval_sha256": retrieval_hash}
+                            final_fields = {}
+                        else:
+                            from .active_requery import context_with_bundle
+                            from .requery_records import answer_record_bundle
+                            active.append(retrieval, f"{message.message_id}:initial")
+                            messages = await self._summary(message, knowledge, trace_id, adapter_override=turn_adapter)
+                            bundle = await active.gather(messages)
+                            messages = context_with_bundle(messages, bundle,
+                                limitation=REPLY_LIMITATION if active.final_reply_mode == "no_new_evidence_consolidation" else None)
+                            record_answer = lambda text: answer_record_bundle(text, bundle)
+                            evidence_link = {"bundle_sha256": digest(bundle)}
+                            final_fields = {"final_origin": "bounded_stop" if active.fallback_text else "model",
+                                            "simulation": turn_adapter.mock, **active.final_fields()}
+                        if getattr(self.config.runtime, "communicability_enabled", False):
+                            # Independent frozen-data diagnostic. Never feed scores
+                            # into selection, model context, or base graph weights.
+                            from .communicability import CommunicabilityConfig, analyze_frozen_graph
+                            diagnostic_input = bundle if active is not None else retrieval
+                            diagnostic_config = CommunicabilityConfig(enabled=True)
+                            try:
+                                diagnostic = analyze_frozen_graph(diagnostic_input, config=diagnostic_config,
+                                    deadline=min(turn_deadline, time.monotonic() + diagnostic_config.max_seconds))
+                            except Exception as diagnostic_error:
+                                diagnostic = {"schema": "communicability_offline_v1", "status": "unknown",
+                                              "reason": "diagnostic_error", "error_type": type(diagnostic_error).__name__,
+                                              "proof": False, "changes_selection": False, "changes_base_weights": False}
+                            self.scratch.write("communicability_diagnostic", trace_id=trace_id,
+                                               evidence_kind="bundle" if active is not None else "retrieval",
+                                               evidence_sha256=digest(diagnostic_input), receipt=diagnostic,
+                                               independent_diagnostic=True)
+                        if getattr(self.config.runtime, "path_hypotheses_enabled", False):
+                            from .path_hypotheses import PathHypothesesConfig, analyze_path_hypotheses
+                            path_input = bundle if active is not None else retrieval
+                            path_actions = active.query_actions if active is not None else []
+                            path_config = PathHypothesesConfig(enabled=True)
+                            try:
+                                path_receipt = analyze_path_hypotheses(path_input, path_actions, config=path_config,
+                                    deadline=min(turn_deadline, time.monotonic() + path_config.max_seconds))
+                            except Exception as path_error:
+                                path_receipt = {"schema": "automatic_path_hypotheses_v1", "status": "unknown",
+                                                "reason": "diagnostic_error", "error_type": type(path_error).__name__,
+                                                "proof": False, "changes_selection": False,
+                                                "changes_base_weights": False}
+                            self.scratch.write("path_hypotheses_diagnostic", trace_id=trace_id,
+                                evidence_kind="bundle" if active is not None else "retrieval",
+                                evidence_sha256=digest(path_input), query_actions=deepcopy(path_actions),
+                                query_actions_sha256=digest(path_actions), receipt=path_receipt,
+                                independent_diagnostic=True)
+                        instructions = (prompts.bot_reply_instructions(self.config.name) if message.author_is_bot
+                                        else prompts.reply_instructions(self.config.name))
+                        if active is not None and active.final_reply_mode == "no_new_evidence_consolidation":
+                            instructions += FINAL_REPLY_INSTRUCTIONS
+                        schema_fields = {"response_schema": prompts.BOT_REPLY_SCHEMA} if message.author_is_bot else {}
+                        self.scratch.write("reply_context", trace_id=trace_id, **evidence_link,
+                                           instructions=instructions, messages=messages, **schema_fields, **final_fields,
+                                           **({"no_provider_reply": bool(active.fallback_text)} if active else {}))
+                        reply_adapter = turn_adapter if turn_adapter is not None else self.adapter
+                        if active is not None and active.fallback_text:
+                            result = None
+                            answer = active.fallback_text
+                        elif message.author_is_bot:
+                            result = await reply_adapter.call("reply", instructions, messages, trace_id, prompts.BOT_REPLY_SCHEMA)
+                            decision = bot_reply_data(result.text)
+                            self.scratch.write("bot_reply_decision", trace_id=trace_id, **evidence_link,
+                                               **decision, model_result=asdict(result))
+                            if decision["action"] == "skip":
+                                self.store.fail(message.message_id, "skipped")
+                                self.scratch.write("turn_end", trace_id=trace_id, status="skipped", reason="bot_reply_skipped",
+                                                   **final_state_fields("model_skip"))
+                                return
+                            answer = decision["text"]
+                        else:
+                            result = await reply_adapter.call("reply", instructions, messages, trace_id)
+                            answer = result.text
                     self.scratch.write("answer_generated", trace_id=trace_id, **evidence_link, **final_fields,
                                        record=record_answer(answer), model_result=asdict(result) if result else None)
                     self.store.generated(message.message_id, answer)

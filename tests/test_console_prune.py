@@ -313,128 +313,32 @@ class ConsolePruneTaskTests(ConsolePruneFixture, unittest.TestCase):
         self.instance = SimpleNamespace(commands=queue.Queue())
         self.console_session = console_session.ConsoleSession(self.path, self.instance)
         self.addCleanup(self.console_session.close)
-        def cleanup():
-            task = self.console_session.service
-            if task is not None and task.active:
-                task.stop()
-                self.wait(lambda: not task.active)
-        self.addCleanup(cleanup)
 
-    def test_cli_prune_routes_to_existing_console_flow(self):
-        self.assertIn("prune", console_instance.COMMANDS)
-        self.assertIn("prune", console_session.HELP)
+    def test_manual_prune_command_is_not_in_console_or_ipc_surface(self):
+        self.assertNotIn("prune", console_instance.COMMANDS)
+        self.assertNotIn("prune", console_session.HELP.split(" | "))
+        self.assertNotIn("prune", console.CONSOLE_COMMANDS)
+
+    def test_cli_manual_prune_is_rejected_before_console_or_model(self):
         with patch("sys.argv", ["indeces", "prune", "--config", str(self.path)]), \
-                patch.object(console, "load_config", return_value=self.config), \
-                patch.object(console, "route_existing", return_value=None), \
-                patch.object(console_session, "run_console") as run:
+                patch.object(console_session, "run_console") as run, \
+                patch.object(console_prune, "prepare_prune") as prepare, \
+                redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as caught:
             console.main()
-        run.assert_called_once_with(self.path, "prune")
+        self.assertNotEqual(caught.exception.code, 0)
+        run.assert_not_called()
+        prepare.assert_not_called()
 
-    def test_dispatch_real_finite_closure_runs_tool_chain_without_gateway_or_maintenance(self):
-        transport = ScriptedTransport(self.messages())
-        prepared = self.prepare()
-        with self.transport_context(transport), redirect_stdout(io.StringIO()) as output, \
-                patch.object(console, "load_config", return_value=self.config), \
-                patch.object(console_prune, "prepare_prune", return_value=prepared), \
-                patch.object(console, "serve") as gateway, \
-                patch("indeces.ingest.retry_ingestion") as maintenance:
+    def test_unknown_manual_prune_does_not_construct_or_prompt_a_request(self):
+        with redirect_stdout(io.StringIO()), \
+                patch.object(console, "load_config") as load, \
+                patch.object(console_prune, "prepare_prune") as prepare, \
+                patch.object(console_prune, "execute_prune") as execute:
             self.assertTrue(self.console_session.dispatch("prune"))
-            task = self.console_session.service
-            self.assertEqual(task.kind, "prune")
-            self.wait(lambda: not task.active)
-            self.console_session.dispatch("service")
-        self.assertIsNone(task.error)
-        self.assertEqual(task.result.text, "DONE")
-        self.assertIn("DONE", output.getvalue())
-        self.assertNotIn("private-synthetic-thought", output.getvalue())
-        self.assertNotIn("synthetic-not-a-credential", output.getvalue())
-        self.assertNotIn(str(self.binding.ledger_path), output.getvalue())
-        gateway.assert_not_called()
-        maintenance.assert_not_called()
-        self.assertEqual(len(transport.requests), 8)
-
-    def active_prune(self):
-        entered, closed = threading.Event(), threading.Event()
-        async def execute(prepared, config):
-            entered.set()
-            try:
-                await asyncio.Event().wait()
-            finally:
-                closed.set()
-        stack = ExitStack()
-        self.addCleanup(stack.close)
-        stack.enter_context(patch.object(console, "load_config", return_value=self.config))
-        stack.enter_context(patch.object(console_prune, "prepare_prune", return_value=self.prepare()))
-        call = stack.enter_context(patch.object(console_prune, "execute_prune", side_effect=execute))
-        self.console_session.dispatch("prune")
-        self.wait(entered.is_set)
-        return call, closed
-
-    def test_active_prune_blocks_duplicate_start_retry_and_configuration_changes(self):
-        with redirect_stdout(io.StringIO()):
-            call, _ = self.active_prune()
-            original = self.console_session.service
-            with patch.object(console, "serve") as gateway, patch.object(console, "configure_model") as model, \
-                    patch.object(console, "configure_api_key") as apikey, \
-                    patch("indeces.ingest.retry_ingestion") as maintenance:
-                for command in ("prune", "start", "retry", "model", "apikey"):
-                    self.console_session.dispatch(command)
-                    self.assertIs(self.console_session.service, original)
-                gateway.assert_not_called(); model.assert_not_called(); apikey.assert_not_called(); maintenance.assert_not_called()
-            self.assertEqual(call.call_count, 1)
-
-    def test_stop_cancels_finite_worker_and_releases_owned_task(self):
-        with redirect_stdout(io.StringIO()):
-            _, closed = self.active_prune()
-            task = self.console_session.service
-            self.console_session.dispatch("stop")
-            self.wait(lambda: not task.active)
-            self.assertTrue(closed.is_set())
-            self.assertEqual(task.state, "stopped")
-            self.assertIsNone(task.error)
-            self.assertFalse(self.console_session.dispatch("quit"))
-
-    def test_failure_code_and_fee_snapshot_display_without_private_exception_text(self):
-        error = GovernedError("prune_synthetic_failed")
-        error.budget_snapshot = {"spent_nusd": CHARGE, "remaining_nusd": 5_000_000_000 - CHARGE,
-                                 "pending_nusd": 800_000, "halted": "prune_synthetic_failed"}
-        async def fail(*args):
-            raise error
-        with redirect_stdout(io.StringIO()) as output, patch.object(console, "load_config", return_value=self.config), \
-                patch.object(console_prune, "prepare_prune", return_value=self.prepare()), \
-                patch.object(console_prune, "execute_prune", side_effect=fail):
-            self.console_session.dispatch("prune")
-            self.wait(lambda: not self.console_session.service.active)
-            self.console_session.dispatch("service")
-        self.assertEqual(self.console_session.service.error, "prune_synthetic_failed")
-        self.assertIn("prune_synthetic_failed", output.getvalue())
-        self.assertIn("pending", output.getvalue())
-        self.assertNotIn(str(self.binding.ledger_path), output.getvalue())
-
-    def test_ipc_prune_waits_for_existing_input_then_prompts_once(self):
-        self.instance.commands.put("prune")
-        class Reader:
-            busy = True
-            count = 0
-            def poll(inner):
-                inner.count += 1
-                inner.busy = False
-                return "" if inner.count == 1 else "quit"
-            def before_prompt(inner):
-                return not inner.busy
-            def invalidate(inner):
-                pass
-        self.console_session.reader = Reader()
-        calls = []
-        def dispatch(command):
-            calls.append(command)
-            return command != "quit"
-        with redirect_stdout(io.StringIO()), patch.object(self.console_session, "_safe_dispatch", side_effect=dispatch), \
-                patch.object(self.console_session, "_refresh"), patch.object(console_session.time, "sleep"):
-            self.console_session.run("console")
-        self.assertEqual(calls, ["console", "prune", "", "quit"])
-        self.assertEqual(list(self.console_session._pending), [])
-
+        load.assert_not_called()
+        prepare.assert_not_called()
+        execute.assert_not_called()
+        self.assertIsNone(self.console_session.service)
 
 if __name__ == "__main__":
     unittest.main()

@@ -66,8 +66,15 @@ class RuntimeConfig:
     path_requery_loop_enabled: bool = False
     richard_chat_enabled: bool = False
     richard_chat_algorithm: str = "alpha"
+    prune_profile_config: str = ""
 
     def __post_init__(self):
+        if (type(self.prune_profile_config) is not str or len(self.prune_profile_config) > 4096
+                or any(ord(char) < 32 for char in self.prune_profile_config)
+                or (self.prune_profile_config and not self.prune_profile_config.strip())):
+            raise ValueError("runtime.prune_profile_config must be a bounded configuration path")
+        if self.prune_profile_config and (self.active_requery_enabled or self.path_requery_loop_enabled):
+            raise ValueError("prune chat does not support simultaneous active/path requery")
         if type(self.model_selection_enabled) is not bool:
             raise ValueError("runtime.model_selection_enabled must be a boolean")
         if type(self.richard_selection_enabled) is not bool:
@@ -243,7 +250,7 @@ def controlled_session_enabled(config):
 
 
 def guard_trial_maintenance(config):
-    if controlled_session_enabled(config):
+    if controlled_session_enabled(config) or getattr(config.runtime, "prune_profile_config", ""):
         from .contracts import GovernedError
         raise GovernedError("session_maintenance_forbidden")
 
@@ -276,7 +283,7 @@ def snowflake(value: str) -> str:
     return str(int(value))
 
 
-def load_config(path: Path) -> Config:
+def load_config(path: Path, *, _allow_prune_profile=True) -> Config:
     path = validate_config_path(path)
     with path.open("rb") as stream:
         raw = tomllib.load(stream)
@@ -301,6 +308,11 @@ def load_config(path: Path) -> Config:
         raise ValueError("channel_ids must be numeric strings")
     dc = DiscordConfig(**{**d, "guild_id": guild_id, "channel_ids": tuple(snowflake(x) for x in channels)})
     rc = RuntimeConfig(**r)
+    if rc.prune_profile_config:
+        if not _allow_prune_profile:
+            raise ValueError("recursive prune profile references are forbidden")
+        profile_path = validate_config_path(path.parent / rc.prune_profile_config)
+        rc = replace(rc, prune_profile_config=str(profile_path))
     if rc.richard_selection_enabled or rc.richard_chat_enabled:
         rc = replace(rc, **{key: str(validate_managed_path(path.parent / getattr(rc, key), key))
                             for key in ("richard_graph_zip", "richard_source_zip")})
@@ -330,6 +342,14 @@ def load_config(path: Path) -> Config:
     ac = AdapterConfig(**{**a, "budgets": {k: Budget(**v) for k, v in budgets.items()}})
     from .model_profiles import validate_profiles
     profiles = validate_profiles(raw.get("model_profiles"), ac)
+    if rc.prune_profile_config:
+        if sc.enabled:
+            raise ValueError("prune chat requires its existing grant; separate session budget is incompatible")
+        selected_profile = load_config(Path(rc.prune_profile_config), _allow_prune_profile=False)
+        if selected_profile.adapter.provider != "anthropic":
+            raise ValueError("prune chat requires the selected native Claude provider")
+        ac = selected_profile.adapter
+        profiles = selected_profile.model_profiles
     name = raw.get("name", AGENT_NAME)
     if not isinstance(name, str) or not name.strip() or len(name) > 80:
         raise ValueError("invalid agent name")

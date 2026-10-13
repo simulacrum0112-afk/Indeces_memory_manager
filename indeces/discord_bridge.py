@@ -106,7 +106,8 @@ class DiscordBridge:
 
     def __init__(self, config: Any, runtime: Any, scratch: Any, *, bot_gate: BotConversationGate | None = None) -> None:
         self.config = config.discord
-        self._controlled_session = controlled_session_enabled(config)
+        self._controlled_session = (controlled_session_enabled(config)
+                                    or getattr(runtime, "question_service", None) is not None)
         self._queue_wait_seconds = config.runtime.queue_wait_seconds
         self.runtime = runtime
         self.scratch = scratch
