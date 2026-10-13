@@ -48,3 +48,30 @@ equivalence. Synthetic tests and earlier isolated native trials do not substitut
 for acceptance through the actual Discord message interface. Rollback restores
 matching source/version while retaining configuration, financial ledger, delivery
 receipts, and conversation history. Do not replay a confirmed send or paid request.
+
+## Multilingual projection and known-failure review
+
+Ordinary questions without literal fixed-graph words reach the native planning
+model first. The model proposes concise English entities and a coarse target;
+the host accepts only exact normalized, unambiguous names in the pinned graph.
+No aliases, graph IDs, scientific answer, or node is invented by the host.
+Explicit conflicting fine/coarse qualifiers still decline locally. Nonfactual
+social replies and uncertainty have separate receipts and never claim prune.
+
+Each native model call has the configured reply input/output/time allowance.
+Planning and tool continuation use independent calls without a fixed output
+slice. A separate shared turn fuse reserves concurrent maximum call tokens,
+settles actual input plus output (thinking is an output subset), and enforces
+one absolute token/time/call limit for the complete question. Unknown generation
+retains its token and financial holds. No failure is retried automatically.
+
+A separate, receipt-bound calibration campaign may have its explicitly granted
+USD50 ceiling. It never overwrites the original USD5 binding, charges or failed
+rounds. Paid calibration runs in isolated stores with the real Runtime and
+native handler; it does not send tests through the production group.
+
+A known, fully settled incomplete_response can be reopened only by the explicit
+operator review method, with exact original binding, current price, expected
+spend and latest failed round plus a durable review receipt. Only the halt
+marker changes; grant, ceiling, charges, attempts, rounds and unknown holds are
+never reset. Production startup does not invoke review or replay an old message.

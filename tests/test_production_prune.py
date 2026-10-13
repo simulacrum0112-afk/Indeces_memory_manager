@@ -118,17 +118,18 @@ class ProductionGroundingTests(ProductionPruneFixture, unittest.IsolatedAsyncioT
         self.assertTrue(all(set(row) == {"term", "start", "end"} for row in grounding.catalog))
         self.assertNotIn('"cid"', grounding.user)
 
-    async def test_no_matching_vocabulary_declines_before_any_native_request(self):
-        transport = ScriptedTransport([])
+    async def test_unmatched_question_reaches_model_and_can_abstain_without_fabricated_graph(self):
+        plan = {"mode": "abstain", "confidence": "low", "seed_terms_A": [], "seed_terms_B": [],
+                "target": "", "level": "", "reply_text": "I need a graph-related question to retrieve evidence."}
+        transport = ScriptedTransport([native_message([{"type": "text", "text": canonical(plan)}], reason="end_turn")])
         service = self.service(transport)
-        with self.assertRaises(GovernedError) as raised:
-            prepare_grounding(self.graph, "What is the weather today?")
-        self.assertEqual(raised.exception.code, "prune_question_no_grounded_vocabulary")
         result = await service.answer(self.incoming(text="What is the weather today?"), "unmatched", seconds=2)
-        self.assertTrue(result.text.strip())
-        self.assertEqual((result.input_tokens, result.output_tokens), (0, 0))
-        self.assertEqual(transport.requests, [])
-        self.assertEqual(self.budget.snapshot()["spent_nusd"], CHARGE)
+        self.assertNotEqual(result.text, plan["reply_text"])
+        self.assertIn("graph", result.text)
+        self.assertEqual(len(transport.requests), 2)
+        self.assertEqual(self.budget.snapshot()["spent_nusd"], 2 * CHARGE)
+        self.assertEqual(service.last_receipt["status"], "abstain")
+        self.assertFalse(service.last_receipt["prune_executed"])
 
     async def test_conflicting_target_qualifiers_decline_before_native_request(self):
         transport = ScriptedTransport([])
@@ -192,6 +193,50 @@ class ProductionChatChainTests(ProductionPruneFixture, unittest.IsolatedAsyncioT
         self.assertEqual(runtime.store.history("10:20")[-1]["content"], source.sent[0][0])
         self.assertEqual(self.budget.snapshot()["spent_nusd"], 6 * CHARGE)
         self.assertEqual(self.budget.snapshot()["pending_nusd"], 0)
+
+    async def test_chinese_question_is_projected_to_real_graph_before_native_tool_loop(self):
+        literal = self.grounding_plan()
+        projected = {"mode": "single", "confidence": "high", "seed_terms_A": [literal["seeds_A"][0]["term"]],
+                     "seed_terms_B": [], "target": literal["target"], "level": "coarse", "reply_text": ""}
+        replies = [native_message([{"type": "text", "text": canonical(projected)}], reason="end_turn"), *self.replies()[1:]]
+        transport = ScriptedTransport(replies)
+        service = self.service(transport)
+        runtime = self.runtime(service)
+        delivered = []
+        async def deliver(text):
+            from indeces.contracts import DeliveryReceipt
+            delivered.append(text)
+            return DeliveryReceipt(("1001",), text)
+        await runtime.process(self.incoming(text="请检索这个概念相关的条件"), deliver)
+        self.assertEqual(delivered, ["A synthetic grounded answer"])
+        self.assertEqual(len(transport.requests), 10)
+        self.assertEqual(service.last_receipt["mapping_provenance"], "semantic_model_projection_v1")
+        self.assertIn("prune", service.last_receipt["tools"])
+        self.assertEqual(self.budget.snapshot()["pending_nusd"], 0)
+
+    async def test_greeting_gets_model_social_response_without_claiming_prune(self):
+        plan = {"mode": "chat", "confidence": "high", "seed_terms_A": [], "seed_terms_B": [],
+                "target": "", "level": "", "reply_text": "A model social response"}
+        transport = ScriptedTransport([native_message([{"type": "text", "text": canonical(plan)}], reason="end_turn")])
+        service = self.service(transport)
+        result = await service.answer(self.incoming(text="hi"), "greeting", seconds=2)
+        self.assertEqual(result.text, plan["reply_text"])
+        self.assertEqual(service.last_receipt["status"], "chat")
+        self.assertFalse(service.last_receipt["prune_executed"])
+        self.assertEqual(len(transport.requests), 2)
+
+    async def test_native_calls_keep_independent_caps_with_shared_turn_fuse(self):
+        from indeces.config import Budget
+        self.config.adapter.budgets["selection"] = Budget(4096, 512, 15, "high")
+        self.config.adapter.budgets["reply"] = Budget(16384, 2048, 45, "high")
+        transport = ScriptedTransport(self.replies())
+        service = self.service(transport)
+        await service.answer(self.incoming(), "native-output-pool", seconds=2)
+        generation = [payload for path, payload in transport.requests if path == "/messages"]
+        self.assertTrue(all(call["max_tokens"] == 2048 for call in generation))
+        self.assertEqual(self.config.adapter.budgets["selection"].output_tokens, 512)
+        self.assertEqual(self.config.adapter.budgets["reply"].output_tokens, 2048)
+        self.assertLessEqual(service.last_turn_budget["spent_tokens"], 65536)
 
     async def test_replayed_discord_message_does_not_repeat_calls_or_delivery(self):
         transport = ScriptedTransport(self.replies())
@@ -308,6 +353,16 @@ class ProductionChatChainTests(ProductionPruneFixture, unittest.IsolatedAsyncioT
 class ProductionOwnershipAndFactoryTests(ProductionPruneFixture, unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.fixture()
+
+    async def test_maintenance_guard_supports_partial_legacy_config_and_still_closes_prune(self):
+        from indeces.config import guard_trial_maintenance
+        guard_trial_maintenance(SimpleNamespace())
+        guard_trial_maintenance(SimpleNamespace(runtime=RuntimeConfig()))
+        for config in (SimpleNamespace(runtime=SimpleNamespace(prune_profile_config="selected.toml")),
+                       SimpleNamespace(session_budget=SimpleNamespace(enabled=True))):
+            with self.assertRaises(GovernedError) as raised:
+                guard_trial_maintenance(config)
+            self.assertEqual(raised.exception.code, "session_maintenance_forbidden")
 
     async def test_owned_budget_snapshot_fault_closes_once_and_preserves_primary(self):
         from indeces import production_prune

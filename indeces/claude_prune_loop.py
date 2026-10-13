@@ -24,6 +24,7 @@ from .claude_adapter import (
 )
 from .contracts import GovernedError
 from .claude_prune_budget import NATIVE_INPUT_RESERVATION, PruneBudget
+from .prune_turn_budget import PruneTurnBudget
 from ._vendor.npmi_prune import Graph, Session, BudgetExceeded, __version__
 from ._vendor.npmi_prune.core import PINNED_INDECES, PINNED_V302
 
@@ -192,7 +193,8 @@ class PruneToolLoop:
         if type(live) is not bool:
             raise GovernedError("prune_invalid_activation")
         if live:
-            if (type(budget) is not PruneBudget or budget.existing_grant_bound is not True
+            if (type(budget) is not PruneBudget
+                    or (budget.existing_grant_bound is not True and budget.campaign_grant_bound is not True)
                     or budget.path.resolve() != budget.bound_path):
                 raise GovernedError("prune_live_existing_grant_required")
             opening = budget.snapshot()
@@ -246,7 +248,8 @@ class PruneToolLoop:
                 or adapter._audit is not self._post_view._audit):
             raise GovernedError("prune_native_adapter_changed")
         if self._live:
-            if (type(self.budget) is not PruneBudget or self.budget.existing_grant_bound is not True
+            if (type(self.budget) is not PruneBudget
+                    or (self.budget.existing_grant_bound is not True and self.budget.campaign_grant_bound is not True)
                     or self.budget.path.resolve() != self.budget.bound_path
                     or adapter.config is not self._config or adapter._request_override is not None
                     or adapter._key is not self._post_view._key
@@ -320,11 +323,14 @@ class PruneToolLoop:
         return blocks, tools, "".join(texts)
 
     async def run(self, system, user, trace_id, *, input_cap=1_048_576, output_cap=512, seconds=60.0,
-                  total_input_cap=65_536, total_output_cap=4096):
+                  total_input_cap=65_536, total_output_cap=4096, turn_budget=None):
         if self._used:
             raise GovernedError("prune_loop_already_used")
         self._used = True
         started = time.monotonic()
+        if turn_budget is not None and type(turn_budget) is not PruneTurnBudget:
+            raise GovernedError("prune_turn_invalid_budget")
+        turn_permit = None
         progress = None
         permit = None
         call_id = None
@@ -343,7 +349,7 @@ class PruneToolLoop:
                 system, user, trace_id = _copy([system, user, trace_id])
             except (ValueError, UnicodeError, RecursionError):
                 raise GovernedError("prune_invalid_input") from None
-            deadline = started + seconds
+            deadline = turn_budget.deadline if turn_budget is not None else started + seconds
             history = [{"role": "user", "content": user}]
             definition = _copy(_tool_definition())
             answer = None
@@ -353,26 +359,35 @@ class PruneToolLoop:
                 async with self.adapter._lock:
                     for round_no in range(1, self.max_rounds + 1):
                         permit = progress = call_id = None
+                        turn_permit = None
                         completed = False
                         terminal_attempted = False
                         self._check_adapter()
+                        if turn_budget is not None:
+                            turn_budget.check()
                         if time.monotonic() >= deadline:
-                            raise GovernedError("stage_timeout")
+                            raise GovernedError("prune_turn_time_limit" if turn_budget is not None else "stage_timeout")
                         if self.session.closed and answer is None:
                             raise GovernedError("prune_session_closed")
-                        remaining_input = total_input_cap - total_input
-                        remaining_output = total_output_cap - total_output
+                        remaining_input = input_cap if turn_budget is not None else total_input_cap - total_input
+                        remaining_output = output_cap if turn_budget is not None else total_output_cap - total_output
                         if remaining_input <= 0 or remaining_output <= 0:
                             raise GovernedError("prune_total_token_limit")
                         effective_output = min(output_cap, remaining_output)
                         effective_input = min(input_cap, remaining_input, _CONTEXT - effective_output)
+                        call_deadline = deadline
+                        if turn_budget is not None:
+                            turn_permit = turn_budget.reserve("npmi_prune", effective_input, effective_output, seconds)
+                            effective_input, effective_output = turn_permit.input_cap, turn_permit.output_cap
+                            call_deadline = turn_permit.deadline
+                            turn_budget.check_call(turn_permit)
                         # Count estimates bound execution, not liability. Hold
                         # the native context ceiling so a larger actual input
                         # receipt can be settled before local-limit rejection.
                         permit = self.budget.reserve(f"{trace_id}:{round_no}",
                                                      NATIVE_INPUT_RESERVATION, effective_output)
                         call_id = uuid.uuid4().hex
-                        progress = _PruneProgress(started, deadline=deadline)
+                        progress = _PruneProgress(started, deadline=call_deadline)
                         progress.phase = "slot_acquired"
                         progress.slot_wait_seconds = time.monotonic() - started
 
@@ -391,20 +406,25 @@ class PruneToolLoop:
                                             call_id=call_id, stage="npmi_prune", model=_MODEL,
                                             input_cap=effective_input, output_cap=effective_output,
                                             provider="anthropic", protocol="messages", base_url=CLAUDE_BASE_URL)
-                        counted = await self._native_post(self._post_view, _COUNT_PATH, common,
-                                                          trace_id, call_id, progress, audit)
+                        async with asyncio.timeout(max(0.0, call_deadline - time.monotonic())):
+                            counted = await self._native_post(self._post_view, _COUNT_PATH, common,
+                                                              trace_id, call_id, progress, audit)
                         tokens = counted.get("input_tokens")
                         if type(tokens) is not int or tokens < 0:
                             raise GovernedError("invalid_input_token_count")
                         if tokens > effective_input:
-                            raise GovernedError("input_token_limit")
+                            raise GovernedError("prune_turn_token_limit" if turn_permit is not None
+                                                and effective_input < input_cap else "input_token_limit")
                         self._check_adapter()
-                        if time.monotonic() >= deadline:
-                            raise GovernedError("stage_timeout")
+                        if turn_budget is not None:
+                            turn_budget.check_call(turn_permit)
+                        if time.monotonic() >= call_deadline:
+                            raise GovernedError("prune_turn_time_limit" if turn_budget is not None else "stage_timeout")
                         payload = _copy({**common, "max_tokens": effective_output, "stream": False,
                                          "service_tier": "standard_only", "inference_geo": "global"})
-                        data = await self._native_post(self._post_view, _GENERATE_PATH, payload,
-                                                       trace_id, call_id, progress, audit)
+                        async with asyncio.timeout(max(0.0, call_deadline - time.monotonic())):
+                            data = await self._native_post(self._post_view, _GENERATE_PATH, payload,
+                                                           trace_id, call_id, progress, audit)
                         self._check_adapter()
                         # Native audit settles the actual receipt before semantic
                         # rejection. A sink failure above follows the same fail()
@@ -417,10 +437,15 @@ class PruneToolLoop:
                                                  elapsed_seconds=time.monotonic() - started)
                         self.budget.complete(permit)
                         completed = True
+                        inp, out = progress.known_usage["input_tokens"], progress.known_usage["output_tokens"]
+                        if turn_budget is not None:
+                            turn_budget.settle(turn_permit, inp, out, native_usage=progress.native_usage)
+                            turn_budget.check()
+                            if time.monotonic() >= call_deadline:
+                                raise GovernedError("prune_turn_time_limit")
                         if self.budget.snapshot()["halted"] is not None:
                             raise GovernedError("prune_budget_halted")
                         data = _copy(data)
-                        inp, out = progress.known_usage["input_tokens"], progress.known_usage["output_tokens"]
                         total_input += inp
                         total_output += out
                         if inp > effective_input or out > effective_output:
@@ -429,7 +454,7 @@ class PruneToolLoop:
                             raise GovernedError("unexpected_provider_item")
                         blocks, tools, text = self._content(data)
                         if time.monotonic() >= deadline:
-                            raise GovernedError("stage_timeout")
+                            raise GovernedError("prune_turn_time_limit" if turn_budget is not None else "stage_timeout")
                         if not tools:
                             if answer is None:
                                 raise GovernedError("prune_answer_required")
@@ -467,7 +492,7 @@ class PruneToolLoop:
                                 raise GovernedError("prune_answer_unverified")
                             answer = _copy(result)
                         if time.monotonic() >= deadline:
-                            raise GovernedError("stage_timeout")
+                            raise GovernedError("prune_turn_time_limit" if turn_budget is not None else "stage_timeout")
                         # Preserve ALL native assistant blocks, including signed
                         # thinking and redacted thinking, without rewriting them.
                         history.append({"role": "assistant", "content": _copy(blocks)})
@@ -479,7 +504,18 @@ class PruneToolLoop:
                     raise GovernedError("prune_max_rounds")
         except BaseException as error:
             if isinstance(error, TimeoutError):
-                error = GovernedError("stage_timeout")
+                error = GovernedError("prune_turn_time_limit" if turn_budget is not None else "stage_timeout")
+            if turn_budget is not None and getattr(error, "code", None) == "stage_timeout":
+                error = GovernedError("prune_turn_time_limit")
+            if turn_permit is not None:
+                try:
+                    turn_budget.fail(turn_permit, known_usage=progress.known_usage if progress is not None else None,
+                                     native_usage=progress.native_usage if progress is not None else None,
+                                     generation_intent=bool(progress is not None and progress.generation_request_started),
+                                     code=getattr(error, "code", "prune_turn_cancelled" if isinstance(error, asyncio.CancelledError)
+                                                  else "prune_turn_local_failure"))
+                except BaseException:
+                    pass
             if progress is not None:
                 progress.annotate_error(error)
                 if not completed and not terminal_attempted:

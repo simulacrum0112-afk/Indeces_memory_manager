@@ -23,6 +23,7 @@ from .claude_prune_loop import (
     PruneToolLoop, _NativePostView, _PruneProgress, _copy,
 )
 from .contracts import GovernedError
+from .prune_turn_budget import PruneTurnBudget
 
 
 _MODEL = "claude-opus-5-5"
@@ -49,7 +50,7 @@ class _PlanDriver:
         if type(live) is not bool:
             raise GovernedError("prune_invalid_activation")
         if live:
-            if (budget.existing_grant_bound is not True
+            if ((budget.existing_grant_bound is not True and budget.campaign_grant_bound is not True)
                     or budget.path.resolve() != budget.bound_path):
                 raise GovernedError("prune_live_existing_grant_required")
             opening = budget.snapshot()
@@ -88,7 +89,7 @@ class _PlanDriver:
 
 
 async def select_native_plan(adapter, budget, instructions, user, schema, trace_id,
-                             *, input_cap, output_cap, seconds, live=True):
+                             *, input_cap, output_cap, seconds, live=True, turn_budget=None):
     """Return one strictly validated JSON plan after known-usage settlement.
 
     ``live=False`` only admits an explicit injected transport for offline tests;
@@ -97,6 +98,8 @@ async def select_native_plan(adapter, budget, instructions, user, schema, trace_
     Ownership and closure of the adapter/client/ledger remain with the caller.
     """
     started = time.monotonic()
+    if turn_budget is not None and type(turn_budget) is not PruneTurnBudget:
+        raise GovernedError("prune_turn_invalid_budget")
     if (not isinstance(instructions, str) or not isinstance(user, str) or not user.strip()
             or not isinstance(trace_id, str) or not trace_id.strip() or len(trace_id) > 240
             or type(schema) is not dict
@@ -110,20 +113,27 @@ async def select_native_plan(adapter, budget, instructions, user, schema, trace_
     except (ValueError, UnicodeError, RecursionError):
         raise GovernedError("prune_invalid_input") from None
     driver = _PlanDriver(adapter, budget, live)
+    declared_input_cap = input_cap
     # Native schema lowering and text-only messages are reused unchanged. This
     # immutable request snapshot is made before any user-provided audit runs.
     common = driver._native_messages(adapter, instructions,
                                      [{"role": "user", "content": user}], schema)
     common = _copy({**common, "thinking": {"type": "adaptive"}})
-    deadline = started + seconds
+    deadline = min(started + seconds, turn_budget.deadline) if turn_budget is not None else started + seconds
     permit = progress = call_id = None
+    turn_permit = None
     completed = terminal_attempted = False
     try:
         async with asyncio.timeout(max(0.0, deadline - time.monotonic())):
             async with driver._lock:
                 driver.check()
+                if turn_budget is not None:
+                    turn_permit = turn_budget.reserve(_STAGE, input_cap, output_cap, seconds)
+                    input_cap, output_cap = turn_permit.input_cap, turn_permit.output_cap
+                    deadline = min(deadline, turn_permit.deadline)
+                    turn_budget.check_call(turn_permit)
                 if time.monotonic() >= deadline:
-                    raise GovernedError("stage_timeout")
+                    raise GovernedError("prune_turn_time_limit" if turn_budget is not None else "stage_timeout")
                 permit = budget.reserve(f"{trace_id}:plan", NATIVE_INPUT_RESERVATION, output_cap)
                 call_id = uuid.uuid4().hex
                 progress = _PruneProgress(started, deadline=deadline)
@@ -147,10 +157,13 @@ async def select_native_plan(adapter, budget, instructions, user, schema, trace_
                 if type(tokens) is not int or tokens < 0:
                     raise GovernedError("invalid_input_token_count")
                 if tokens > input_cap:
-                    raise GovernedError("input_token_limit")
+                    raise GovernedError("prune_turn_token_limit" if turn_permit is not None
+                                        and input_cap < declared_input_cap else "input_token_limit")
                 driver.check()
+                if turn_budget is not None:
+                    turn_budget.check_call(turn_permit)
                 if time.monotonic() >= deadline:
-                    raise GovernedError("stage_timeout")
+                    raise GovernedError("prune_turn_time_limit" if turn_budget is not None else "stage_timeout")
                 payload = _copy({**common, "max_tokens": output_cap, "stream": False,
                                  "service_tier": "standard_only", "inference_geo": "global"})
                 data = await driver._native_post(
@@ -169,10 +182,13 @@ async def select_native_plan(adapter, budget, instructions, user, schema, trace_
                 )
                 budget.complete(permit)
                 completed = True
+                inp, out = progress.known_usage["input_tokens"], progress.known_usage["output_tokens"]
+                if turn_budget is not None:
+                    turn_budget.settle(turn_permit, inp, out, native_usage=progress.native_usage)
+                    turn_budget.check()
                 if budget.snapshot()["halted"] is not None:
                     raise GovernedError("prune_budget_halted")
                 data = _copy(data)
-                inp, out = progress.known_usage["input_tokens"], progress.known_usage["output_tokens"]
                 if inp > input_cap or out > output_cap:
                     raise GovernedError("provider_token_limit_breach")
                 if any((progress.native_usage.get("server_tool_use") or {}).values()):
@@ -193,10 +209,21 @@ async def select_native_plan(adapter, budget, instructions, user, schema, trace_
                 except (ValueError, UnicodeError, RecursionError):
                     raise GovernedError("invalid_structured_output") from None
                 if time.monotonic() >= deadline:
-                    raise GovernedError("stage_timeout")
+                    raise GovernedError("prune_turn_time_limit" if turn_budget is not None else "stage_timeout")
                 return NativePlanResult(text, inp, out, data["id"])
     except BaseException as original:
-        error = GovernedError("stage_timeout") if isinstance(original, TimeoutError) else original
+        error = GovernedError("prune_turn_time_limit" if turn_budget is not None else "stage_timeout") if isinstance(original, TimeoutError) else original
+        if turn_budget is not None and getattr(error, "code", None) == "stage_timeout":
+            error = GovernedError("prune_turn_time_limit")
+        if turn_permit is not None:
+            try:
+                turn_budget.fail(turn_permit, known_usage=progress.known_usage if progress is not None else None,
+                                 native_usage=progress.native_usage if progress is not None else None,
+                                 generation_intent=bool(progress is not None and progress.generation_request_started),
+                                 code=getattr(error, "code", "prune_turn_cancelled" if isinstance(error, asyncio.CancelledError)
+                                              else "prune_turn_local_failure"))
+            except BaseException:
+                pass
         if progress is not None:
             try:
                 progress.annotate_error(error)

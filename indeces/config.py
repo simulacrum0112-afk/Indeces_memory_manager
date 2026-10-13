@@ -250,7 +250,7 @@ def controlled_session_enabled(config):
 
 
 def guard_trial_maintenance(config):
-    if controlled_session_enabled(config) or getattr(config.runtime, "prune_profile_config", ""):
+    if controlled_session_enabled(config) or getattr(getattr(config, "runtime", None), "prune_profile_config", ""):
         from .contracts import GovernedError
         raise GovernedError("session_maintenance_forbidden")
 

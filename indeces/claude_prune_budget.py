@@ -1,7 +1,8 @@
-"""Finite native-prune accounting. New ledgers are explicit offline fixtures.
+"""Finite native-prune accounting with separately authenticated grant types.
 
 Live binding extends a caller-verified existing grant in place; it never creates
-a live balance. Binding provenance remains private caller input. This module
+a live balance. A separately authorized calibration binding alone can create
+its own USD 50 ledger. Binding provenance remains private caller input. This module
 performs no model calls, key access or semantic parsing.
 """
 from __future__ import annotations
@@ -10,6 +11,7 @@ from datetime import datetime, timezone
 from dataclasses import dataclass
 import hashlib
 import json
+import os
 from pathlib import Path
 import sqlite3
 import sys
@@ -23,6 +25,7 @@ from .path_policy import validate_managed_path
 MODEL = "claude-opus-5-5"
 BASE_URL = "https://api.anthropic.com/v1"
 CEILING = 5_000_000_000
+CAMPAIGN_CEILING = 50_000_000_000
 # Native token counting is an estimate and can differ from billed input.
 # Reserve the documented Opus 5.5 input/context ceiling financially, while the
 # loop separately enforces the smaller configured execution/token limits.
@@ -136,6 +139,92 @@ class ExistingGrantBinding:
         object.__setattr__(self, "receipt_path", self.receipt_path.resolve())
 
 
+@dataclass(frozen=True, repr=False)
+class CampaignGrantBinding:
+    """Owner-authenticated new calibration grant, separate from the old grant.
+
+    The private receipt is a pinned authorization record, not a model receipt.
+    Its identity and bytes are checked throughout the lifetime of the ledger.
+    Only this binding enables the separately authorized USD 50 ceiling.
+    """
+    ledger_path: Path
+    grant_id: str
+    receipt_path: Path
+    receipt_sha256: str
+    receipt_identity: tuple
+    authorization_id: str
+    ceiling_nusd: int = CAMPAIGN_CEILING
+
+    def __post_init__(self):
+        _identity(self.grant_id)
+        _identity(self.authorization_id)
+        if (not self.grant_id.startswith("calibration_campaign:")
+                or not isinstance(self.ledger_path, Path) or not self.ledger_path.is_absolute()
+                or not isinstance(self.receipt_path, Path) or not self.receipt_path.is_absolute()
+                or type(self.receipt_identity) is not tuple or len(self.receipt_identity) != 2
+                or any(type(v) is not int or v < 0 for v in self.receipt_identity)
+                or type(self.ceiling_nusd) is not int or self.ceiling_nusd != CAMPAIGN_CEILING
+                or type(self.receipt_sha256) is not str or len(self.receipt_sha256) != 64
+                or any(c not in "0123456789abcdef" for c in self.receipt_sha256)):
+            raise ValueError("an exact separate calibration grant binding is required")
+        object.__setattr__(self, "ledger_path", validate_managed_path(self.ledger_path, "campaign ledger"))
+        object.__setattr__(self, "receipt_path", validate_managed_path(self.receipt_path, "campaign receipt"))
+        if self.ledger_path == self.receipt_path:
+            raise ValueError("campaign ledger and receipt must be separate files")
+
+
+def _verify_campaign_receipt(binding):
+    path = validate_managed_path(binding.receipt_path, "campaign receipt")
+    before = path.stat()
+    raw = path.read_bytes()
+    after = path.stat()
+    identity = lambda info: (info.st_dev, info.st_ino)
+    if (identity(before) != binding.receipt_identity or identity(after) != binding.receipt_identity
+            or (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns)
+            or hashlib.sha256(raw).hexdigest() != binding.receipt_sha256):
+        raise ValueError("campaign authorization receipt changed")
+    expected = {"schema": "native_prune_campaign_grant_v1", "authorized": True,
+                "authorization_id": binding.authorization_id, "grant_id": binding.grant_id,
+                "ledger_path": str(binding.ledger_path), "ceiling_nusd": CAMPAIGN_CEILING,
+                "model": MODEL, "base_url": BASE_URL, "purpose": "calibration"}
+    if _json(json.loads(raw)) != _json(expected):
+        raise ValueError("campaign authorization receipt rejected")
+
+
+def _campaign_policy(binding, price):
+    policy = json.loads(_price_policy(binding.grant_id, 0, CAMPAIGN_CEILING, True, price))
+    policy.update(schema="native_prune_campaign_budget_v1", purpose="calibration",
+                  authorization_id=binding.authorization_id,
+                  authorization_receipt_sha256=binding.receipt_sha256,
+                  authorization_receipt_identity=list(binding.receipt_identity))
+    return _json(policy)
+
+
+def _campaign_marker_path(binding):
+    return validate_managed_path(binding.ledger_path.with_name(binding.ledger_path.name + ".campaign-binding.json"),
+                                 "campaign ledger identity")
+
+
+def _campaign_marker_value(binding, ledger_identity):
+    return {"schema": "native_prune_campaign_file_v1", "grant_id": binding.grant_id,
+            "ledger_identity": list(ledger_identity), "authorization_receipt_sha256": binding.receipt_sha256}
+
+
+def _verify_campaign_marker(binding, ledger_identity):
+    path = _campaign_marker_path(binding)
+    try:
+        before = path.stat()
+        raw = path.read_bytes()
+        after = path.stat()
+    except FileNotFoundError:
+        raise _error("campaign_identity_missing") from None
+    fingerprint = lambda info: (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
+    if (fingerprint(before) != fingerprint(after)
+            or _json(json.loads(raw)) != _json(_campaign_marker_value(binding, ledger_identity))):
+        raise _error("campaign_identity_changed")
+    return (after.st_dev, after.st_ino), hashlib.sha256(raw).hexdigest()
+
+
 def _caps(inp, out):
     if any(type(v) is not int or v <= 0 for v in (inp, out)) or inp + out > 1_048_576:
         raise _error("invalid_caps")
@@ -204,6 +293,24 @@ class PruneBudget:
         if offline_only is not True or not _identity(grant_id).startswith("offline_fixture:"):
             raise ValueError("new ledgers require the explicit offline_fixture namespace")
         self._initialize(path, grant_id, spent_nusd, ceiling_nusd, original=False, price=price)
+
+    @classmethod
+    def bind_campaign(cls, binding, *, price, offline_accepted=False):
+        """Create once or reopen the exact separate, authenticated campaign.
+
+        This never adopts an existing original/offline ledger. An existing file
+        must already have the exact campaign schema and pinned policy/history.
+        No state is reset on reopen; unfinished reservations remain halted.
+        """
+        if cls is not PruneBudget or offline_accepted is not True or type(binding) is not CampaignGrantBinding:
+            raise ValueError("explicit separate campaign gate required")
+        if type(price) is not PrunePriceEnvelope or datetime.now(timezone.utc) >= datetime.fromisoformat(price.valid_until):
+            raise ValueError("a current trusted price envelope is required")
+        _verify_campaign_receipt(binding)
+        result = cls.__new__(cls)
+        result._initialize(binding.ledger_path, binding.grant_id, 0, CAMPAIGN_CEILING,
+                           original=False, price=price, campaign=binding)
+        return result
 
     @classmethod
     def bind_existing_grant(cls, binding, *, price, offline_accepted=False):
@@ -314,16 +421,133 @@ class PruneBudget:
             finally:
                 db.close()
 
-    def _initialize(self, path, grant_id, opening, ceiling, *, original, price, binding=None):
-        if type(opening) is not int or type(ceiling) is not int or not 0 <= opening <= ceiling <= CEILING or ceiling <= 0:
+    @classmethod
+    def review_resume_known_failure(cls, binding, price, *, expected_halt,
+                                    expected_spent_nusd, expected_round_id,
+                                    review_receipt_sha256, operator_approved=False):
+        """Apply an explicit operator review of one settled incomplete response.
+
+        This is an administrative operation, never an admission or startup
+        recovery. The caller supplies a separately approved review receipt's
+        identity and exact observed state. Only the halt changes: all charges,
+        reservations, original grant data and round history remain intact.
+        Unknown usage, outstanding work and every other halt remain closed.
+        The caller must durably retain the returned committed-state receipt.
+        """
+        if operator_approved is not True or type(binding) is not ExistingGrantBinding:
+            raise ValueError("explicit operator-approved existing-grant review required")
+        if (expected_halt != "incomplete_response" or type(expected_halt) is not str
+                or type(expected_spent_nusd) is not int
+                or not binding.opening_spent_nusd <= expected_spent_nusd <= binding.ceiling_nusd
+                or type(review_receipt_sha256) is not str or len(review_receipt_sha256) != 64
+                or any(c not in "0123456789abcdef" for c in review_receipt_sha256)):
+            raise ValueError("exact known-failure state and review receipt identity required")
+        _identity(expected_round_id)
+        if type(price) is not PrunePriceEnvelope:
+            raise ValueError("a current trusted price envelope is required")
+        PrunePriceEnvelope(price.input_nusd_per_token, price.output_nusd_per_token,
+                           price.valid_until, price.model, price.base_url)
+        if datetime.now(timezone.utc) >= datetime.fromisoformat(price.valid_until):
+            raise _error("price_expired")
+        _verify_existing_receipt(binding)
+        path = validate_managed_path(binding.ledger_path, "prune budget ledger")
+        if not path.is_file() or path.resolve() != binding.ledger_path:
+            raise ValueError("the existing original ledger is required")
+        metadata = path.stat()
+        if (metadata.st_dev, metadata.st_ino) != binding.ledger_identity:
+            raise ValueError("original ledger file identity changed")
+        checker = cls.__new__(cls)
+        checker._original, checker._binding, checker._price = True, binding, price
+        checker._opening, checker._ceiling = binding.opening_spent_nusd, binding.ceiling_nusd
+        checker._policy = _price_policy(binding.grant_id, binding.opening_spent_nusd,
+                                       binding.ceiling_nusd, True, price)
+        with _writer_lease(path):
+            db = sqlite3.connect(path.as_uri() + "?mode=rw", timeout=0.0,
+                                 isolation_level=None, check_same_thread=False, uri=True)
+            checker._db = db
+            try:
+                db.execute("PRAGMA synchronous=FULL")
+                db.execute("BEGIN IMMEDIATE")
+                metadata = validate_managed_path(path, "prune budget ledger").stat()
+                if (metadata.st_dev, metadata.st_ino) != binding.ledger_identity:
+                    raise _error("state_changed")
+                schema = [("table", "attempt", _ATTEMPT_SQL), ("table", "prune_meta", _META_SQL),
+                          ("table", "prune_rounds", _ROUNDS_SQL), ("table", "session", _SESSION_SQL)]
+                if checker._objects() != schema:
+                    raise _error("schema_changed")
+                checker._legacy = checker._check_legacy()
+                checker._validate()
+                before = {name: db.execute("SELECT * FROM " + name + " ORDER BY rowid").fetchall()
+                          for name in ("session", "attempt", "prune_meta", "prune_rounds")}
+                rows = before["prune_rounds"]
+                pending = sum(row[4] for row in rows if row[10] is None)
+                if (before["prune_meta"][0][2] != expected_halt
+                        or before["session"][0][2] != expected_spent_nusd
+                        or pending or not rows
+                        or any(row[5] not in {"completed", "failed_known"} for row in rows)
+                        or rows[-1][1] != expected_round_id or rows[-1][5] != "failed_known"
+                        or rows[-1][10] is None or type(rows[-1][11]) is not int):
+                    raise _error("review_state_mismatch")
+                # The receipt and current tariff must still be valid at commit.
+                _verify_existing_receipt(binding)
+                if datetime.now(timezone.utc) >= datetime.fromisoformat(price.valid_until):
+                    raise _error("price_expired")
+                before_digest = checker._state_digest()
+                result = db.execute("UPDATE prune_meta SET halted=NULL WHERE id=1 AND halted=?",
+                                    (expected_halt,))
+                if result.rowcount != 1:
+                    raise _error("state_changed")
+                checker._validate()
+                after = {name: db.execute("SELECT * FROM " + name + " ORDER BY rowid").fetchall()
+                         for name in before}
+                expected = dict(before)
+                old_meta = before["prune_meta"][0]
+                expected["prune_meta"] = [(old_meta[0], old_meta[1], None, old_meta[3])]
+                if after != expected:
+                    raise _error("state_changed")
+                receipt = {"schema": "native_prune_known_failure_review_v1",
+                           "review_receipt_sha256": review_receipt_sha256,
+                           "reviewed_halt": expected_halt, "reviewed_round_id": expected_round_id,
+                           "spent_nusd": expected_spent_nusd, "pending_nusd": pending,
+                           "ceiling_nusd": binding.ceiling_nusd, "round_count": len(rows),
+                           "policy_sha256": hashlib.sha256(checker._policy.encode()).hexdigest(),
+                           "before_state_sha256": before_digest,
+                           "after_state_sha256": checker._state_digest(), "halted": None}
+                _json(receipt).encode("utf-8")
+                db.execute("COMMIT")
+                return receipt
+            except BaseException:
+                if db.in_transaction:
+                    try:
+                        db.execute("ROLLBACK")
+                    except BaseException:
+                        pass
+                raise
+            finally:
+                db.close()
+
+    def _initialize(self, path, grant_id, opening, ceiling, *, original, price, binding=None, campaign=None):
+        limit = CEILING
+        if campaign is not None:
+            if (type(campaign) is not CampaignGrantBinding or original or binding is not None
+                    or opening != 0 or ceiling != CAMPAIGN_CEILING or grant_id != campaign.grant_id):
+                raise ValueError("invalid separate campaign initialization")
+            _verify_campaign_receipt(campaign)
+            limit = CAMPAIGN_CEILING
+        if type(opening) is not int or type(ceiling) is not int or not 0 <= opening <= ceiling <= limit or ceiling <= 0:
             raise ValueError("invalid original cumulative balance")
         self._path = validate_managed_path(path, "prune budget ledger")
         if type(price) is not PrunePriceEnvelope:
             raise ValueError("an explicit trusted price envelope is required")
         self._price, self._binding = price, binding
+        self._campaign = campaign
         self._grant, self._opening, self._ceiling, self._original = grant_id, opening, ceiling, original
         self._lock, self._closed, self._failed, self._db = threading.RLock(), False, None, None
         self._policy = _price_policy(grant_id, opening, ceiling, original, price)
+        if campaign is not None:
+            if self._path != campaign.ledger_path:
+                raise ValueError("campaign ledger path changed")
+            self._policy = _campaign_policy(campaign, price)
         if not original:
             self._path.parent.mkdir(parents=True, exist_ok=True)
         elif not self._path.is_file() or self._path != binding.ledger_path.resolve():
@@ -335,13 +559,47 @@ class PruneBudget:
         self._lease = _writer_lease(self._path)
         self._lease.__enter__()
         try:
-            target = self._path.as_uri() + "?mode=rw" if original else str(self._path)
-            self._db = sqlite3.connect(target, timeout=0.0, isolation_level=None, check_same_thread=False, uri=original)
+            campaign_created = False
+            if campaign is not None:
+                if not self._path.exists() and _campaign_marker_path(campaign).exists():
+                    raise _error("campaign_ledger_missing")
+                try:
+                    descriptor = os.open(self._path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                except FileExistsError:
+                    pass
+                else:
+                    campaign_created = True
+                    os.close(descriptor)
+                _verify_campaign_receipt(campaign)
+                if not campaign_created:
+                    # Reject foreign files before a writable SQLite connection
+                    # or journal pragma can touch an original/offline ledger.
+                    probe = sqlite3.connect(self._path.as_uri() + "?mode=ro", uri=True,
+                                            timeout=0.0, isolation_level=None)
+                    try:
+                        schema = probe.execute("SELECT type,name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY name").fetchall()
+                        expected_schema = [("table", "prune_meta", _META_SQL),
+                                           ("table", "prune_rounds", _ROUNDS_SQL),
+                                           ("table", "session", _SESSION_SQL)]
+                        if schema != expected_schema:
+                            raise _error("campaign_ledger_not_initialized")
+                        if (probe.execute("SELECT id,policy,legacy_digest FROM prune_meta").fetchall() != [(1, self._policy, None)]
+                                or probe.execute("SELECT id,policy FROM session").fetchall() != [(1, self._policy)]):
+                            raise _error("campaign_policy_changed")
+                        info = self._path.stat()
+                        _verify_campaign_marker(campaign, (info.st_dev, info.st_ino))
+                    finally:
+                        probe.close()
+            existing_only = original or campaign is not None
+            target = self._path.as_uri() + "?mode=rw" if existing_only else str(self._path)
+            self._db = sqlite3.connect(target, timeout=0.0, isolation_level=None, check_same_thread=False, uri=existing_only)
             self._db.execute("PRAGMA synchronous=FULL")
             self._db.execute("PRAGMA journal_mode=DELETE")
             self._db.execute("BEGIN IMMEDIATE")
             objects = self._objects()
             names = {row[1] for row in objects}
+            if campaign is not None and not campaign_created and names != {"session", "prune_meta", "prune_rounds"}:
+                raise _error("campaign_ledger_not_initialized")
             base = {"session", "attempt"} if original else set()
             existing = {"session", "prune_meta", "prune_rounds"} | ({"attempt"} if original else set())
             if names and names not in (base, existing):
@@ -360,6 +618,8 @@ class PruneBudget:
             if self._db.execute("SELECT 1 FROM prune_rounds WHERE status IN ('reserved','unknown','known') LIMIT 1").fetchone():
                 self._db.execute("UPDATE prune_meta SET halted=COALESCE(halted,'recovery_pending') WHERE id=1")
             self._validate()
+            if campaign is not None:
+                _verify_campaign_receipt(campaign)
             self._digest = self._state_digest()
             metadata = self._path.stat()
             self._file_identity = (metadata.st_dev, metadata.st_ino)
@@ -367,6 +627,15 @@ class PruneBudget:
                 raise _error("state_changed")
             self._pins = self._invariants()
             self._db.execute("COMMIT")
+            if campaign is not None:
+                if campaign_created:
+                    raw = _json(_campaign_marker_value(campaign, self._file_identity)).encode("utf-8")
+                    with _campaign_marker_path(campaign).open("xb") as stream:
+                        stream.write(raw)
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                self._campaign_file_pin = _verify_campaign_marker(campaign, self._file_identity)
+                self._pins = self._invariants()
         except BaseException:
             if self._db is not None:
                 self._db.close()
@@ -375,7 +644,9 @@ class PruneBudget:
             raise
 
     existing_grant_bound = property(lambda self: self._original)
-    bound_path = property(lambda self: self._binding.ledger_path.resolve() if self._binding is not None else None)
+    campaign_grant_bound = property(lambda self: getattr(self, "_campaign", None) is not None)
+    bound_path = property(lambda self: self._campaign.ledger_path if getattr(self, "_campaign", None) is not None
+                          else self._binding.ledger_path.resolve() if self._binding is not None else None)
     path = property(lambda self: self._path)
 
     def _invariants(self):
@@ -385,8 +656,13 @@ class PruneBudget:
             binding.ledger_path, binding.ledger_identity, binding.grant_id, binding.policy_json,
             binding.completed_attempt, binding.opening_spent_nusd, binding.ceiling_nusd,
             binding.receipt_path, binding.receipt_sha256)
+        campaign = getattr(self, "_campaign", None)
+        campaign_pin = None if campaign is None else (
+            campaign.ledger_path, campaign.grant_id, campaign.receipt_path, campaign.receipt_sha256,
+            campaign.receipt_identity, campaign.authorization_id, campaign.ceiling_nusd,
+            getattr(self, "_campaign_file_pin", None))
         return (MODEL, BASE_URL, CEILING, price.input_nusd_per_token, price.output_nusd_per_token,
-                price.valid_until, price.model, price.base_url, original)
+                price.valid_until, price.model, price.base_url, original, campaign_pin)
 
     def _objects(self):
         return self._db.execute("SELECT type,name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY name").fetchall()
@@ -446,12 +722,17 @@ class PruneBudget:
                 raise _error(self._failed or "closed")
             drift = False
             try:
+                campaign = getattr(self, "_campaign", None)
                 metadata = validate_managed_path(self._path, "prune budget ledger").stat()
                 if ((metadata.st_dev, metadata.st_ino) != self._file_identity
                         or self._invariants() != self._pins):
                     drift = True
                     raise _error("state_changed")
                 self._db.execute("BEGIN IMMEDIATE")
+                if campaign is not None:
+                    _verify_campaign_receipt(campaign)
+                    if _verify_campaign_marker(campaign, self._file_identity) != self._campaign_file_pin:
+                        raise _error("campaign_identity_changed")
                 if self._state_digest() != self._digest:
                     drift = True
                     raise _error("state_changed")
@@ -463,6 +744,10 @@ class PruneBudget:
                     raise _error("halted")
                 result = action()
                 self._validate()
+                if campaign is not None:
+                    _verify_campaign_receipt(campaign)
+                    if _verify_campaign_marker(campaign, self._file_identity) != self._campaign_file_pin:
+                        raise _error("campaign_identity_changed")
                 digest = self._state_digest()
                 self._db.execute("COMMIT")
                 self._digest = digest
@@ -562,14 +847,22 @@ class PruneBudget:
             row = self._round(permit)
             status = "failed_known" if row[10] is not None else "unknown"
             self._db.execute("UPDATE prune_rounds SET status=? WHERE permit=?", (status, permit))
-            self._db.execute("UPDATE prune_meta SET halted=COALESCE(halted,?) WHERE id=1",
-                             (str(getattr(error, "code", "round_failure"))[:256],))
+            code = str(getattr(error, "code", "round_failure"))[:256]
+            if not self._settled_campaign_fuse(code):
+                self._db.execute("UPDATE prune_meta SET halted=COALESCE(halted,?) WHERE id=1", (code,))
         return self._run(action, expiry=False)
 
     def halt(self, code):
         def action():
-            self._db.execute("UPDATE prune_meta SET halted=COALESCE(halted,?) WHERE id=1", (_identity(code),))
+            _identity(code)
+            if not self._settled_campaign_fuse(code):
+                self._db.execute("UPDATE prune_meta SET halted=COALESCE(halted,?) WHERE id=1", (code,))
         return self._run(action, expiry=False)
+
+    def _settled_campaign_fuse(self, code):
+        return (getattr(self, "_campaign", None) is not None
+                and code in {"prune_turn_token_limit", "prune_turn_time_limit", "prune_turn_call_limit"}
+                and not self._db.execute("SELECT 1 FROM prune_rounds WHERE usage IS NULL OR status IN ('reserved','unknown','known') LIMIT 1").fetchone())
 
     def snapshot(self):
         def action():
@@ -577,6 +870,7 @@ class PruneBudget:
             pending = self._db.execute("SELECT COALESCE(SUM(maximum),0) FROM prune_rounds WHERE usage IS NULL").fetchone()[0]
             rows = self._db.execute("SELECT round_id,maximum,status,charge,usage FROM prune_rounds ORDER BY rowid").fetchall()
             return {"grant_id": self._grant, "existing_grant_bound": self._original, "ceiling_nusd": self._ceiling,
+                    "campaign_grant_bound": self.campaign_grant_bound,
                     "spent_nusd": spent, "pending_nusd": pending, "remaining_nusd": self._ceiling - spent - pending,
                     "halted": self._db.execute("SELECT halted FROM prune_meta WHERE id=1").fetchone()[0],
                     "rounds": [{"round_id": r[0], "maximum_nusd": r[1], "status": r[2], "charge_nusd": r[3],
